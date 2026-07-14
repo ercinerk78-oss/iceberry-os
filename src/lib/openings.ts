@@ -1,0 +1,5 @@
+export const OPENING_STATUSES={PLANNING:"Planlama",LOCATION_APPROVAL:"Lokasyon Onayı",CONTRACT_PROCESS:"Sözleşme Süreci",ARCHITECTURAL_PROJECT:"Mimari Proje",PRODUCTION:"Üretim",SHIPMENT:"Sevkiyat",INSTALLATION:"Kurulum",TRAINING:"Eğitim",SOFT_OPENING:"Soft Opening",GRAND_OPENING:"Grand Opening",COMPLETED:"Tamamlandı",ON_HOLD:"Beklemede",CANCELLED:"İptal"}as const;
+export const STAGE_STATUSES={NOT_STARTED:"Başlamadı",IN_PROGRESS:"Devam Ediyor",COMPLETED:"Tamamlandı",DELAYED:"Gecikti",BLOCKED:"Engellendi",CANCELLED:"İptal"}as const;
+export const TASK_PRIORITIES={LOW:"Düşük",NORMAL:"Normal",HIGH:"Yüksek",URGENT:"Acil"}as const;export const TASK_STATUSES={OPEN:"Açık",IN_PROGRESS:"Devam Ediyor",COMPLETED:"Tamamlandı",CANCELLED:"İptal"}as const;
+export const DEFAULT_STAGES=["Sözleşme ve Evraklar","Lokasyon Onayı","Mimari Proje","AVM / Belediye Onayları","Üretim","Sevkiyat","Kurulum","Personel Seçimi","Eğitim","Ürün ve Açılış Stoğu","Soft Opening","Grand Opening"];
+export const openingLabel=(map:Record<string,string>,v:string)=>map[v]??v;export const isClosed=(s:string)=>["COMPLETED","CANCELLED"].includes(s);

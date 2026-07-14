@@ -1,0 +1,481 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model FranchiseCandidate {
+  id                String                 @id @default(cuid())
+  fullName          String
+  phone             String
+  whatsapp          String?
+  email             String?
+  city              String
+  district          String?
+  country           String                 @default("Türkiye")
+  investmentBudget  String
+  currency          String                 @default("TRY")
+  interestedConcept String
+  source            String
+  status            String                 @default("Yeni Lead")
+  temperature       String                 @default("Ilık")
+  generalNotes      String?
+  nextFollowUpAt    DateTime?
+  lastContactAt     DateTime?
+  lostReason        String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  archivedAt        DateTime?
+  assignedUserId    String?
+  interactions      CandidateInteraction[]
+  tasks             CandidateTask[]
+  documents         Document[]
+  franchisee        Franchisee?
+
+  @@index([archivedAt, createdAt])
+  @@index([city])
+  @@index([status])
+}
+
+model Document {
+  id               String              @id @default(cuid())
+  fileName         String              @unique
+  originalFileName String
+  filePath         String
+  mimeType         String
+  fileSize         Int
+  documentType     String
+  version          String
+  description      String?
+  candidateId      String?
+  locationId       String?
+  branchId         String?
+  franchiseeId     String?
+  openingId        String?
+  uploadedBy       String?
+  uploadedAt       DateTime            @default(now())
+  customerShared   Boolean             @default(false)
+  customerSharedAt DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  candidate        FranchiseCandidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  franchisee       Franchisee?         @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  branch           Branch?             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  opening          BranchOpening?      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+
+  @@index([candidateId, documentType, uploadedAt])
+  @@index([locationId])
+  @@index([branchId])
+  @@index([franchiseeId])
+  @@index([openingId])
+  @@index([documentType, archivedAt])
+}
+
+model Franchisee {
+  id                        String              @id @default(cuid())
+  companyName               String
+  contactName               String
+  phone                     String
+  whatsapp                  String?
+  email                     String?
+  taxNumber                 String?
+  taxOffice                 String?
+  city                      String
+  district                  String?
+  address                   String?
+  candidateId               String?             @unique
+  status                    String              @default("SETUP")
+  contractDate              DateTime?
+  contractStartDate         DateTime?
+  contractEndDate           DateTime?
+  defaultRoyaltyRate        Float?
+  marketingContributionRate Float?
+  generalNotes              String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  archivedAt                DateTime?
+  candidate                 FranchiseCandidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  branches                  Branch[]
+  documents                 Document[]
+  orders                    FranchiseOrder[]
+
+  @@index([status, archivedAt])
+  @@index([city])
+}
+
+model Branch {
+  id                        String           @id @default(cuid())
+  franchiseeId              String
+  branchName                String
+  city                      String
+  district                  String?
+  address                   String?
+  concept                   String
+  locationType              String
+  openingDate               DateTime?
+  plannedOpeningDate        DateTime?
+  royaltyRate               Float?
+  marketingContributionRate Float?
+  operationsManager         String?
+  status                    String           @default("PLANNED")
+  generalNotes              String?
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  archivedAt                DateTime?
+  franchisee                Franchisee       @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  documents                 Document[]
+  openings                  BranchOpening[]
+  orders                    FranchiseOrder[]
+
+  @@index([franchiseeId, archivedAt])
+  @@index([city])
+  @@index([status, plannedOpeningDate])
+}
+
+model BranchOpening {
+  id                 String         @id @default(cuid())
+  branchId           String
+  title              String
+  status             String         @default("PLANNING")
+  plannedStartDate   DateTime?
+  plannedOpeningDate DateTime
+  actualOpeningDate  DateTime?
+  progressPercentage Int            @default(0)
+  projectManager     String?
+  generalNotes       String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  archivedAt         DateTime?
+  branch             Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  stages             OpeningStage[]
+  documents          Document[]
+
+  @@index([branchId, archivedAt])
+  @@index([status, plannedOpeningDate])
+}
+
+model OpeningStage {
+  id                 String        @id @default(cuid())
+  openingId          String
+  stageType          String
+  title              String
+  description        String?
+  status             String        @default("NOT_STARTED")
+  assignedTo         String?
+  plannedStartDate   DateTime?
+  dueDate            DateTime?
+  completedAt        DateTime?
+  progressPercentage Int           @default(0)
+  orderIndex         Int
+  delayReason        String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  opening            BranchOpening @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  tasks              OpeningTask[]
+
+  @@index([openingId, orderIndex])
+  @@index([status, dueDate])
+}
+
+model OpeningTask {
+  id             String       @id @default(cuid())
+  openingStageId String
+  title          String
+  description    String?
+  assignedTo     String?
+  priority       String       @default("NORMAL")
+  status         String       @default("OPEN")
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  stage          OpeningStage @relation(fields: [openingStageId], references: [id], onDelete: Restrict)
+
+  @@index([openingStageId, dueDate])
+  @@index([status, dueDate])
+}
+
+model CandidateTask {
+  id             String             @id @default(cuid())
+  candidateId    String
+  title          String
+  description    String?
+  dueDate        DateTime
+  priority       String             @default("Normal")
+  status         String             @default("Açık")
+  assignedUserId String?
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  candidate      FranchiseCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  @@index([candidateId, dueDate])
+  @@index([status, dueDate])
+  @@index([assignedUserId])
+}
+
+model CandidateInteraction {
+  id              String             @id @default(cuid())
+  candidateId     String
+  interactionType String
+  title           String
+  description     String
+  interactionDate DateTime
+  nextAction      String?
+  reminderAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  candidate       FranchiseCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  @@index([candidateId, interactionDate])
+}
+
+model Lead {
+  id                   String         @id @default(cuid())
+  fullName             String
+  phone                String
+  email                String?
+  city                 String
+  source               String
+  requestedConcept     String
+  status               String         @default("Yeni")
+  leadDate             DateTime       @default(now())
+  convertedCandidateId String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  activities           LeadActivity[]
+
+  @@index([status, leadDate])
+  @@index([source])
+  @@index([convertedCandidateId])
+}
+
+model LeadActivity {
+  id          String   @id @default(cuid())
+  leadId      String
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict)
+
+  @@index([leadId, createdAt])
+}
+
+model ProductCategory {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  orderIndex  Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id                String               @id @default(cuid())
+  name              String
+  sku               String               @unique
+  barcode           String?              @unique
+  categoryId        String
+  unit              String               @default("Adet")
+  vatRate           Float                @default(20)
+  purchasePrice     Float                @default(0)
+  salePrice         Float
+  currency          String               @default("TRY")
+  minimumStockLevel Float                @default(0)
+  isActive          Boolean              @default(true)
+  parasutProductId  String?
+  description       String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  archivedAt        DateTime?
+  category          ProductCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  stocks            WarehouseStock[]
+  movements         StockMovement[]
+  orderItems        FranchiseOrderItem[]
+
+  @@index([categoryId, isActive])
+  @@index([name])
+}
+
+model Warehouse {
+  id                String           @id @default(cuid())
+  name              String           @unique
+  city              String
+  district          String?
+  address           String?
+  responsiblePerson String?
+  phone             String?
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  stocks            WarehouseStock[]
+  movements         StockMovement[]
+  orders            FranchiseOrder[]
+  shipments         Shipment[]
+}
+
+model WarehouseStock {
+  id                String    @id @default(cuid())
+  warehouseId       String
+  productId         String
+  quantity          Float     @default(0)
+  reservedQuantity  Float     @default(0)
+  availableQuantity Float     @default(0)
+  updatedAt         DateTime  @updatedAt
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([warehouseId, productId])
+  @@index([productId])
+}
+
+model StockMovement {
+  id             String    @id @default(cuid())
+  warehouseId    String
+  productId      String
+  movementType   String
+  quantity       Float
+  beforeQuantity Float
+  afterQuantity  Float
+  referenceType  String?
+  referenceId    String?
+  description    String?
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  warehouse      Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([warehouseId, createdAt])
+  @@index([productId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model FranchiseOrder {
+  id                    String               @id @default(cuid())
+  orderNumber           String               @unique
+  franchiseeId          String
+  branchId              String?
+  warehouseId           String
+  status                String               @default("SUBMITTED")
+  invoiceStatus         String               @default("NOT_CREATED")
+  parasutInvoiceId      String?
+  parasutInvoiceNumber  String?
+  subtotal              Float
+  vatTotal              Float
+  grandTotal            Float
+  currency              String               @default("TRY")
+  requestedDeliveryDate DateTime?
+  approvedAt            DateTime?
+  rejectedAt            DateTime?
+  cancelledAt           DateTime?
+  notes                 String?
+  createdBy             String?
+  approvedBy            String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  franchisee            Franchisee           @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  branch                Branch?              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  warehouse             Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items                 FranchiseOrderItem[]
+  activities            OrderActivity[]
+  shipment              Shipment?
+
+  @@index([status, createdAt])
+  @@index([franchiseeId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([warehouseId, status])
+}
+
+model FranchiseOrderItem {
+  id               String         @id @default(cuid())
+  orderId          String
+  productId        String
+  productName      String
+  sku              String
+  unit             String
+  quantity         Float
+  preparedQuantity Float          @default(0)
+  missingQuantity  Float          @default(0)
+  unitPrice        Float
+  vatRate          Float
+  lineSubtotal     Float
+  lineVat          Float
+  lineTotal        Float
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  order            FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderActivity {
+  id          String         @id @default(cuid())
+  orderId     String
+  type        String
+  description String
+  createdBy   String?
+  createdAt   DateTime       @default(now())
+  order       FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+}
+
+model Shipment {
+  id             String         @id @default(cuid())
+  shipmentNumber String         @unique
+  orderId        String         @unique
+  warehouseId    String
+  status         String         @default("PREPARING")
+  carrierName    String?
+  trackingNumber String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  order          FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@index([warehouseId, status])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  phone        String?
+  role         String
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  archivedAt   DateTime?
+  auditLogs    AuditLog[]
+
+  @@index([role, isActive])
+  @@index([archivedAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  description String
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+}

@@ -1,0 +1,9 @@
+import { z } from "zod";
+import { BRANCH_CONCEPTS, BRANCH_STATUSES, FRANCHISEE_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
+
+const optional=z.string().trim().optional().or(z.literal(""));
+const date=optional.refine(v=>!v||!Number.isNaN(Date.parse(v)),"Geçerli bir tarih girin.");
+const rate=optional.refine(v=>!v||(!Number.isNaN(Number(v))&&Number(v)>=0&&Number(v)<=100),"Oran 0 ile 100 arasında olmalıdır.");
+export const franchiseeSchema=z.object({companyName:z.string().trim().min(2,"Şirket adı en az 2 karakter olmalıdır."),contactName:z.string().trim().min(2,"Yetkili kişi zorunludur."),phone:z.string().trim().min(10,"Geçerli bir telefon girin."),whatsapp:optional,email:optional.refine(v=>!v||z.email().safeParse(v).success,"Geçerli bir e-posta girin."),taxNumber:optional,taxOffice:optional,city:z.string().trim().min(2,"Şehir zorunludur."),district:optional,address:optional,status:z.enum(Object.keys(FRANCHISEE_STATUSES) as [keyof typeof FRANCHISEE_STATUSES,...(keyof typeof FRANCHISEE_STATUSES)[]]),contractDate:date,contractStartDate:date,contractEndDate:date,defaultRoyaltyRate:rate,marketingContributionRate:rate,generalNotes:optional});
+export const branchSchema=z.object({franchiseeId:z.string().min(1,"Bayi seçin."),branchName:z.string().trim().min(2,"Şube adı zorunludur."),city:z.string().trim().min(2,"Şehir zorunludur."),district:optional,address:optional,concept:z.enum(Object.keys(BRANCH_CONCEPTS) as [keyof typeof BRANCH_CONCEPTS,...(keyof typeof BRANCH_CONCEPTS)[]]),locationType:z.enum(Object.keys(LOCATION_TYPES) as [keyof typeof LOCATION_TYPES,...(keyof typeof LOCATION_TYPES)[]]),openingDate:date,plannedOpeningDate:date,royaltyRate:rate,marketingContributionRate:rate,operationsManager:optional,status:z.enum(Object.keys(BRANCH_STATUSES) as [keyof typeof BRANCH_STATUSES,...(keyof typeof BRANCH_STATUSES)[]]),generalNotes:optional});
+export type FormState={success:boolean;message:string;id?:string};

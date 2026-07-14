@@ -1,0 +1,1413 @@
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:715:173
+
+  712 ;
+  713 const dynamic = "force-dynamic";
+  714 async function CandidatesPage() {
+→ 715     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '2301141601'
+}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:721:173
+
+  718 ;
+  719 const dynamic = "force-dynamic";
+  720 async function CandidatesPage() {
+→ 721     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '1947438054'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:721:173
+
+  718 ;
+  719 const dynamic = "force-dynamic";
+  720 async function CandidatesPage() {
+→ 721     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '1947438054'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:721:173
+
+  718 ;
+  719 const dynamic = "force-dynamic";
+  720 async function CandidatesPage() {
+→ 721     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '1947438054'
+}
+⨯ Error [PrismaClientValidationError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany()` invocation in
+C:\Users\CEM\Documents\Iceberry-OS\.next\dev\server\chunks\ssr\[root-of-the-server]__0zmnp-g._.js:721:173
+
+  718 ;
+  719 const dynamic = "force-dynamic";
+  720 async function CandidatesPage() {
+→ 721     const records = await {imported module ./src/lib/prisma.ts}["prisma"].franchiseCandidate.findMany({
+            where: {
+              archivedAt: null
+            },
+            include: {
+              interactions: {
+                orderBy: {
+                  interactionDate: "desc"
+                }
+              },
+              tasks: {
+                orderBy: {
+                  dueDate: "asc"
+                }
+              },
+              documents: {
+              ~~~~~~~~~
+                orderBy: {
+                  createdAt: "desc"
+                }
+              }
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          })
+
+Unknown field `documents` for include statement on model `FranchiseCandidate`. Available options are marked with ?.
+    at <unknown> (src\app\candidates\page.tsx:9:51)
+    at async CandidatesPage (src\app\candidates\page.tsx:9:19)
+   7 | ...
+   8 | ...default async function CandidatesPage() {
+>  9 | ... records = await prisma.franchiseCandidate.findMany({ where: { archivedAt: null }, incl...
+     |                                               ^
+  10 | ... candidates = records.map(toCandidate);
+  11 | ...n <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title="Franchise Adayları"...
+  12 | ... {
+  clientVersion: '6.19.0',
+  digest: '1947438054'
+}
