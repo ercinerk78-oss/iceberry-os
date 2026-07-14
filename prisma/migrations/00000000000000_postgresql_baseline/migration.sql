@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "FranchiseCandidate" (
     "id" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
