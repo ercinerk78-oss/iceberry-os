@@ -24,6 +24,7 @@ const candidates = [
 async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.role.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.orderActivity.deleteMany();
   await prisma.franchiseOrderItem.deleteMany();
@@ -44,13 +45,10 @@ async function main() {
   await prisma.candidateTask.deleteMany();
   await prisma.candidateInteraction.deleteMany();
   await prisma.franchiseCandidate.deleteMany();
+  const roleRows=await Promise.all([["Genel Müdür","GENERAL_MANAGER","Sistemin tamamına erişir."],["Operasyon Müdürü","OPERATIONS_MANAGER","Operasyonel modüllerin tamamına erişir."],["Bayi Yöneticisi","FRANCHISE_MANAGER","Bayi ve franchise operasyonlarına erişir."],["Depo Sorumlusu","WAREHOUSE_MANAGER","Depo ve sevkiyat işlemlerine erişir."]].map(([ad,kod,aciklama])=>prisma.role.create({data:{ad,kod,aciklama}})));
   const passwordHash=await hashPassword("Iceberry123!");
-  await prisma.user.createMany({data:[
-    {name:"Genel Müdür",email:"sales@iceberry.com.tr",role:"GENERAL_MANAGER",passwordHash},
-    {name:"Operasyon Müdürü",email:"finans@iceberry.com.tr",role:"OPERATIONS_MANAGER",passwordHash},
-    {name:"Bayi Yöneticisi",email:"bayiyonetici@iceberry.local",role:"FRANCHISE_MANAGER",passwordHash},
-    {name:"Depo Sorumlusu",email:"depo@iceberry.local",role:"WAREHOUSE_MANAGER",passwordHash},
-  ]});
+  const mockUsers=[["Genel Müdür","sales@iceberry.com.tr","+90 532 100 10 10","GENERAL_MANAGER"],["Yönetim Asistanı","yonetim@iceberry.local","+90 532 100 10 11","GENERAL_MANAGER"],["Operasyon Müdürü","finans@iceberry.com.tr","+90 532 200 20 20","OPERATIONS_MANAGER"],["Operasyon Uzmanı","operasyon@iceberry.local","+90 532 200 20 21","OPERATIONS_MANAGER"],["Bayi Yöneticisi","bayiyonetici@iceberry.local","+90 532 300 30 30","FRANCHISE_MANAGER"],["Bayi Operasyon Uzmanı","bayioperasyon@iceberry.local","+90 532 300 30 31","FRANCHISE_MANAGER"],["Depo Sorumlusu","depo@iceberry.local","+90 532 400 40 40","WAREHOUSE_MANAGER"],["Sevkiyat Uzmanı","sevkiyat@iceberry.local","+90 532 400 40 41","WAREHOUSE_MANAGER"]] as const;
+  await prisma.user.createMany({data:mockUsers.map(([name,email,phone,role])=>({name,email,phone,role,roleId:roleRows.find(r=>r.kod===role)!.id,passwordHash}))});
   const categories = await Promise.all([
     ["Sarf Malzemeleri", "Günlük operasyon sarfları"], ["Ambalaj", "Paketleme ve servis ürünleri"],
     ["Ekipman", "Şube operasyon ekipmanları"], ["Tekstil", "Markalı tekstil ürünleri"],

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -245,6 +245,11 @@ model Lead {
   status               String         @default("Yeni")
   leadDate             DateTime       @default(now())
   convertedCandidateId String?
+  normalizedPhone      String?
+  normalizedEmail      String?
+  externalLeadId       String?        @unique
+  metaFormId           String?
+  metaPageId           String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
   activities           LeadActivity[]
@@ -252,6 +257,8 @@ model Lead {
   @@index([status, leadDate])
   @@index([source])
   @@index([convertedCandidateId])
+  @@index([normalizedPhone])
+  @@index([normalizedEmail])
 }
 
 model LeadActivity {
@@ -454,15 +461,28 @@ model User {
   passwordHash String
   phone        String?
   role         String
+  roleId       String?
   isActive     Boolean    @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   archivedAt   DateTime?
   auditLogs    AuditLog[]
+  roleRecord   Role?      @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@index([role, isActive])
   @@index([archivedAt])
+  @@index([roleId])
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  ad        String
+  kod       String   @unique
+  aciklama  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
 }
 
 model AuditLog {
@@ -478,4 +498,18 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([entityType, entityId])
+}
+
+model IntegrationLog {
+  id         String   @id @default(cuid())
+  provider   String
+  eventType  String
+  status     String
+  externalId String?
+  message    String
+  payload    String?
+  createdAt  DateTime @default(now())
+
+  @@index([provider, status, createdAt])
+  @@index([externalId])
 }
