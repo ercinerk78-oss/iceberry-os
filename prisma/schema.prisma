@@ -513,3 +513,18 @@ model IntegrationLog {
   @@index([provider, status, createdAt])
   @@index([externalId])
 }
+
+model MetaWebhookLog {
+  id         String   @id @default(cuid())
+  eventTime  DateTime @default(now())
+  leadgenId  String?
+  payload    String
+  result     String
+  error      String?
+  retryCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([eventTime])
+  @@index([leadgenId])
+  @@index([result])
+}

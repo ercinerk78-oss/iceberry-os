@@ -83,9 +83,11 @@ export default async function Home() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const [totalLeads, todayLeads, pendingLeads, convertedLeads, followUpRecords, totalFranchisees, activeFranchisees, totalBranches, activeBranches, setupBranches, upcomingOpenings, ongoingOpeningProjects, delayedOpeningProjects, todayOpeningTasks, pendingOrders, warehouseOrders, lowStocks, shippedToday] = await Promise.all([
+  const [totalLeads, todayLeads, todayInstagramLeads, todayFacebookLeads, pendingLeads, convertedLeads, followUpRecords, totalFranchisees, activeFranchisees, totalBranches, activeBranches, setupBranches, upcomingOpenings, ongoingOpeningProjects, delayedOpeningProjects, todayOpeningTasks, pendingOrders, warehouseOrders, lowStocks, shippedToday] = await Promise.all([
     prisma.lead.count(),
     prisma.lead.count({ where: { leadDate: { gte: startOfDay, lt: endOfDay } } }),
+    prisma.lead.count({ where: { source: "Instagram", leadDate: { gte: startOfDay, lt: endOfDay } } }),
+    prisma.lead.count({ where: { source: "Facebook", leadDate: { gte: startOfDay, lt: endOfDay } } }),
     prisma.lead.count({ where: { status: { notIn: ["Reddedildi", "Adaya Dönüştürüldü"] } } }),
     prisma.lead.count({ where: { status: "Adaya Dönüştürüldü" } }),
     prisma.franchiseCandidate.findMany({ where: { archivedAt: null, nextFollowUpAt: { gte: startOfDay, lt: endOfDay } }, orderBy: { nextFollowUpAt: "asc" }, take: 5 }),
@@ -108,6 +110,8 @@ export default async function Home() {
   const metrics = [
     { title: "Toplam Lead", value: number.format(totalLeads), change: "Canlı", description: "Lead havuzundaki tüm kayıtlar", icon: UsersRound, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
     { title: "Bugün Gelen Lead", value: number.format(todayLeads), change: "Bugün", description: "Bugün alınan yeni talepler", icon: LineChart, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+    { title: "Bugünkü Instagram Lead", value: number.format(todayInstagramLeads), change: "Instagram", description: "Bugün Instagram formlarından gelenler", icon: Sparkles, tone: "bg-pink-50 text-pink-700 ring-pink-200" },
+    { title: "Bugünkü Facebook Lead", value: number.format(todayFacebookLeads), change: "Facebook", description: "Bugün Facebook formlarından gelenler", icon: MessageSquareText, tone: "bg-blue-50 text-blue-700 ring-blue-200" },
     { title: "Bekleyen Lead", value: number.format(pendingLeads), change: "İnceleniyor", description: "Karar veya temas bekleyenler", icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
     { title: "Dönüştürülen Lead", value: number.format(convertedLeads), change: "Adaylar", description: "Franchise adayına aktarılanlar", icon: CheckCircle2, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
     { title: "Dönüşüm Oranı", value: `%${totalLeads ? Math.round(convertedLeads / totalLeads * 100) : 0}`, change: "Canlı", description: "Lead → aday dönüşümü", icon: Building2, tone: "bg-violet-50 text-violet-700 ring-violet-200" },

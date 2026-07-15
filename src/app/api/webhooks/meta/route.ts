@@ -1,3 +1,40 @@
-import{NextRequest}from"next/server";import{getMetaLead,verifyMetaSignature}from"@/lib/meta/client";import{metaConfig}from"@/lib/meta/config";import{integrationLog,syncMetaLead}from"@/lib/meta/lead-sync";import type{MetaWebhookPayload}from"@/lib/meta/types";export const runtime="nodejs";export const dynamic="force-dynamic";
-export async function GET(request:NextRequest){const mode=request.nextUrl.searchParams.get("hub.mode"),token=request.nextUrl.searchParams.get("hub.verify_token"),challenge=request.nextUrl.searchParams.get("hub.challenge");if(mode==="subscribe"&&metaConfig.verifyToken&&token===metaConfig.verifyToken&&challenge)return new Response(challenge,{status:200,headers:{"Content-Type":"text/plain"}});await integrationLog("ERROR","WEBHOOK_VERIFICATION","Meta webhook doğrulaması başarısız oldu.");return Response.json({error:"Webhook doğrulaması başarısız."},{status:403})}
-export async function POST(request:NextRequest){const raw=await request.text();if(!verifyMetaSignature(raw,request.headers.get("x-hub-signature-256"))){await integrationLog("ERROR","INVALID_SIGNATURE","Meta webhook imzası doğrulanamadı.");return Response.json({error:"Geçersiz webhook imzası."},{status:401})}let payload:MetaWebhookPayload;try{payload=JSON.parse(raw)as MetaWebhookPayload}catch{await integrationLog("ERROR","INVALID_PAYLOAD","Webhook içeriği geçerli JSON değil.");return Response.json({error:"Geçersiz JSON."},{status:400})}if(payload.object!=="page"){await integrationLog("IGNORED","UNSUPPORTED_OBJECT",`Desteklenmeyen Meta nesnesi: ${payload.object||"boş"}`,undefined,payload);return Response.json({received:true,processed:0})}let processed=0,failed=0;for(const entry of payload.entry||[])for(const change of entry.changes||[]){if(change.field!=="leadgen"||!change.value)continue;const externalId=change.value.leadgen_id;try{const metaLead=await getMetaLead({...change.value,page_id:change.value.page_id||entry.id}),result=await syncMetaLead(metaLead);await integrationLog("SUCCESS",result.duplicate?"LEAD_DUPLICATE":result.created?"LEAD_CREATED":"LEAD_UPDATED",result.duplicate?"Tekrar webhook bildirimi işlendi.":result.created?"Meta lead oluşturuldu.":"Mevcut lead Meta verileriyle güncellendi.",externalId,{entryId:entry.id,formId:change.value.form_id});processed++}catch(error){failed++;await integrationLog("ERROR","LEAD_PROCESSING",error instanceof Error?error.message:"Meta lead işlenemedi.",externalId,{entryId:entry.id,formId:change.value.form_id})}}return Response.json({received:true,processed,failed})}
+import { NextRequest } from "next/server";
+
+import { MetaLeadService, MetaWebhookError } from "@/lib/meta/meta-lead-service";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const service = new MetaLeadService();
+
+export async function GET(request: NextRequest) {
+  try {
+    const challenge = service.verifyWebhookChallenge(request.nextUrl.searchParams);
+
+    return new Response(challenge, {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Webhook doğrulaması başarısız.";
+    const status = error instanceof MetaWebhookError ? error.status : 403;
+
+    await service.logWebhook({ payload: Object.fromEntries(request.nextUrl.searchParams), result: "ERROR", error: message });
+
+    return Response.json({ error: message }, { status });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const raw = await request.text();
+    const result = await service.processWebhook(raw, request.headers.get("x-hub-signature-256"));
+
+    return Response.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Meta webhook işlenemedi.";
+    const status = error instanceof MetaWebhookError ? error.status : 500;
+
+    return Response.json({ error: message }, { status });
+  }
+}
