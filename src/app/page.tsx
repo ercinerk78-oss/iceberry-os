@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   LineChart,
   MapPinned,
-  Menu,
   MessageSquareText,
   Search,
   Settings,
@@ -23,6 +22,7 @@ import {
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+import { MobileNavigation, type MobileNavigationItem } from "@/components/mobile-navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,13 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const user = await requireUser();
   const visibleNavigation = navigation.filter(item=>{const p=routePermission(item.href==="#"?"/settings":item.href);return !p||!user||hasPermission(user.role,p)});
+  const mobileNavigation: MobileNavigationItem[] = visibleNavigation
+    .filter((item) => item.href !== "#")
+    .map((item) => ({
+      label: item.label,
+      href: item.href === "/" ? "/dashboard" : item.href,
+      icon: mobileIconFor(item.href),
+    }));
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -171,13 +178,7 @@ export default async function Home() {
           <header className="sticky top-0 z-10 border-b border-[#dfe4dc] bg-[#f6f7f4]/92 px-4 py-4 backdrop-blur md:px-8">
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="size-10 border-[#d3d9cf] bg-white lg:hidden"
-                >
-                  <Menu className="size-4" />
-                </Button>
+                <MobileNavigation items={mobileNavigation} activeHref="/dashboard" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-[#65705f]">
                     Franchise operasyon merkezi
@@ -328,4 +329,21 @@ export default async function Home() {
       </div>
     </main>
   );
+}
+
+function mobileIconFor(href: string): MobileNavigationItem["icon"] {
+  if (href === "/" || href.startsWith("/dashboard")) return "LayoutDashboard";
+  if (href.startsWith("/leads")) return "MessageSquareText";
+  if (href.startsWith("/candidates")) return "UsersRound";
+  if (href.startsWith("/pipeline")) return "Columns3";
+  if (href.startsWith("/tasks")) return "CheckSquare";
+  if (href.startsWith("/documents")) return "FolderOpen";
+  if (href.startsWith("/franchisees")) return "Building2";
+  if (href.startsWith("/branches")) return "Store";
+  if (href.startsWith("/openings")) return "CalendarRange";
+  if (href.startsWith("/orders")) return "ShoppingCart";
+  if (href.startsWith("/warehouse")) return "Warehouse";
+  if (href.startsWith("/settings")) return "Settings";
+
+  return "LineChart";
 }

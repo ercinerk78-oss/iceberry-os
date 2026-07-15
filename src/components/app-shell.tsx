@@ -10,45 +10,52 @@ import {
   LineChart,
   MapPinned,
   MessageSquareText,
+  Package,
   Search,
   Settings,
+  ShoppingCart,
   Sparkles,
   Store,
-  Package,
-  ShoppingCart,
   Truck,
-  Warehouse,
   UsersRound,
+  Warehouse,
 } from "lucide-react";
 
+import { logout } from "@/app/login/actions";
+import { MobileNavigation, type MobileNavigationItem } from "@/components/mobile-navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
-import { hasPermission, ROLE_LABELS, type Permission, type UserRole } from "@/lib/permissions";
-import { logout } from "@/app/login/actions";
+import {
+  hasPermission,
+  ROLE_LABELS,
+  type Permission,
+  type UserRole,
+} from "@/lib/permissions";
 
 const navigation = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Lead Havuzu", href: "/leads", icon: MessageSquareText },
-  { label: "Franchise Adayları", href: "/candidates", icon: UsersRound },
-  { label: "Satış Pipeline", href: "/pipeline", icon: Columns3 },
-  { label: "Görevler", href: "/tasks", icon: CheckSquare },
-  { label: "Dokümanlar", href: "/documents", icon: FolderOpen },
-  { label: "Bayiler", href: "/franchisees", icon: Building2 },
-  { label: "Şubeler", href: "/branches", icon: Store },
-  { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange },
-  { label: "Sipariş Ver", href: "/orders", icon: ShoppingCart },
-  { label: "Sipariş Yönetimi", href: "/orders/admin", icon: Package },
-  { label: "Depo Stokları", href: "/warehouse/stock", icon: Warehouse },
-  { label: "Hazırlanacak Siparişler", href: "/warehouse/orders", icon: Package },
-  { label: "Sevkiyatlar", href: "/warehouse/shipments", icon: Truck },
-  { label: "Stok Hareketleri", href: "/warehouse/movements", icon: LineChart },
-  { label: "Şube Haritası", href: "#", icon: MapPinned },
-  { label: "Raporlar", href: "#", icon: LineChart },
-  { label: "Ayarlar", href: "/settings", icon: Settings },
-  { label: "Kullanıcı Yönetimi", href: "/settings/users", icon: UsersRound },
-];
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, iconKey: "LayoutDashboard" },
+  { label: "Lead Havuzu", href: "/leads", icon: MessageSquareText, iconKey: "MessageSquareText" },
+  { label: "Franchise Adayları", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
+  { label: "Satış Pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
+  { label: "Görevler", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
+  { label: "Dokümanlar", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
+  { label: "Bayiler", href: "/franchisees", icon: Building2, iconKey: "Building2" },
+  { label: "Şubeler", href: "/branches", icon: Store, iconKey: "Store" },
+  { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
+  { label: "Sipariş Ver", href: "/orders", icon: ShoppingCart, iconKey: "ShoppingCart" },
+  { label: "Sipariş Yönetimi", href: "/orders/admin", icon: Package, iconKey: "Package" },
+  { label: "Depo", href: "/warehouse", icon: Warehouse, iconKey: "Warehouse" },
+  { label: "Depo Stokları", href: "/warehouse/stock", icon: Warehouse, iconKey: "Warehouse" },
+  { label: "Hazırlanacak Siparişler", href: "/warehouse/orders", icon: Package, iconKey: "Package" },
+  { label: "Sevkiyatlar", href: "/warehouse/shipments", icon: Truck, iconKey: "Truck" },
+  { label: "Stok Hareketleri", href: "/warehouse/movements", icon: LineChart, iconKey: "LineChart" },
+  { label: "Şube Haritası", href: "#", icon: MapPinned, iconKey: "MapPinned" },
+  { label: "Raporlar", href: "#", icon: LineChart, iconKey: "LineChart" },
+  { label: "Ayarlar", href: "/settings", icon: Settings, iconKey: "Settings" },
+  { label: "Kullanıcı Yönetimi", href: "/settings/users", icon: UsersRound, iconKey: "UsersRound" },
+] as const;
 
 type AppShellProps = {
   activeHref: string;
@@ -66,12 +73,22 @@ export async function AppShell({
   action,
 }: AppShellProps) {
   const user = await requireUser();
-  const visibleNavigation = navigation.filter((item) => !user || hasPermission(user.role, permissionFor(item.href)));
+  const visibleNavigation = navigation.filter(
+    (item) => !user || hasPermission(user.role, permissionFor(item.href)),
+  );
+  const mobileNavigation: MobileNavigationItem[] = visibleNavigation
+    .filter((item) => item.href !== "#")
+    .map((item) => ({
+      label: item.label,
+      href: item.href,
+      icon: item.iconKey,
+    }));
+
   return (
     <main className="min-h-screen bg-[#f6f7f4] text-[#1b1f1c]">
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-[#dfe4dc] bg-[#17201b] px-4 py-5 text-white lg:flex lg:flex-col">
-          <Link href="/" className="flex items-center gap-3 px-2">
+          <Link href="/dashboard" className="flex items-center gap-3 px-2">
             <div className="flex size-10 items-center justify-center rounded-lg bg-[#a8ff60] text-[#17201b]">
               <Sparkles className="size-5" />
             </div>
@@ -116,12 +133,10 @@ export async function AppShell({
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-10 border-b border-[#dfe4dc] bg-[#f6f7f4]/92 px-4 py-4 backdrop-blur md:px-8">
+          <header className="sticky top-0 z-30 border-b border-[#dfe4dc] bg-[#f6f7f4]/92 px-4 py-4 backdrop-blur md:px-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-[#17201b] text-[#a8ff60] lg:hidden">
-                  <Sparkles className="size-5" />
-                </div>
+                <MobileNavigation items={mobileNavigation} activeHref={activeHref} />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-[#65705f]">{eyebrow}</p>
                   <h2 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">
@@ -139,34 +154,51 @@ export async function AppShell({
                 <Button size="icon" variant="outline" className="size-10 bg-white">
                   <Bell className="size-4" />
                 </Button>
-                {user ? <div className="hidden text-right sm:block"><p className="text-sm font-semibold">{user.name}</p><p className="text-xs text-[#65705f]">{ROLE_LABELS[user.role as UserRole]}</p></div> : null}
-                {user ? <form action={logout}><Button variant="outline">Çıkış</Button></form> : null}
+                {user ? (
+                  <div className="hidden text-right sm:block">
+                    <p className="text-sm font-semibold">{user.name}</p>
+                    <p className="text-xs text-[#65705f]">
+                      {ROLE_LABELS[user.role as UserRole]}
+                    </p>
+                  </div>
+                ) : null}
+                {user ? (
+                  <form action={logout}>
+                    <Button variant="outline">Çıkış</Button>
+                  </form>
+                ) : null}
                 <Avatar className="size-10">
                   <AvatarFallback className="bg-[#17201b] text-white">
-                    {user?.name.split(" ").map(x=>x[0]).join("").slice(0,2) ?? "IB"}
+                    {user?.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2) ?? "IB"}
                   </AvatarFallback>
                 </Avatar>
               </div>
             </div>
-            <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">
-              {visibleNavigation.map((item) => {
-                const active = item.href === activeHref;
 
-                return (
-                  <Link
-                    href={item.href}
-                    key={item.label}
-                    className={`flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium ${
-                      active
-                        ? "bg-[#17201b] text-white"
-                        : "bg-white text-[#65705f]"
-                    }`}
-                  >
-                    <item.icon className="size-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
+            <nav className="relative z-20 mt-4 flex gap-2 overflow-x-auto lg:hidden">
+              {visibleNavigation
+                .filter((item) => item.href !== "#")
+                .slice(0, 6)
+                .map((item) => {
+                  const active = item.href === activeHref;
+
+                  return (
+                    <Link
+                      href={item.href}
+                      key={item.label}
+                      className={`flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium ${
+                        active ? "bg-[#17201b] text-white" : "bg-white text-[#65705f]"
+                      }`}
+                    >
+                      <item.icon className="size-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
             </nav>
           </header>
 
@@ -177,4 +209,22 @@ export async function AppShell({
   );
 }
 
-function permissionFor(href:string):Permission{if(href.startsWith("/leads"))return"leads";if(href.startsWith("/candidates"))return"candidates";if(href.startsWith("/pipeline"))return"pipeline";if(href.startsWith("/tasks"))return"tasks";if(href.startsWith("/documents"))return"documents";if(href.startsWith("/franchisees"))return"franchisees";if(href.startsWith("/branches"))return"branches";if(href.startsWith("/openings"))return"openings";if(href.startsWith("/orders/admin"))return"order_admin";if(href.startsWith("/orders"))return"orders";if(href.startsWith("/warehouse"))return"warehouse";if(href.startsWith("/settings/users"))return"users";if(href.startsWith("/settings"))return"settings";if(href.startsWith("/reports"))return"reports";return"dashboard"}
+function permissionFor(href: string): Permission {
+  if (href === "/dashboard" || href === "/") return "dashboard";
+  if (href.startsWith("/leads")) return "leads";
+  if (href.startsWith("/candidates")) return "candidates";
+  if (href.startsWith("/pipeline")) return "pipeline";
+  if (href.startsWith("/tasks")) return "tasks";
+  if (href.startsWith("/documents")) return "documents";
+  if (href.startsWith("/franchisees")) return "franchisees";
+  if (href.startsWith("/branches")) return "branches";
+  if (href.startsWith("/openings")) return "openings";
+  if (href.startsWith("/orders/admin")) return "order_admin";
+  if (href.startsWith("/orders")) return "orders";
+  if (href.startsWith("/warehouse")) return "warehouse";
+  if (href.startsWith("/settings/users")) return "users";
+  if (href.startsWith("/settings")) return "settings";
+  if (href.startsWith("/reports")) return "reports";
+
+  return "dashboard";
+}
