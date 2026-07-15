@@ -528,3 +528,25 @@ model MetaWebhookLog {
   @@index([leadgenId])
   @@index([result])
 }
+
+model WhatsAppMessage {
+  id                     String   @id @default(cuid())
+  messageId              String   @unique
+  fromPhone              String
+  contactName            String?
+  businessPhoneNumberId  String?
+  displayPhoneNumber     String?
+  messageType            String
+  textBody               String?
+  mediaId                String?
+  mediaMimeType          String?
+  mediaSha256            String?
+  payload                String
+  receivedAt             DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([fromPhone, receivedAt])
+  @@index([messageType])
+  @@index([receivedAt])
+}
