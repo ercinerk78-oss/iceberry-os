@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Bell,
-  Building2,
   CalendarCheck2,
   CalendarRange,
   CheckSquare,
@@ -43,7 +42,6 @@ const navigation = [
   { label: "Satış Pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
   { label: "Görevler", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
   { label: "Dokümanlar", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
-  { label: "Bayiler", href: "/franchisees", icon: Building2, iconKey: "Building2" },
   { label: "Şubeler", href: "/branches", icon: Store, iconKey: "Store" },
   { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
   { label: "Sipariş Ver", href: "/orders", icon: ShoppingCart, iconKey: "ShoppingCart" },

@@ -45,7 +45,6 @@ const all: Permission[] = [
   "pipeline",
   "tasks",
   "documents",
-  "franchisees",
   "branches",
   "openings",
   "orders",
@@ -60,13 +59,12 @@ const all: Permission[] = [
 ];
 
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
-  GENERAL_MANAGER: all,
-  OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users"].includes(permission)),
+  GENERAL_MANAGER: all.filter((permission) => permission !== "franchisees"),
+  OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees"].includes(permission)),
   FRANCHISE_MANAGER: [
     "dashboard",
     "tasks",
     "documents",
-    "franchisees",
     "branches",
     "openings",
     "orders",
