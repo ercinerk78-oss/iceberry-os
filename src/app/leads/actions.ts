@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireUser } from "@/lib/auth";
+import { leadCategoryLabel, leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import {
   leadActivitySchema,
+  leadCategorySchema,
   leadSchema,
   leadStatusSchema,
   type LeadActionState,
@@ -38,9 +41,10 @@ export async function createLead(
         ...data,
         email: data.email || null,
         status: "NEW",
+        processStatus: "NEW",
         activities: {
           create: {
-            type: "Lead geldi",
+            type: "CREATE",
             description: `${data.source} kaynağından yeni lead kaydı oluştu.`,
           },
         },
@@ -59,6 +63,7 @@ export async function addLeadActivity(
   _: LeadActionState,
   formData: FormData,
 ): Promise<LeadActionState> {
+  const user = await requireUser();
   const parsed = leadActivitySchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
@@ -70,7 +75,14 @@ export async function addLeadActivity(
   }
 
   try {
-    await prisma.leadActivity.create({ data: { leadId, ...parsed.data } });
+    await prisma.leadActivity.create({
+      data: {
+        leadId,
+        type: parsed.data.type,
+        description: `${parsed.data.description} (${user.name})`,
+      },
+    });
+    await prisma.lead.update({ where: { id: leadId }, data: { lastContactAt: new Date() } });
     refresh(leadId);
 
     return { success: true, message: "Aktivite kaydedildi." };
@@ -80,21 +92,28 @@ export async function addLeadActivity(
 }
 
 export async function changeLeadStatus(leadId: string, status: string) {
+  const user = await requireUser();
   const parsed = leadStatusSchema.safeParse(status);
 
   if (!parsed.success) return { success: false, message: "Geçersiz lead durumu." };
 
   try {
-    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { status: true } });
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { status: true, processStatus: true },
+    });
     if (!lead) return { success: false, message: "Lead bulunamadı." };
 
     await prisma.$transaction([
-      prisma.lead.update({ where: { id: leadId }, data: { status: parsed.data } }),
+      prisma.lead.update({
+        where: { id: leadId },
+        data: { status: parsed.data, processStatus: parsed.data },
+      }),
       prisma.leadActivity.create({
         data: {
           leadId,
-          type: "Durum değişti",
-          description: `Lead durumu ${lead.status} durumundan ${parsed.data} durumuna değiştirildi.`,
+          type: "STATUS_CHANGE",
+          description: `${user.name} lead durumunu ${leadStatusLabel(lead.processStatus || lead.status)} -> ${leadStatusLabel(parsed.data)} olarak değiştirdi.`,
         },
       }),
     ]);
@@ -106,7 +125,40 @@ export async function changeLeadStatus(leadId: string, status: string) {
   }
 }
 
+export async function changeLeadCategory(leadId: string, category: string) {
+  const user = await requireUser();
+  const parsed = leadCategorySchema.safeParse(category);
+
+  if (!parsed.success) return { success: false, message: "Geçersiz lead kategorisi." };
+
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { leadCategory: true },
+    });
+    if (!lead) return { success: false, message: "Lead bulunamadı." };
+
+    await prisma.$transaction([
+      prisma.lead.update({ where: { id: leadId }, data: { leadCategory: parsed.data } }),
+      prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: "CATEGORY_CHANGE",
+          description: `${user.name} lead kategorisini ${leadCategoryLabel(lead.leadCategory)} -> ${leadCategoryLabel(parsed.data)} olarak değiştirdi.`,
+        },
+      }),
+    ]);
+    refresh(leadId);
+
+    return { success: true, message: "Lead kategorisi güncellendi." };
+  } catch {
+    return { success: false, message: "Lead kategorisi güncellenemedi." };
+  }
+}
+
 export async function convertLead(leadId: string) {
+  const user = await requireUser();
+
   try {
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) return { success: false, message: "Lead bulunamadı." };
@@ -127,25 +179,29 @@ export async function convertLead(leadId: string) {
           email: lead.email,
           city: lead.city,
           country: "Türkiye",
-          investmentBudget: "Belirtilmedi",
+          investmentBudget: lead.investmentBudget || "Belirtilmedi",
           currency: "TRY",
           interestedConcept: lead.requestedConcept,
           source: lead.source,
           status: "Yeni Lead",
           temperature: "Ilık",
-          assignedUserId: "Ayşe Demir",
+          assignedUserId: lead.assignedUserId || user.name,
           generalNotes: "Lead Havuzu üzerinden franchise adayına dönüştürüldü.",
         },
       });
       await tx.lead.update({
         where: { id: leadId },
-        data: { status: "CONVERTED_TO_CANDIDATE", convertedCandidateId: created.id },
+        data: {
+          status: "CONVERTED_TO_CANDIDATE",
+          processStatus: "CONVERTED_TO_CANDIDATE",
+          convertedCandidateId: created.id,
+        },
       });
       await tx.leadActivity.create({
         data: {
           leadId,
-          type: "Durum değişti",
-          description: "Lead franchise adayına dönüştürüldü ve Adaylar modülüne aktarıldı.",
+          type: "LEAD_CONVERTED",
+          description: `${user.name} lead kaydını franchise adayına dönüştürdü.`,
         },
       });
 

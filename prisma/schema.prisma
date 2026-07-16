@@ -243,8 +243,13 @@ model Lead {
   source               String
   requestedConcept     String
   status               String         @default("NEW")
+  processStatus        String         @default("NEW")
   leadCategory         String?
   nextFollowUpAt       DateTime?
+  assignedUserId       String?
+  lastContactAt        DateTime?
+  investmentBudget     String?
+  interestedLocation   String?
   leadDate             DateTime       @default(now())
   convertedCandidateId String?
   normalizedPhone      String?
@@ -259,8 +264,10 @@ model Lead {
   tasks                LeadTask[]
 
   @@index([status, leadDate])
+  @@index([processStatus, leadDate])
   @@index([leadCategory])
   @@index([nextFollowUpAt])
+  @@index([assignedUserId])
   @@index([source])
   @@index([convertedCandidateId])
   @@index([normalizedPhone])
@@ -286,10 +293,21 @@ model LeadAppointment {
   appointmentType String
   assignedUserId  String?
   createdByUserId String?
-  status          String   @default("WAITING")
+  createdById     String?
+  startDateTime   DateTime?
+  endDateTime     DateTime?
+  type            String?
+  status          String   @default("SCHEDULED")
   title           String
+  description     String?
+  location        String?
+  meetingLink     String?
   notes           String?
   outcome         String?
+  result          String?
+  cancellationReason String?
+  rescheduleReason   String?
+  previousAppointmentDate DateTime?
   completedAt     DateTime?
   cancelledAt     DateTime?
   createdAt       DateTime @default(now())
@@ -297,6 +315,7 @@ model LeadAppointment {
   lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict)
 
   @@index([leadId, appointmentDate])
+  @@index([startDateTime])
   @@index([status, appointmentDate])
   @@index([assignedUserId])
 }

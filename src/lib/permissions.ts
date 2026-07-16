@@ -4,6 +4,7 @@ export const USER_ROLES = [
   "FRANCHISE_MANAGER",
   "WAREHOUSE_MANAGER",
   "APPOINTMENT_DEPARTMENT",
+  "RANDEVU_DEPARTMANI",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -14,6 +15,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   FRANCHISE_MANAGER: "Bayi Yöneticisi",
   WAREHOUSE_MANAGER: "Depo Sorumlusu",
   APPOINTMENT_DEPARTMENT: "Randevu Departmanı",
+  RANDEVU_DEPARTMANI: "Randevu Departmanı",
 };
 
 export type Permission =
@@ -73,6 +75,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   ],
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks"],
+  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks"],
 };
 
 export function hasPermission(role: string, permission: Permission) {
@@ -106,7 +109,7 @@ export function routePermission(path: string): Permission | null {
 
 export function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
-  if (role === "APPOINTMENT_DEPARTMENT") return "/leads";
+  if (role === "APPOINTMENT_DEPARTMENT" || role === "RANDEVU_DEPARTMANI") return "/leads";
 
   return "/";
 }

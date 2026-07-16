@@ -113,6 +113,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       icon: RotateCcw,
       items: appointments.filter((item) => item.status === "NO_SHOW"),
     },
+    {
+      title: "Ertelenen Randevular",
+      icon: RotateCcw,
+      items: appointments.filter((item) => item.status === "RESCHEDULED"),
+    },
   ];
 
   return (
@@ -152,9 +157,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <Select name="leadId" first="Lead seç" options={leads.map((lead) => [lead.id, `${lead.fullName} · ${lead.city}`])} required />
               <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
               <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
+              <input name="endTime" type="time" className="h-10 rounded-lg border px-3 text-sm" />
               <Select name="appointmentType" options={Object.entries(APPOINTMENT_TYPE_LABELS)} required />
               <Select name="assignedUserId" first="Sorumlu seç" options={users.map((user) => [user.name, user.name])} />
               <input name="title" placeholder="Başlık" className="h-10 rounded-lg border px-3 text-sm" />
+              <input name="location" placeholder="Lokasyon" className="h-10 rounded-lg border px-3 text-sm" />
+              <input name="meetingLink" placeholder="Online görüşme linki" className="h-10 rounded-lg border px-3 text-sm" />
               <textarea name="notes" placeholder="Randevu notu" className="min-h-20 rounded-lg border p-3 text-sm md:col-span-2 xl:col-span-5" />
               <Button className="h-10 bg-[#17201b] text-white">Randevu Oluştur</Button>
             </form>
@@ -187,14 +195,22 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <p className="mt-1 text-sm text-[#65705f]">
                           {appointment.lead.fullName} · {appointment.lead.city} · {formatDate(appointment.appointmentDate.toISOString())}
                         </p>
+                        {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
+                        {appointment.meetingLink ? (
+                          <Link href={appointment.meetingLink} target="_blank" className="mt-1 inline-block text-sm font-medium text-[#17201b] underline">
+                            Online görüşme linki
+                          </Link>
+                        ) : null}
                         {appointment.notes ? <p className="mt-2 text-sm text-[#65705f]">{appointment.notes}</p> : null}
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "NO_SHOW")}>
+                      <div className="grid gap-2">
+                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "NO_SHOW")} className="flex flex-wrap gap-2">
+                          <input name="reason" placeholder="Gelmedi nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                           <Button size="sm" variant="outline">Gelmedi</Button>
                         </form>
-                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "CANCELLED")}>
-                          <Button size="sm" variant="outline">İptal</Button>
+                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "CANCELLED")} className="flex flex-wrap gap-2">
+                          <input name="reason" placeholder="İptal nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
+                          <Button size="sm" variant="outline">İptal Et</Button>
                         </form>
                       </div>
                     </div>
@@ -204,7 +220,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <form action={completeLeadAppointmentForm.bind(null, appointment.id)} className="grid gap-2">
                           <textarea name="notes" placeholder="Görüşme notu" className="min-h-20 rounded-lg border p-3 text-sm" />
                           <input name="outcome" placeholder="Görüşme sonucu" required className="h-10 rounded-lg border px-3 text-sm" />
-                          <Select name="leadCategory" options={Object.entries(LEAD_CATEGORY_LABELS)} required />
+                          <Select name="leadCategory" first="Kategori seç" options={Object.entries(LEAD_CATEGORY_LABELS)} />
                           <input name="nextAction" placeholder="Sonraki aksiyon" className="h-10 rounded-lg border px-3 text-sm" />
                           <input name="nextFollowUpAt" type="datetime-local" className="h-10 rounded-lg border px-3 text-sm" />
                           <label className="flex items-center gap-2 text-sm">
@@ -216,6 +232,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <form action={rescheduleLeadAppointment.bind(null, appointment.id)} className="grid content-start gap-2">
                           <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
                           <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
+                          <input name="rescheduleReason" placeholder="Erteleme nedeni" className="h-10 rounded-lg border px-3 text-sm" />
                           <Button size="sm" variant="outline">Yeni Tarihe Ertele</Button>
                         </form>
                       </div>

@@ -1,7 +1,6 @@
 export const APPOINTMENT_TYPES = ["PHONE", "ONLINE", "FACE_TO_FACE"] as const;
 export const APPOINTMENT_STATUSES = [
   "SCHEDULED",
-  "WAITING",
   "COMPLETED",
   "CANCELLED",
   "NO_SHOW",
@@ -16,7 +15,6 @@ export const APPOINTMENT_TYPE_LABELS: Record<(typeof APPOINTMENT_TYPES)[number],
 
 export const APPOINTMENT_STATUS_LABELS: Record<(typeof APPOINTMENT_STATUSES)[number], string> = {
   SCHEDULED: "Planlandı",
-  WAITING: "Bekliyor",
   COMPLETED: "Tamamlandı",
   CANCELLED: "İptal Edildi",
   NO_SHOW: "Gelmedi",

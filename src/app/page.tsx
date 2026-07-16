@@ -29,6 +29,15 @@ async function safe<T>(operation: Promise<T>, fallback: T) {
   }
 }
 
+function leadProcessWhere(values: string[], legacyValues: string[] = values) {
+  return {
+    OR: [
+      { processStatus: { in: values } },
+      { status: { in: legacyValues } },
+    ],
+  };
+}
+
 export default async function Home() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -54,8 +63,8 @@ export default async function Home() {
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
-    prisma.lead.count({ where: { status: { in: ["NEW", "Yeni"] } } }),
-    prisma.lead.count({ where: { status: "WAITING_FOR_APPOINTMENT" } }),
+    safe(prisma.lead.count({ where: leadProcessWhere(["NEW"], ["NEW", "Yeni"]) }), 0),
+    safe(prisma.lead.count({ where: leadProcessWhere(["WAITING_FOR_APPOINTMENT"]) }), 0),
     safe(prisma.leadAppointment.count({ where: { appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
     safe(prisma.lead.count({ where: { leadCategory: "POSITIVE" } }), 0),
     safe(prisma.lead.count({ where: { leadCategory: "CLOSE_FOLLOW_UP" } }), 0),
@@ -64,13 +73,19 @@ export default async function Home() {
     safe(prisma.lead.count({
       where: {
         nextFollowUpAt: { lt: startOfDay },
+        processStatus: { notIn: ["CONVERTED_TO_CANDIDATE", "CLOSED"] },
         status: { notIn: ["CONVERTED_TO_CANDIDATE", "CLOSED", "Adaya Dönüştürüldü", "Reddedildi"] },
       },
     }), 0),
     safe(prisma.leadTask.count({ where: { dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
     prisma.lead.count(),
-    prisma.lead.count({ where: { status: { in: ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION", "Arandı", "Randevu"] } } }),
-    prisma.lead.count({ where: { status: { in: ["UNREACHABLE", "Ulaşılamadı"] } } }),
+    safe(prisma.lead.count({
+      where: leadProcessWhere(
+        ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION"],
+        ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION", "Arandı", "Randevu"],
+      ),
+    }), 0),
+    safe(prisma.lead.count({ where: leadProcessWhere(["UNREACHABLE"], ["UNREACHABLE", "Ulaşılamadı"]) }), 0),
     safe(prisma.leadAppointment.count(), 0),
     safe(prisma.leadAppointment.count({ where: { status: "COMPLETED" } }), 0),
     safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),

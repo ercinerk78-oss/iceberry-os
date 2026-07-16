@@ -14,7 +14,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   try {
     records = await prisma.lead.findMany({
       where: {
-        status: params.status ? { in: statusValuesForFilter(params.status) } : undefined,
+        OR: params.status
+          ? [
+              { processStatus: { in: statusValuesForFilter(params.status) } },
+              { status: { in: statusValuesForFilter(params.status) } },
+            ]
+          : undefined,
         leadCategory: params.leadCategory || undefined,
         nextFollowUpAt: params.followUp === "overdue" ? { lt: new Date() } : undefined,
       },

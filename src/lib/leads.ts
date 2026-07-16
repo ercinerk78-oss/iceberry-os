@@ -70,8 +70,13 @@ export type LeadView = {
   source: string;
   requestedConcept: string;
   status: string;
+  processStatus: string;
   leadCategory: string;
   nextFollowUpAt: string;
+  assignedUserId: string;
+  lastContactAt: string;
+  investmentBudget: string;
+  interestedLocation: string;
   leadDate: string;
   convertedCandidateId: string;
   activities: { id: string; type: string; description: string; createdAt: string }[];
@@ -80,10 +85,19 @@ export type LeadView = {
     appointmentDate: string;
     appointmentTime: string;
     appointmentType: string;
+    startDateTime: string;
+    endDateTime: string;
     status: string;
     title: string;
+    description: string;
+    location: string;
+    meetingLink: string;
     notes: string;
     outcome: string;
+    result: string;
+    cancellationReason: string;
+    rescheduleReason: string;
+    previousAppointmentDate: string;
     assignedUserId: string;
     completedAt: string;
     cancelledAt: string;
@@ -135,8 +149,13 @@ type LeadRecord = {
   source: string;
   requestedConcept: string;
   status: string;
+  processStatus?: string | null;
   leadCategory?: string | null;
   nextFollowUpAt?: Date | null;
+  assignedUserId?: string | null;
+  lastContactAt?: Date | null;
+  investmentBudget?: string | null;
+  interestedLocation?: string | null;
   leadDate: Date;
   convertedCandidateId: string | null;
   activities: { id: string; type: string; description: string; createdAt: Date }[];
@@ -145,10 +164,19 @@ type LeadRecord = {
     appointmentDate: Date;
     appointmentTime: string;
     appointmentType: string;
+    startDateTime?: Date | null;
+    endDateTime?: Date | null;
     status: string;
     title: string;
+    description?: string | null;
+    location?: string | null;
+    meetingLink?: string | null;
     notes: string | null;
     outcome: string | null;
+    result?: string | null;
+    cancellationReason?: string | null;
+    rescheduleReason?: string | null;
+    previousAppointmentDate?: Date | null;
     assignedUserId: string | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
@@ -169,8 +197,13 @@ export function toLead(lead: LeadRecord): LeadView {
   return {
     ...lead,
     email: lead.email ?? "",
+    processStatus: lead.processStatus || canonicalLeadStatus(lead.status) || lead.status,
     leadCategory: lead.leadCategory ?? "",
     nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? "",
+    assignedUserId: lead.assignedUserId ?? "",
+    lastContactAt: lead.lastContactAt?.toISOString() ?? "",
+    investmentBudget: lead.investmentBudget ?? "",
+    interestedLocation: lead.interestedLocation ?? "",
     convertedCandidateId: lead.convertedCandidateId ?? "",
     leadDate: lead.leadDate.toISOString(),
     activities: lead.activities.map((activity) => ({
@@ -180,8 +213,17 @@ export function toLead(lead: LeadRecord): LeadView {
     appointments: lead.appointments?.map((appointment) => ({
       ...appointment,
       appointmentDate: appointment.appointmentDate.toISOString(),
+      startDateTime: appointment.startDateTime?.toISOString() ?? appointment.appointmentDate.toISOString(),
+      endDateTime: appointment.endDateTime?.toISOString() ?? "",
+      description: appointment.description ?? "",
+      location: appointment.location ?? "",
+      meetingLink: appointment.meetingLink ?? "",
       notes: appointment.notes ?? "",
       outcome: appointment.outcome ?? "",
+      result: appointment.result ?? "",
+      cancellationReason: appointment.cancellationReason ?? "",
+      rescheduleReason: appointment.rescheduleReason ?? "",
+      previousAppointmentDate: appointment.previousAppointmentDate?.toISOString() ?? "",
       assignedUserId: appointment.assignedUserId ?? "Atanmadı",
       completedAt: appointment.completedAt?.toISOString() ?? "",
       cancelledAt: appointment.cancelledAt?.toISOString() ?? "",

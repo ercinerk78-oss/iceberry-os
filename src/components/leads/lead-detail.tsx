@@ -7,13 +7,15 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarClock, CheckCircle2, Clock3, Phone, Send } from "lucide-react";
 
 import { addLeadActivity } from "@/app/leads/actions";
-import { changeLeadStatusForm, convertLeadForm } from "@/app/leads/form-actions";
+import { changeLeadCategoryForm, changeLeadStatusForm, convertLeadForm } from "@/app/leads/form-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { appointmentStatusLabel, appointmentTypeLabel } from "@/lib/appointments";
 import { formatDate } from "@/lib/candidates";
 import {
   LEAD_ACTIVITY_TYPES,
+  LEAD_CATEGORIES,
+  LEAD_CATEGORY_LABELS,
   LEAD_STATUSES,
   LEAD_STATUS_LABELS,
   leadCategoryLabel,
@@ -30,6 +32,7 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Genel Bilgiler");
   const [state, activityAction, activityPending] = useActionState(addLeadActivity.bind(null, lead.id), initial);
   const [statusState, statusAction, statusPending] = useActionState(changeLeadStatusForm.bind(null, lead.id), initial);
+  const [categoryState, categoryAction, categoryPending] = useActionState(changeLeadCategoryForm.bind(null, lead.id), initial);
   const [convertState, convertAction, convertPending] = useActionState(convertLeadForm.bind(null, lead.id), initial);
 
   useEffect(() => {
@@ -42,7 +45,7 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap gap-2">
-              <Badge className="bg-sky-100 text-sky-700">{leadStatusLabel(lead.status)}</Badge>
+              <Badge className="bg-sky-100 text-sky-700">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
               <Badge variant="secondary">{lead.source}</Badge>
               <Badge variant="secondary">{leadCategoryLabel(lead.leadCategory)}</Badge>
             </div>
@@ -93,6 +96,12 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
                 <Info label="Lead Tarihi" value={formatDate(lead.leadDate)} />
                 <Info label="Kaynak" value={lead.source} />
                 <Info label="Talep Edilen Konsept" value={lead.requestedConcept} />
+                <Info label="Süreç Durumu" value={leadStatusLabel(lead.processStatus || lead.status)} />
+                <Info label="Lead Kategorisi" value={leadCategoryLabel(lead.leadCategory)} />
+                <Info label="Yatırım Bütçesi" value={lead.investmentBudget || "Belirtilmedi"} />
+                <Info label="İlgilenilen Lokasyon" value={lead.interestedLocation || "Belirtilmedi"} />
+                <Info label="Atanan Sorumlu" value={lead.assignedUserId || "Atanmadı"} />
+                <Info label="Son Temas" value={lead.lastContactAt ? formatDate(lead.lastContactAt) : "Henüz yok"} />
                 <Info label="Sonraki Takip" value={lead.nextFollowUpAt ? formatDate(lead.nextFollowUpAt) : "Planlanmadı"} />
               </div>
               <form action={statusAction} className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-5">
@@ -102,7 +111,7 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
                   <select
                     aria-label="Lead durumu"
                     name="status"
-                    defaultValue={lead.status}
+                    defaultValue={lead.processStatus || lead.status}
                     disabled={!!lead.convertedCandidateId}
                     className="h-10 min-w-0 flex-1 rounded-lg border bg-white px-3 text-sm"
                   >
@@ -119,6 +128,32 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
                 {statusState.message ? (
                   <p className={`mt-3 rounded-lg p-3 text-sm ${statusState.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                     {statusState.message}
+                  </p>
+                ) : null}
+              </form>
+              <form action={categoryAction} className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-5">
+                <h3 className="font-semibold">Lead Kategorisi</h3>
+                <p className="mt-1 text-sm text-[#65705f]">Değerlendirme kategorisi süreç durumundan bağımsızdır.</p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <select
+                    aria-label="Lead kategorisi"
+                    name="leadCategory"
+                    defaultValue={lead.leadCategory}
+                    className="h-10 min-w-0 flex-1 rounded-lg border bg-white px-3 text-sm"
+                  >
+                    {LEAD_CATEGORIES.map((item) => (
+                      <option key={item} value={item}>
+                        {LEAD_CATEGORY_LABELS[item]}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="submit" disabled={categoryPending} className="bg-[#17201b] text-white">
+                    Kategoriyi Kaydet
+                  </Button>
+                </div>
+                {categoryState.message ? (
+                  <p className={`mt-3 rounded-lg p-3 text-sm ${categoryState.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                    {categoryState.message}
                   </p>
                 ) : null}
               </form>
