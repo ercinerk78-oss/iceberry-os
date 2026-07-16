@@ -8,6 +8,17 @@ export const dynamic = "force-dynamic";
 const service = new MetaLeadService();
 
 export async function GET(request: NextRequest) {
+  const mode = request.nextUrl.searchParams.get("hub.mode");
+  const verifyToken = request.nextUrl.searchParams.get("hub.verify_token");
+  const challenge = request.nextUrl.searchParams.get("hub.challenge");
+
+  console.log("[Meta Webhook GET]", {
+    "hub.mode": mode,
+    "hub.verify_token": verifyToken,
+    "hub.challenge": challenge,
+    env: "META_WEBHOOK_VERIFY_TOKEN",
+  });
+
   try {
     const challenge = service.verifyWebhookChallenge(request.nextUrl.searchParams);
 
