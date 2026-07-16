@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 
 import { MetaLeadService, MetaWebhookError } from "@/lib/meta/meta-lead-service";
 
@@ -39,13 +39,38 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const raw = await request.text();
-    const result = await service.processWebhook(raw, request.headers.get("x-hub-signature-256"));
+    const signature = request.headers.get("x-hub-signature-256");
 
-    return Response.json(result);
+    console.log("[Meta Webhook POST] Request accepted", {
+      contentLength: request.headers.get("content-length"),
+      contentType: request.headers.get("content-type"),
+      hasSignature: Boolean(signature),
+      payload: raw,
+    });
+
+    after(async () => {
+      try {
+        const result = await service.processWebhook(raw, signature);
+
+        console.log("[Meta Webhook POST] Background processing completed", result);
+      } catch (error) {
+        console.error("[Meta Webhook POST] Background processing failed", {
+          message: error instanceof Error ? error.message : "Meta webhook işlenemedi.",
+          stack: error instanceof Error ? error.stack : undefined,
+          payload: raw,
+        });
+      }
+    });
+
+    return Response.json({ received: true, queued: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Meta webhook işlenemedi.";
-    const status = error instanceof MetaWebhookError ? error.status : 500;
 
-    return Response.json({ error: message }, { status });
+    console.error("[Meta Webhook POST] Request read failed", {
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    return Response.json({ received: true, queued: false, error: message });
   }
 }

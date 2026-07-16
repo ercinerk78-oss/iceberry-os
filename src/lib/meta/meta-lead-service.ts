@@ -58,8 +58,19 @@ export class MetaLeadService {
 
     let processed = 0;
     let failed = 0;
+    const leadgenChanges = extractLeadgenChanges(payload);
 
-    for (const { entryId, change } of extractLeadgenChanges(payload)) {
+    console.log("[Meta Webhook POST] Parsed payload summary", {
+      object: payload.object,
+      entryCount: payload.entry?.length || 0,
+      leadgenChangeCount: leadgenChanges.length,
+    });
+
+    if (leadgenChanges.length === 0) {
+      console.warn("[Meta Webhook POST] Payload içinde leadgen change bulunamadı", payload);
+    }
+
+    for (const { entryId, change } of leadgenChanges) {
       const value = change.value;
       const leadgenId = value?.leadgen_id;
 
@@ -160,8 +171,13 @@ export class MetaLeadService {
           retryCount: input.retryCount || 0,
         },
       });
-    } catch {
-      // Webhook yanıtı log veritabanı hatası yüzünden başarısız olmamalı.
+    } catch (error) {
+      console.error("[Meta Webhook Log] MetaWebhookLog yazılamadı", {
+        message: error instanceof Error ? error.message : "Bilinmeyen veritabanı hatası.",
+        payload: input.payload,
+        result: input.result,
+        leadgenId: input.leadgenId,
+      });
     }
   }
 
@@ -199,8 +215,14 @@ async function safeIntegrationLog(
 ) {
   try {
     await integrationLog(status, eventType, message, externalId, payload);
-  } catch {
-    // IntegrationLog yardımcıdır; webhook akışını kilitlememeli.
+  } catch (error) {
+    console.error("[Meta IntegrationLog] Kayıt yazılamadı", {
+      status,
+      eventType,
+      externalId,
+      message,
+      error: error instanceof Error ? error.message : "Bilinmeyen veritabanı hatası.",
+    });
   }
 }
 
