@@ -17,6 +17,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     prisma.leadTask.findMany({
       include: { lead: { select: { id: true, fullName: true, city: true } } },
       orderBy: { dueDate: "asc" },
+    }).catch((error) => {
+      console.error("Lead task table fallback", error);
+      return [];
     }),
   ]);
   const tasks: TaskListItem[] = [

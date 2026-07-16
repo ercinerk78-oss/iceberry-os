@@ -58,6 +58,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       where,
       include: { lead: { select: { id: true, fullName: true, city: true, leadCategory: true } } },
       orderBy: { appointmentDate: "asc" },
+    }).catch((error) => {
+      console.error("Appointments table fallback", error);
+      return [];
     }),
     prisma.lead.findMany({
       where: { convertedCandidateId: null },

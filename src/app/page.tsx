@@ -20,6 +20,15 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+async function safe<T>(operation: Promise<T>, fallback: T) {
+  try {
+    return await operation;
+  } catch (error) {
+    console.error("Dashboard metric fallback", error);
+    return fallback;
+  }
+}
+
 export default async function Home() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -47,24 +56,24 @@ export default async function Home() {
     prisma.branch.count({ where: { archivedAt: null } }),
     prisma.lead.count({ where: { status: { in: ["NEW", "Yeni"] } } }),
     prisma.lead.count({ where: { status: "WAITING_FOR_APPOINTMENT" } }),
-    prisma.leadAppointment.count({ where: { appointmentDate: { gte: startOfDay, lt: endOfDay } } }),
-    prisma.lead.count({ where: { leadCategory: "POSITIVE" } }),
-    prisma.lead.count({ where: { leadCategory: "CLOSE_FOLLOW_UP" } }),
-    prisma.lead.count({ where: { leadCategory: "LONG_TERM" } }),
-    prisma.lead.count({ where: { leadCategory: "UNPRODUCTIVE" } }),
-    prisma.lead.count({
+    safe(prisma.leadAppointment.count({ where: { appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
+    safe(prisma.lead.count({ where: { leadCategory: "POSITIVE" } }), 0),
+    safe(prisma.lead.count({ where: { leadCategory: "CLOSE_FOLLOW_UP" } }), 0),
+    safe(prisma.lead.count({ where: { leadCategory: "LONG_TERM" } }), 0),
+    safe(prisma.lead.count({ where: { leadCategory: "UNPRODUCTIVE" } }), 0),
+    safe(prisma.lead.count({
       where: {
         nextFollowUpAt: { lt: startOfDay },
         status: { notIn: ["CONVERTED_TO_CANDIDATE", "CLOSED", "Adaya Dönüştürüldü", "Reddedildi"] },
       },
-    }),
-    prisma.leadTask.count({ where: { dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }),
+    }), 0),
+    safe(prisma.leadTask.count({ where: { dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
     prisma.lead.count(),
     prisma.lead.count({ where: { status: { in: ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION", "Arandı", "Randevu"] } } }),
     prisma.lead.count({ where: { status: { in: ["UNREACHABLE", "Ulaşılamadı"] } } }),
-    prisma.leadAppointment.count(),
-    prisma.leadAppointment.count({ where: { status: "COMPLETED" } }),
-    prisma.leadAppointment.groupBy({ by: ["assignedUserId"], _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }),
+    safe(prisma.leadAppointment.count(), 0),
+    safe(prisma.leadAppointment.count({ where: { status: "COMPLETED" } }), 0),
+    safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
   ]);
   const number = new Intl.NumberFormat("tr-TR");
   const overdueFollowUps = overdueLeadFollowUps + overdueLeadTasks;

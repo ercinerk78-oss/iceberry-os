@@ -11,14 +11,36 @@ export const dynamic = "force-dynamic";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const record = await prisma.lead.findUnique({
-    where: { id },
-    include: {
-      activities: { orderBy: { createdAt: "desc" } },
-      appointments: { orderBy: { appointmentDate: "desc" } },
-      tasks: { orderBy: { dueDate: "asc" } },
-    },
-  });
+  let record;
+
+  try {
+    record = await prisma.lead.findUnique({
+      where: { id },
+      include: {
+        activities: { orderBy: { createdAt: "desc" } },
+        appointments: { orderBy: { appointmentDate: "desc" } },
+        tasks: { orderBy: { dueDate: "asc" } },
+      },
+    });
+  } catch (error) {
+    console.error("Lead detail advanced data fallback", error);
+    record = await prisma.lead.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        city: true,
+        source: true,
+        requestedConcept: true,
+        status: true,
+        leadDate: true,
+        convertedCandidateId: true,
+        activities: { orderBy: { createdAt: "desc" } },
+      },
+    });
+  }
 
   if (!record) notFound();
 

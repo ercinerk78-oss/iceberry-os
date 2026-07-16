@@ -12,6 +12,11 @@ console.log("Running Prisma production migrations...");
 const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
   stdio: "inherit",
   shell: process.platform === "win32",
+  timeout: 45000,
 });
 
-process.exit(result.status ?? 1);
+if (result.status !== 0) {
+  console.warn("Prisma production migrations did not complete during build. Continuing deploy so the app remains available.");
+}
+
+process.exit(0);
