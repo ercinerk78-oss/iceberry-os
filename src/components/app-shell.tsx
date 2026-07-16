@@ -45,6 +45,7 @@ const navigation = [
   { label: "Şube Portalı", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
   { label: "Dokümanlar", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
   { label: "Şubeler", href: "/branches", icon: Store, iconKey: "Store" },
+  { label: "Şube Ciroları", href: "/branch-revenues", icon: LineChart, iconKey: "LineChart" },
   { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
   { label: "Sipariş Ver", href: "/orders", icon: ShoppingCart, iconKey: "ShoppingCart" },
   { label: "Sipariş Yönetimi", href: "/orders/admin", icon: Package, iconKey: "Package" },
@@ -222,6 +223,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/documents")) return "documents";
   if (href.startsWith("/franchisees")) return "franchisees";
   if (href.startsWith("/branches")) return "branches";
+  if (href.startsWith("/branch-revenues")) return "branch_revenue";
   if (href.startsWith("/openings")) return "openings";
   if (href.startsWith("/orders/admin")) return "order_admin";
   if (href.startsWith("/orders")) return "orders";

@@ -67,6 +67,7 @@ model Document {
   franchisee       Franchisee?         @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
   branch           Branch?             @relation(fields: [branchId], references: [id], onDelete: Restrict)
   opening          BranchOpening?      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  revenueRecords   BranchRevenueRecord[]
 
   @@index([candidateId, documentType, uploadedAt])
   @@index([locationId])
@@ -171,6 +172,7 @@ model Branch {
   orders                    FranchiseOrder[]
   users                     BranchUser[]
   tasks                     BranchTask[]
+  revenueRecords            BranchRevenueRecord[]
   audits                    BranchAudit[]
   developmentPlans          BranchDevelopmentPlan[]
   operationCalendarItems    OperationCalendarItem[]
@@ -265,6 +267,43 @@ model TaskEvidence {
 
   @@index([taskId, evidenceType])
   @@index([uploadedById, uploadedAt])
+}
+
+model BranchRevenueRecord {
+  id                String    @id @default(cuid())
+  branchId          String
+  periodType        String    @default("MONTHLY")
+  periodStart       DateTime
+  periodEnd         DateTime
+  year              Int
+  month             Int
+  grossRevenue      Float
+  netRevenue        Float?
+  targetRevenue     Float?
+  transactionCount  Int?
+  averageTicket     Float?
+  currency          String    @default("TRY")
+  source            String    @default("MANUAL")
+  status            String    @default("DRAFT")
+  notes             String?
+  rejectionReason   String?
+  supportDocumentId String?
+  enteredById       String?
+  approvedById      String?
+  approvedAt        DateTime?
+  lockedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  branch            Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  supportDocument   Document? @relation(fields: [supportDocumentId], references: [id], onDelete: SetNull)
+  enteredBy         User?     @relation("RevenueEnteredBy", fields: [enteredById], references: [id], onDelete: SetNull)
+  approvedBy        User?     @relation("RevenueApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([branchId, periodType, periodStart])
+  @@index([branchId, year, month])
+  @@index([periodType, periodStart])
+  @@index([status, periodStart])
+  @@index([currency])
 }
 
 model BranchAudit {
@@ -749,6 +788,8 @@ model User {
   reviewedBranchTasks BranchTask[] @relation("BranchTaskReviewer")
   taskEvidence TaskEvidence[]
   branchTimeline BranchTimelineEvent[]
+  enteredRevenueRecords BranchRevenueRecord[] @relation("RevenueEnteredBy")
+  approvedRevenueRecords BranchRevenueRecord[] @relation("RevenueApprovedBy")
 
   @@index([role, isActive])
   @@index([archivedAt])

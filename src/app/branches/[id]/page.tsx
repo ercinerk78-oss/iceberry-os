@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { canAccessBranch } from "@/lib/branch-access";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
@@ -47,6 +48,7 @@ export default async function BranchDetail({
       documents: { orderBy: { uploadedAt: "desc" } },
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
+      revenueRecords: { include: { enteredBy: { select: { name: true } } }, orderBy: { periodStart: "desc" }, take: 36 },
       audits: { orderBy: { auditDate: "desc" } },
       developmentPlans: { orderBy: { createdAt: "desc" } },
       operationCalendarItems: { orderBy: { startAt: "asc" } },
@@ -127,11 +129,7 @@ export default async function BranchDetail({
             {tab === "Şube Gelişim Planları" ? <DevelopmentPanel plans={branch.developmentPlans} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                <Metric label="Sağlık Skoru" value={branch.healthScore ?? "Hazır"} icon={TrendingUp} />
-                <Metric label="Aktif Plan" value={activeDevelopmentPlans.length} icon={FileText} />
-                <Metric label="Son Denetim Puanı" value={lastAudit?.score ?? "—"} icon={ShieldCheck} />
-              </div>
+              <RevenuePerformance records={branch.revenueRecords} healthScore={branch.healthScore} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score ?? branch.lastAuditScore} />
             ) : null}
             {tab === "Timeline" ? <TimelinePanel events={branch.timeline} /> : null}
             {tab === "Notlar" ? <Empty title="Notlar" text={branch.generalNotes ?? "Bu şube için not bulunmuyor."} /> : null}
@@ -218,6 +216,108 @@ function TimelinePanel({ events }: { events: { id: string; action: string; descr
           <p className="mt-2 text-xs text-[#8a9484]">{event.user?.name ?? "Sistem"} · {formatDate(event.createdAt)}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function RevenuePerformance({
+  records,
+  healthScore,
+  activePlanCount,
+  lastAuditScore,
+}: {
+  records: { id: string; year: number; month: number; grossRevenue: number; targetRevenue: number | null; currency: string; status: string; periodStart: Date; periodEnd: Date; updatedAt: Date; source: string; enteredBy: { name: string } | null }[];
+  healthScore: number | null;
+  activePlanCount: number;
+  lastAuditScore: number | null | undefined;
+}) {
+  const finalRecords = records.filter((record) => ["APPROVED", "LOCKED"].includes(record.status)).sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+  const current = finalRecords.at(-1);
+  const previous = finalRecords.at(-2);
+  const lastYearSameMonth = current ? finalRecords.find((record) => record.year === current.year - 1 && record.month === current.month) : undefined;
+  const ytd = current ? finalRecords.filter((record) => record.year === current.year && record.currency === current.currency).reduce((sum, record) => sum + record.grossRevenue, 0) : 0;
+  const maxDaily = current ? current.grossRevenue / Math.max(1, new Date(current.year, current.month, 0).getDate()) : 0;
+  const max = Math.max(1, ...finalRecords.map((record) => record.grossRevenue), ...finalRecords.map((record) => record.targetRevenue ?? 0));
+  const first = finalRecords[0];
+  const last = finalRecords.at(-1);
+  const highest = [...finalRecords].sort((a, b) => b.grossRevenue - a.grossRevenue)[0];
+  const lowest = [...finalRecords].sort((a, b) => a.grossRevenue - b.grossRevenue)[0];
+  const average = finalRecords.length ? finalRecords.reduce((sum, record) => sum + record.grossRevenue, 0) / finalRecords.length : 0;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Güncel Ay Cirosu" value={current ? formatMoney(current.grossRevenue, current.currency) : "—"} icon={TrendingUp} />
+        <Metric label="Önceki Ay Cirosu" value={previous ? formatMoney(previous.grossRevenue, previous.currency) : "—"} icon={TrendingUp} />
+        <Metric label="Aylık Büyüme" value={current && previous ? formatPercent(percentChange(current.grossRevenue, previous.grossRevenue)) : "—"} icon={TrendingUp} />
+        <Metric label="Geçen Yıl Aynı Ay" value={lastYearSameMonth ? formatMoney(lastYearSameMonth.grossRevenue, lastYearSameMonth.currency) : "—"} icon={TrendingUp} />
+        <Metric label="Yıllık Büyüme" value={current && lastYearSameMonth ? formatPercent(percentChange(current.grossRevenue, lastYearSameMonth.grossRevenue)) : "—"} icon={TrendingUp} />
+        <Metric label="Yılbaşından Bugüne" value={current ? formatMoney(ytd, current.currency) : "—"} icon={TrendingUp} />
+        <Metric label="Aylık Hedef" value={current ? formatMoney(current.targetRevenue, current.currency) : "—"} icon={TrendingUp} />
+        <Metric label="Hedef Oranı" value={current ? formatPercent(realizationRate(current.grossRevenue, current.targetRevenue)) : "—"} icon={TrendingUp} />
+        <Metric label="Günlük Ortalama" value={current ? formatMoney(current.grossRevenue / Math.max(1, new Date(current.year, current.month, 0).getDate()), current.currency) : "—"} icon={TrendingUp} />
+        <Metric label="En Yüksek Günlük" value={current ? formatMoney(maxDaily, current.currency) : "—"} icon={TrendingUp} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Metric label="Sağlık Skoru" value={healthScore ?? "Hazır"} icon={TrendingUp} />
+        <Metric label="Aktif Plan" value={activePlanCount} icon={FileText} />
+        <Metric label="Son Denetim Puanı" value={lastAuditScore ?? "—"} icon={ShieldCheck} />
+      </div>
+
+      <div className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+        <h3 className="font-semibold">Ciro Eğrisi</h3>
+        <div className="mt-4 flex h-56 items-end gap-2 border-b border-l border-[#dfe4dc] p-3">
+          {finalRecords.slice(-12).map((record) => (
+            <div key={record.id} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+              <div className="relative flex w-full items-end justify-center">
+                {record.targetRevenue ? <div className="absolute bottom-0 w-full rounded-t bg-amber-200" style={{ height: `${Math.max(4, (record.targetRevenue / max) * 180)}px` }} /> : null}
+                <div className="relative z-10 w-2/3 rounded-t bg-[#17201b]" style={{ height: `${Math.max(4, (record.grossRevenue / max) * 180)}px` }} />
+              </div>
+              <span className="text-xs text-[#65705f]">{String(record.month).padStart(2, "0")}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-2 text-sm md:grid-cols-3">
+          <p>Dönem başlangıcı: <b>{first ? formatMoney(first.grossRevenue, first.currency) : "—"}</b></p>
+          <p>Dönem sonu: <b>{last ? formatMoney(last.grossRevenue, last.currency) : "—"}</b></p>
+          <p>Toplam büyüme: <b>{first && last ? formatMoney(last.grossRevenue - first.grossRevenue, last.currency) : "—"}</b></p>
+          <p>Büyüme oranı: <b>{first && last ? formatPercent(percentChange(last.grossRevenue, first.grossRevenue)) : "—"}</b></p>
+          <p>En yüksek ay: <b>{highest ? periodLabel(highest.year, highest.month) : "—"}</b></p>
+          <p>En düşük ay: <b>{lowest ? periodLabel(lowest.year, lowest.month) : "—"}</b></p>
+          <p>Ortalama aylık: <b>{last ? formatMoney(average, last.currency) : "—"}</b></p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-[#dfe4dc]">
+        <table className="w-full min-w-[1080px] text-left text-sm">
+          <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
+            <tr>{["Dönem", "Gerçekleşen", "Hedef", "Hedef Farkı", "Hedef Oranı", "Önceki Ay", "Aylık Değişim", "Kaynak", "Giriş", "Kullanıcı"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y">
+            {records.map((record, index) => {
+              const previousRecord = records[index + 1];
+              const targetDiff = record.targetRevenue != null ? record.grossRevenue - record.targetRevenue : null;
+
+              return (
+                <tr key={record.id}>
+                  <td className="px-4 py-3">{periodLabel(record.year, record.month)}</td>
+                  <td className="px-4 py-3">{formatMoney(record.grossRevenue, record.currency)}</td>
+                  <td className="px-4 py-3">{formatMoney(record.targetRevenue, record.currency)}</td>
+                  <td className="px-4 py-3">{formatMoney(targetDiff, record.currency)}</td>
+                  <td className="px-4 py-3">{formatPercent(realizationRate(record.grossRevenue, record.targetRevenue))}</td>
+                  <td className="px-4 py-3">{previousRecord ? formatMoney(previousRecord.grossRevenue, previousRecord.currency) : "—"}</td>
+                  <td className="px-4 py-3">{previousRecord ? formatPercent(percentChange(record.grossRevenue, previousRecord.grossRevenue)) : "—"}</td>
+                  <td className="px-4 py-3">{record.source}</td>
+                  <td className="px-4 py-3">{formatDate(record.updatedAt)}</td>
+                  <td className="px-4 py-3">{record.enteredBy?.name ?? "—"}</td>
+                </tr>
+              );
+            })}
+            {!records.length ? <tr><td colSpan={10} className="p-10 text-center text-[#65705f]">Bu şube için ciro kaydı yok.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
