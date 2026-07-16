@@ -12,7 +12,7 @@ console.log("Running Prisma production migrations...");
 const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
   stdio: "inherit",
   shell: process.platform === "win32",
-  timeout: 45000,
+  timeout: 180000,
 });
 
 if (result.status !== 0) {
