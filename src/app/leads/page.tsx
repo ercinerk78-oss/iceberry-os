@@ -1,6 +1,32 @@
 import { AppShell } from "@/components/app-shell";
 import { LeadInbox } from "@/components/leads/lead-inbox";
+import { statusValuesForFilter, toLead } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
-import { toLead } from "@/lib/leads";
-export const dynamic="force-dynamic";
-export default async function LeadsPage(){const records=await prisma.lead.findMany({include:{activities:{orderBy:{createdAt:"desc"}}},orderBy:{leadDate:"desc"}});return <AppShell activeHref="/leads" eyebrow="Dönüşüm öncesi inceleme" title="Lead Havuzu"><LeadInbox leads={records.map(toLead)}/></AppShell>}
+
+export const dynamic = "force-dynamic";
+
+type Params = { status?: string; leadCategory?: string; followUp?: string };
+
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams;
+  const records = await prisma.lead.findMany({
+    where: {
+      status: params.status ? { in: statusValuesForFilter(params.status) } : undefined,
+      leadCategory: params.leadCategory || undefined,
+      nextFollowUpAt: params.followUp === "overdue" ? { lt: new Date() } : undefined,
+    },
+    include: { activities: { orderBy: { createdAt: "desc" } } },
+    orderBy: { leadDate: "desc" },
+  });
+
+  return (
+    <AppShell activeHref="/leads" eyebrow="Dönüşüm öncesi inceleme" title="Lead Havuzu">
+      <LeadInbox
+        leads={records.map(toLead)}
+        initialStatus={params.status}
+        initialCategory={params.leadCategory}
+        initialFollowUp={params.followUp}
+      />
+    </AppShell>
+  );
+}

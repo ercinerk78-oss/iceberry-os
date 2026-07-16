@@ -141,7 +141,7 @@ export async function syncMetaLead(data: MetaLeadData) {
       city: mapped.city,
       source: mapped.source,
       requestedConcept: mapped.requestedConcept,
-      status: "Yeni",
+      status: "NEW",
       leadDate: mapped.leadDate,
       normalizedPhone: mapped.normalizedPhone,
       normalizedEmail: mapped.normalizedEmail,

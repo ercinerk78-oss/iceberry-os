@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Building2,
+  CalendarCheck2,
   CalendarRange,
   CheckSquare,
   Columns3,
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 
 const icons = {
   Building2,
+  CalendarCheck2,
   CalendarRange,
   CheckSquare,
   Columns3,

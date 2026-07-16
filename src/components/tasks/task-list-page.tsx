@@ -3,11 +3,147 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarClock, Search } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/candidates";
 import { isOpenTask, isToday } from "@/lib/pipeline";
 
-export type TaskListItem={id:string;title:string;description:string;dueDate:string;priority:string;status:string;assignedUserId:string;candidate:{id:string;fullName:string;city:string}};
-const ALL="Tümü";
-export function TaskListPage({tasks}:{tasks:TaskListItem[]}){const[q,setQ]=useState("");const[owner,setOwner]=useState(ALL);const[priority,setPriority]=useState(ALL);const[status,setStatus]=useState(ALL);const[date,setDate]=useState(ALL);const[candidate,setCandidate]=useState(ALL);const[city,setCity]=useState(ALL);const options=(getter:(t:TaskListItem)=>string)=>Array.from(new Set(tasks.map(getter).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"tr"));const filtered=useMemo(()=>tasks.filter(t=>(!q||`${t.title} ${t.candidate.fullName}`.toLocaleLowerCase("tr").includes(q.toLocaleLowerCase("tr")))&&(owner===ALL||t.assignedUserId===owner)&&(priority===ALL||t.priority===priority)&&(status===ALL||t.status===status)&&(candidate===ALL||t.candidate.fullName===candidate)&&(city===ALL||t.candidate.city===city)&&(date===ALL||(date==="Bugün"&&isToday(t.dueDate))||(date==="Gecikmiş"&&isOpenTask(t.status)&&new Date(t.dueDate)<new Date())||(date==="Yaklaşan"&&new Date(t.dueDate)>new Date()))),[tasks,q,owner,priority,status,date,candidate,city]);const groups=[{title:"Bugünkü Görevler",items:filtered.filter(t=>isToday(t.dueDate)&&isOpenTask(t.status))},{title:"Gecikmiş Görevler",items:filtered.filter(t=>!isToday(t.dueDate)&&isOpenTask(t.status)&&new Date(t.dueDate)<new Date())},{title:"Yaklaşan Görevler",items:filtered.filter(t=>isOpenTask(t.status)&&new Date(t.dueDate)>new Date()&&!isToday(t.dueDate))},{title:"Tamamlanan Görevler",items:filtered.filter(t=>t.status==="Tamamlandı")}];return <div className="space-y-4"><div className="rounded-lg border border-[#dfe4dc] bg-white p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><label className="flex h-10 items-center gap-2 rounded-lg border bg-[#f8faf6] px-3 xl:col-span-2"><Search className="size-4"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Görev veya aday ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/></label><Filter label="Sorumlu kişi" value={owner} set={setOwner} items={options(t=>t.assignedUserId)}/><Filter label="Öncelik" value={priority} set={setPriority} items={options(t=>t.priority)}/><Filter label="Durum" value={status} set={setStatus} items={options(t=>t.status)}/><Filter label="Tarih" value={date} set={setDate} items={["Bugün","Gecikmiş","Yaklaşan"]}/><Filter label="Aday" value={candidate} set={setCandidate} items={options(t=>t.candidate.fullName)}/><Filter label="Şehir" value={city} set={setCity} items={options(t=>t.candidate.city)}/></div></div><div className="grid gap-4 xl:grid-cols-2">{groups.map(g=><section key={g.title} className="rounded-lg border border-[#dfe4dc] bg-white p-4"><div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">{g.title}</h2><Badge variant="secondary">{g.items.length}</Badge></div><div className="space-y-3">{g.items.map(t=>{const late=isOpenTask(t.status)&&new Date(t.dueDate)<new Date();return <Link key={t.id} href={`/candidates/${t.candidate.id}`} className={`block rounded-lg border p-4 transition hover:shadow-sm ${late?"border-rose-300 bg-rose-50":"border-[#edf0e9] bg-[#f8faf6]"}`}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{t.title}</h3><p className="mt-1 text-sm text-[#65705f]">{t.candidate.fullName} · {t.candidate.city}</p></div><Badge className={t.priority==="Acil"?"bg-rose-700 text-white":"bg-[#17201b] text-white"}>{t.priority}</Badge></div><p className={`mt-3 flex items-center gap-2 text-sm ${late?"font-semibold text-rose-700":"text-[#65705f]"}`}><CalendarClock className="size-4"/>{formatDate(t.dueDate)} · {t.assignedUserId}</p></Link>})}{g.items.length===0&&<p className="py-8 text-center text-sm text-[#65705f]">Bu grupta görev yok.</p>}</div></section>)}</div></div>}
-function Filter({label,value,set,items}:{label:string;value:string;set:(v:string)=>void;items:string[]}){return <select aria-label={label} value={value} onChange={e=>set(e.target.value)} className="h-10 rounded-lg border bg-white px-3 text-sm"><option>{ALL}</option>{items.map(i=><option key={i}>{i}</option>)}</select>}
+export type TaskListItem = {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: string;
+  status: string;
+  assignedUserId: string;
+  relation: { id: string; fullName: string; city: string; href: string; type: "lead" | "candidate" };
+};
+
+const ALL = "Tümü";
+
+export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; initialDate?: string }) {
+  const [q, setQ] = useState("");
+  const [owner, setOwner] = useState(ALL);
+  const [priority, setPriority] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
+  const [date, setDate] = useState(initialDate === "overdue" ? "Gecikmiş" : ALL);
+  const [person, setPerson] = useState(ALL);
+  const [city, setCity] = useState(ALL);
+  const options = (getter: (task: TaskListItem) => string) =>
+    Array.from(new Set(tasks.map(getter).filter(Boolean))).sort((a, b) => a.localeCompare(b, "tr"));
+  const filtered = useMemo(
+    () =>
+      tasks.filter(
+        (task) =>
+          (!q ||
+            `${task.title} ${task.relation.fullName}`
+              .toLocaleLowerCase("tr")
+              .includes(q.toLocaleLowerCase("tr"))) &&
+          (owner === ALL || task.assignedUserId === owner) &&
+          (priority === ALL || task.priority === priority) &&
+          (status === ALL || task.status === status) &&
+          (person === ALL || task.relation.fullName === person) &&
+          (city === ALL || task.relation.city === city) &&
+          (date === ALL ||
+            (date === "Bugün" && isToday(task.dueDate)) ||
+            (date === "Gecikmiş" && isOpenTask(task.status) && new Date(task.dueDate) < new Date()) ||
+            (date === "Yaklaşan" && new Date(task.dueDate) > new Date())),
+      ),
+    [city, date, owner, person, priority, q, status, tasks],
+  );
+  const groups = [
+    { title: "Bugünkü Görevler", items: filtered.filter((task) => isToday(task.dueDate) && isOpenTask(task.status)) },
+    {
+      title: "Gecikmiş Görevler",
+      items: filtered.filter((task) => !isToday(task.dueDate) && isOpenTask(task.status) && new Date(task.dueDate) < new Date()),
+    },
+    {
+      title: "Yaklaşan Görevler",
+      items: filtered.filter((task) => isOpenTask(task.status) && new Date(task.dueDate) > new Date() && !isToday(task.dueDate)),
+    },
+    { title: "Tamamlanan Görevler", items: filtered.filter((task) => task.status === "Tamamlandı") },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="flex h-10 items-center gap-2 rounded-lg border bg-[#f8faf6] px-3 xl:col-span-2">
+            <Search className="size-4" />
+            <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Görev, lead veya aday ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+          </label>
+          <Filter label="Sorumlu kişi" value={owner} set={setOwner} items={options((task) => task.assignedUserId)} />
+          <Filter label="Öncelik" value={priority} set={setPriority} items={options((task) => task.priority)} />
+          <Filter label="Durum" value={status} set={setStatus} items={options((task) => task.status)} />
+          <Filter label="Tarih" value={date} set={setDate} items={["Bugün", "Gecikmiş", "Yaklaşan"]} />
+          <Filter label="Kişi" value={person} set={setPerson} items={options((task) => task.relation.fullName)} />
+          <Filter label="Şehir" value={city} set={setCity} items={options((task) => task.relation.city)} />
+        </div>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {groups.map((group) => (
+          <section key={group.title} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold">{group.title}</h2>
+              <Badge variant="secondary">{group.items.length}</Badge>
+            </div>
+            <div className="space-y-3">
+              {group.items.map((task) => {
+                const late = isOpenTask(task.status) && new Date(task.dueDate) < new Date();
+
+                return (
+                  <Link
+                    key={`${task.relation.type}-${task.id}`}
+                    href={task.relation.href}
+                    className={`block rounded-lg border p-4 transition hover:shadow-sm ${late ? "border-rose-300 bg-rose-50" : "border-[#edf0e9] bg-[#f8faf6]"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">{task.relation.type === "lead" ? "Lead" : "Aday"}</Badge>
+                          <Badge className={task.priority === "Acil" ? "bg-rose-700 text-white" : "bg-[#17201b] text-white"}>
+                            {task.priority}
+                          </Badge>
+                        </div>
+                        <h3 className="mt-3 font-semibold">{task.title}</h3>
+                        <p className="mt-1 text-sm text-[#65705f]">
+                          {task.relation.fullName} · {task.relation.city}
+                        </p>
+                      </div>
+                    </div>
+                    <p className={`mt-3 flex items-center gap-2 text-sm ${late ? "font-semibold text-rose-700" : "text-[#65705f]"}`}>
+                      <CalendarClock className="size-4" />
+                      {formatDate(task.dueDate)} · {task.assignedUserId}
+                    </p>
+                  </Link>
+                );
+              })}
+              {group.items.length === 0 ? <p className="py-8 text-center text-sm text-[#65705f]">Bu grupta görev yok.</p> : null}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Filter({
+  label,
+  value,
+  set,
+  items,
+}: {
+  label: string;
+  value: string;
+  set: (value: string) => void;
+  items: string[];
+}) {
+  return (
+    <select aria-label={label} value={value} onChange={(event) => set(event.target.value)} className="h-10 rounded-lg border bg-white px-3 text-sm">
+      <option>{ALL}</option>
+      {items.map((item) => (
+        <option key={item}>{item}</option>
+      ))}
+    </select>
+  );
+}

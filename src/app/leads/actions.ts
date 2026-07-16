@@ -1,11 +1,166 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { leadActivitySchema, leadSchema, leadStatusSchema, type LeadActionState } from "@/lib/validations/lead";
 
-const refresh=(id?:string)=>{revalidatePath("/leads");if(id)revalidatePath(`/leads/${id}`);revalidatePath("/")};
-export async function createLead(_:LeadActionState,formData:FormData):Promise<LeadActionState>{const parsed=leadSchema.safeParse(Object.fromEntries(formData));if(!parsed.success)return{success:false,message:"Lütfen formdaki hataları düzeltin.",errors:parsed.error.flatten().fieldErrors};try{const d=parsed.data;await prisma.lead.create({data:{...d,email:d.email||null,activities:{create:{type:"Lead geldi",description:`${d.source} kaynağından yeni lead kaydı oluştu.`}}}});refresh();return{success:true,message:"Lead başarıyla havuza eklendi."}}catch{return{success:false,message:"Lead kaydedilemedi."}}}
-export async function addLeadActivity(leadId:string,_:LeadActionState,formData:FormData):Promise<LeadActionState>{const parsed=leadActivitySchema.safeParse(Object.fromEntries(formData));if(!parsed.success)return{success:false,message:"Aktivite bilgilerini kontrol edin.",errors:parsed.error.flatten().fieldErrors};try{await prisma.leadActivity.create({data:{leadId,...parsed.data}});refresh(leadId);return{success:true,message:"Aktivite kaydedildi."}}catch{return{success:false,message:"Aktivite kaydedilemedi."}}}
-export async function changeLeadStatus(leadId:string,status:string){const parsed=leadStatusSchema.safeParse(status);if(!parsed.success)return{success:false,message:"Geçersiz lead durumu."};try{const lead=await prisma.lead.findUnique({where:{id:leadId},select:{status:true}});if(!lead)return{success:false,message:"Lead bulunamadı."};await prisma.$transaction([prisma.lead.update({where:{id:leadId},data:{status:parsed.data}}),prisma.leadActivity.create({data:{leadId,type:"Durum değişti",description:`Lead durumu ${lead.status} durumundan ${parsed.data} durumuna değiştirildi.`}})]);refresh(leadId);return{success:true,message:"Lead durumu güncellendi."}}catch{return{success:false,message:"Lead durumu güncellenemedi."}}}
-export async function convertLead(leadId:string){try{const lead=await prisma.lead.findUnique({where:{id:leadId}});if(!lead)return{success:false,message:"Lead bulunamadı."};if(lead.convertedCandidateId)return{success:true,message:"Lead daha önce adaya dönüştürülmüş.",candidateId:lead.convertedCandidateId};const candidate=await prisma.$transaction(async tx=>{const created=await tx.franchiseCandidate.create({data:{fullName:lead.fullName,phone:lead.phone,whatsapp:lead.source==="WhatsApp"?lead.phone:null,email:lead.email,city:lead.city,country:"Türkiye",investmentBudget:"Belirtilmedi",currency:"TRY",interestedConcept:lead.requestedConcept,source:lead.source,status:"Yeni Lead",temperature:"Ilık",assignedUserId:"Ayşe Demir",generalNotes:"Lead Havuzu üzerinden franchise adayına dönüştürüldü."}});await tx.lead.update({where:{id:leadId},data:{status:"Adaya Dönüştürüldü",convertedCandidateId:created.id}});await tx.leadActivity.create({data:{leadId,type:"Durum değişti",description:"Lead franchise adayına dönüştürüldü ve Adaylar modülüne aktarıldı."}});return created});refresh(leadId);revalidatePath("/candidates");revalidatePath("/pipeline");return{success:true,message:"Lead başarıyla franchise adayına dönüştürüldü.",candidateId:candidate.id}}catch{return{success:false,message:"Lead adaya dönüştürülemedi."}}}
+import { prisma } from "@/lib/prisma";
+import {
+  leadActivitySchema,
+  leadSchema,
+  leadStatusSchema,
+  type LeadActionState,
+} from "@/lib/validations/lead";
+
+const refresh = (id?: string) => {
+  revalidatePath("/leads");
+  if (id) revalidatePath(`/leads/${id}`);
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+};
+
+export async function createLead(
+  _: LeadActionState,
+  formData: FormData,
+): Promise<LeadActionState> {
+  const parsed = leadSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Lütfen formdaki hataları düzeltin.",
+      errors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    const data = parsed.data;
+    await prisma.lead.create({
+      data: {
+        ...data,
+        email: data.email || null,
+        status: "NEW",
+        activities: {
+          create: {
+            type: "Lead geldi",
+            description: `${data.source} kaynağından yeni lead kaydı oluştu.`,
+          },
+        },
+      },
+    });
+    refresh();
+
+    return { success: true, message: "Lead başarıyla havuza eklendi." };
+  } catch {
+    return { success: false, message: "Lead kaydedilemedi." };
+  }
+}
+
+export async function addLeadActivity(
+  leadId: string,
+  _: LeadActionState,
+  formData: FormData,
+): Promise<LeadActionState> {
+  const parsed = leadActivitySchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Aktivite bilgilerini kontrol edin.",
+      errors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    await prisma.leadActivity.create({ data: { leadId, ...parsed.data } });
+    refresh(leadId);
+
+    return { success: true, message: "Aktivite kaydedildi." };
+  } catch {
+    return { success: false, message: "Aktivite kaydedilemedi." };
+  }
+}
+
+export async function changeLeadStatus(leadId: string, status: string) {
+  const parsed = leadStatusSchema.safeParse(status);
+
+  if (!parsed.success) return { success: false, message: "Geçersiz lead durumu." };
+
+  try {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { status: true } });
+    if (!lead) return { success: false, message: "Lead bulunamadı." };
+
+    await prisma.$transaction([
+      prisma.lead.update({ where: { id: leadId }, data: { status: parsed.data } }),
+      prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: "Durum değişti",
+          description: `Lead durumu ${lead.status} durumundan ${parsed.data} durumuna değiştirildi.`,
+        },
+      }),
+    ]);
+    refresh(leadId);
+
+    return { success: true, message: "Lead durumu güncellendi." };
+  } catch {
+    return { success: false, message: "Lead durumu güncellenemedi." };
+  }
+}
+
+export async function convertLead(leadId: string) {
+  try {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    if (!lead) return { success: false, message: "Lead bulunamadı." };
+    if (lead.convertedCandidateId) {
+      return {
+        success: true,
+        message: "Lead daha önce adaya dönüştürülmüş.",
+        candidateId: lead.convertedCandidateId,
+      };
+    }
+
+    const candidate = await prisma.$transaction(async (tx) => {
+      const created = await tx.franchiseCandidate.create({
+        data: {
+          fullName: lead.fullName,
+          phone: lead.phone,
+          whatsapp: lead.source === "WhatsApp" ? lead.phone : null,
+          email: lead.email,
+          city: lead.city,
+          country: "Türkiye",
+          investmentBudget: "Belirtilmedi",
+          currency: "TRY",
+          interestedConcept: lead.requestedConcept,
+          source: lead.source,
+          status: "Yeni Lead",
+          temperature: "Ilık",
+          assignedUserId: "Ayşe Demir",
+          generalNotes: "Lead Havuzu üzerinden franchise adayına dönüştürüldü.",
+        },
+      });
+      await tx.lead.update({
+        where: { id: leadId },
+        data: { status: "CONVERTED_TO_CANDIDATE", convertedCandidateId: created.id },
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId,
+          type: "Durum değişti",
+          description: "Lead franchise adayına dönüştürüldü ve Adaylar modülüne aktarıldı.",
+        },
+      });
+
+      return created;
+    });
+    refresh(leadId);
+    revalidatePath("/candidates");
+    revalidatePath("/pipeline");
+
+    return {
+      success: true,
+      message: "Lead başarıyla franchise adayına dönüştürüldü.",
+      candidateId: candidate.id,
+    };
+  } catch {
+    return { success: false, message: "Lead adaya dönüştürülemedi." };
+  }
+}

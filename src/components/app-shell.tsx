@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Bell,
   Building2,
+  CalendarCheck2,
   CalendarRange,
   CheckSquare,
   Columns3,
@@ -37,6 +38,7 @@ import {
 const navigation = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, iconKey: "LayoutDashboard" },
   { label: "Lead Havuzu", href: "/leads", icon: MessageSquareText, iconKey: "MessageSquareText" },
+  { label: "Randevular", href: "/appointments", icon: CalendarCheck2, iconKey: "CalendarCheck2" },
   { label: "Franchise Adayları", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
   { label: "Satış Pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
   { label: "Görevler", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
@@ -212,6 +214,7 @@ export async function AppShell({
 function permissionFor(href: string): Permission {
   if (href === "/dashboard" || href === "/") return "dashboard";
   if (href.startsWith("/leads")) return "leads";
+  if (href.startsWith("/appointments")) return "appointments";
   if (href.startsWith("/candidates")) return "candidates";
   if (href.startsWith("/pipeline")) return "pipeline";
   if (href.startsWith("/tasks")) return "tasks";
