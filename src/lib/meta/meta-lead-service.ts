@@ -28,7 +28,14 @@ export class MetaLeadService {
   }
 
   async processWebhook(raw: string, signature: string | null): Promise<MetaProcessResult> {
+    console.log("[Meta Webhook POST] Raw payload", raw);
+
     if (!verifyMetaSignature(raw, signature)) {
+      console.error("[Meta Webhook POST] İmza doğrulama hatası", {
+        hasSignature: Boolean(signature),
+        hasAppSecret: Boolean(metaConfig.appSecret),
+        integrationEnabled: metaConfig.enabled,
+      });
       await this.logWebhook({ payload: raw, result: "ERROR", error: "Meta webhook imzası doğrulanamadı." });
       await safeIntegrationLog("ERROR", "INVALID_SIGNATURE", "Meta webhook imzası doğrulanamadı.");
       throw new MetaWebhookError("Geçersiz webhook imzası.", 401);
@@ -37,12 +44,13 @@ export class MetaLeadService {
     const payload = await this.parsePayload(raw);
 
     if (!metaConfig.enabled) {
-      await this.logWebhook({ payload, result: "IGNORED", error: "Meta entegrasyonu kapalı." });
-      await safeIntegrationLog("IGNORED", "INTEGRATION_DISABLED", "Meta entegrasyonu kapalı olduğu için webhook işlendi sayıldı.", undefined, payload);
-      return { received: true, processed: 0, failed: 0, skipped: true };
+      console.warn("[Meta Webhook POST] META_INTEGRATION_ENABLED true değil; lead yine de işlenecek.", {
+        META_INTEGRATION_ENABLED: process.env.META_INTEGRATION_ENABLED,
+      });
     }
 
     if (payload.object !== "page") {
+      console.warn("[Meta Webhook POST] Desteklenmeyen payload object", { object: payload.object });
       await this.logWebhook({ payload, result: "IGNORED", error: `Desteklenmeyen Meta nesnesi: ${payload.object || "boş"}.` });
       await safeIntegrationLog("IGNORED", "UNSUPPORTED_OBJECT", `Desteklenmeyen Meta nesnesi: ${payload.object || "boş"}`, undefined, payload);
       return { received: true, processed: 0, failed: 0 };
@@ -55,8 +63,17 @@ export class MetaLeadService {
       const value = change.value;
       const leadgenId = value?.leadgen_id;
 
+      console.log("[Meta Webhook POST] Leadgen change alındı", {
+        entryId,
+        leadgenId,
+        formId: value?.form_id,
+        pageId: value?.page_id || entryId,
+        field: change.field,
+      });
+
       if (!value || !leadgenId) {
         failed++;
+        console.error("[Meta Webhook POST] leadgen_id bulunamadı", { entryId, change });
         await this.logWebhook({
           payload: { entryId, change },
           result: "ERROR",
@@ -68,6 +85,14 @@ export class MetaLeadService {
 
       try {
         const metaLead = await getMetaLead({ ...value, page_id: value.page_id || entryId });
+        console.log("[Meta Webhook POST] Graph API lead detayı alındı", {
+          leadgenId: metaLead.id,
+          fieldCount: metaLead.field_data?.length || 0,
+          formId: metaLead.form_id,
+          formName: metaLead.form_name,
+          campaignName: metaLead.campaign_name,
+          platform: metaLead.platform,
+        });
         const result = await syncMetaLead(metaLead);
         const eventType = result.created ? "LEAD_CREATED" : result.duplicate ? "LEAD_DUPLICATE" : "LEAD_UPDATED";
         const message = result.created
@@ -82,10 +107,26 @@ export class MetaLeadService {
           result: "SUCCESS",
         });
         await safeIntegrationLog("SUCCESS", eventType, message, leadgenId, { entryId, formId: value.form_id });
+        console.log("[Meta Webhook POST] Lead veritabanına işlendi", {
+          leadgenId,
+          leadId: result.lead.id,
+          created: result.created,
+          duplicate: result.duplicate,
+          eventType,
+        });
         processed++;
       } catch (error) {
         failed++;
         const message = error instanceof Error ? error.message : "Meta lead işlenemedi.";
+
+        console.error("[Meta Webhook POST] Lead işlenemedi", {
+          entryId,
+          leadgenId,
+          formId: value.form_id,
+          reason: message,
+          hasPageAccessToken: Boolean(metaConfig.pageAccessToken),
+          integrationEnabled: metaConfig.enabled,
+        });
 
         await this.logWebhook({
           leadgenId,

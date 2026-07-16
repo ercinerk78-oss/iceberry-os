@@ -8,5 +8,5 @@ export const metaConfig = {
 };
 
 export function metaReady() {
-  return metaConfig.enabled && Boolean(metaConfig.pageAccessToken);
+  return Boolean(metaConfig.pageAccessToken);
 }

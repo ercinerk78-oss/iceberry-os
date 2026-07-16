@@ -37,7 +37,9 @@ export async function getMetaLead(value: MetaWebhookValue): Promise<MetaLeadData
   }
 
   if (!value.leadgen_id) throw new Error("Meta lead kimliği bulunamadı.");
-  if (!metaReady()) throw new Error("Meta API kapalı veya erişim anahtarı tanımlı değil.");
+  if (!metaReady()) {
+    throw new Error("META_PAGE_ACCESS_TOKEN tanımlı değil; lead detayı Graph API'den çekilemedi.");
+  }
 
   const fields = [
     "id",
@@ -50,6 +52,12 @@ export async function getMetaLead(value: MetaWebhookValue): Promise<MetaLeadData
     "campaign_id",
     "campaign_name",
   ].join(",");
+
+  console.log("[Meta Graph API] Lead detayı çekiliyor", {
+    leadgenId: value.leadgen_id,
+    graphVersion: metaConfig.graphVersion,
+    hasPageAccessToken: Boolean(metaConfig.pageAccessToken),
+  });
 
   const data = await getGraph<MetaLeadData & MetaApiError>(value.leadgen_id, { fields });
 
