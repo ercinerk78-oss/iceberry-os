@@ -1,5 +1,10 @@
 import { spawnSync } from "node:child_process";
 
+const directDatabaseUrl = process.env.DIRECT_URL || process.env.DATABASE_DIRECT_URL || "";
+if (directDatabaseUrl.startsWith("postgres")) {
+  process.env.DATABASE_URL = directDatabaseUrl;
+}
+
 const databaseUrl = process.env.DATABASE_URL || "";
 const shouldRun = process.env.VERCEL === "1" && databaseUrl.startsWith("postgres");
 const branchRevenueMigration = "prisma/migrations/20260716193000_branch_revenue_records/migration.sql";
