@@ -5,6 +5,9 @@ export const USER_ROLES = [
   "WAREHOUSE_MANAGER",
   "APPOINTMENT_DEPARTMENT",
   "RANDEVU_DEPARTMANI",
+  "BRANCH_OWNER",
+  "BRANCH_MANAGER",
+  "BRANCH_STAFF",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -12,10 +15,13 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const ROLE_LABELS: Record<UserRole, string> = {
   GENERAL_MANAGER: "Genel Müdür",
   OPERATIONS_MANAGER: "Operasyon Müdürü",
-  FRANCHISE_MANAGER: "Bayi Yöneticisi",
+  FRANCHISE_MANAGER: "Şube Operasyon Yöneticisi",
   WAREHOUSE_MANAGER: "Depo Sorumlusu",
   APPOINTMENT_DEPARTMENT: "Randevu Departmanı",
   RANDEVU_DEPARTMANI: "Randevu Departmanı",
+  BRANCH_OWNER: "Şube Sahibi",
+  BRANCH_MANAGER: "Şube Müdürü",
+  BRANCH_STAFF: "Şube Personeli",
 };
 
 export type Permission =
@@ -37,7 +43,8 @@ export type Permission =
   | "users"
   | "invoice"
   | "stock_manage"
-  | "shipment_manage";
+  | "shipment_manage"
+  | "branch_portal";
 
 const all: Permission[] = [
   "dashboard",
@@ -58,24 +65,19 @@ const all: Permission[] = [
   "invoice",
   "stock_manage",
   "shipment_manage",
+  "branch_portal",
 ];
 
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   GENERAL_MANAGER: all.filter((permission) => permission !== "franchisees"),
   OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees"].includes(permission)),
-  FRANCHISE_MANAGER: [
-    "dashboard",
-    "tasks",
-    "documents",
-    "branches",
-    "openings",
-    "orders",
-    "order_admin",
-    "warehouse",
-  ],
+  FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "openings"],
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks"],
   RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks"],
+  BRANCH_OWNER: ["branch_portal", "branches", "tasks", "documents"],
+  BRANCH_MANAGER: ["branch_portal", "branches", "tasks", "documents"],
+  BRANCH_STAFF: ["branch_portal", "tasks", "documents"],
 };
 
 export function hasPermission(role: string, permission: Permission) {
@@ -91,6 +93,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/settings/users")) return "users";
   if (path.startsWith("/settings")) return "settings";
   if (path.startsWith("/leads")) return "leads";
+  if (path.startsWith("/branch-portal")) return "branch_portal";
   if (path.startsWith("/appointments")) return "appointments";
   if (path.startsWith("/candidates")) return "candidates";
   if (path.startsWith("/pipeline")) return "pipeline";
@@ -110,6 +113,7 @@ export function routePermission(path: string): Permission | null {
 export function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
   if (role === "APPOINTMENT_DEPARTMENT" || role === "RANDEVU_DEPARTMANI") return "/leads";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
 
   return "/";
 }

@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { TaskListPage, type TaskListItem } from "@/components/tasks/task-list-page";
+import { accessibleBranchIds } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,8 @@ type Params = { filter?: string };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const [candidateTasks, leadTasks] = await Promise.all([
+  const branchIds = await accessibleBranchIds();
+  const [candidateTasks, leadTasks, branchTasks] = await Promise.all([
     prisma.candidateTask.findMany({
       where: { candidate: { archivedAt: null } },
       include: { candidate: { select: { id: true, fullName: true, city: true } } },
@@ -19,6 +21,14 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       orderBy: { dueDate: "asc" },
     }).catch((error) => {
       console.error("Lead task table fallback", error);
+      return [];
+    }),
+    prisma.branchTask.findMany({
+      where: branchIds ? { branchId: { in: branchIds } } : undefined,
+      include: { branch: { select: { id: true, branchName: true, city: true } } },
+      orderBy: { dueDate: "asc" },
+    }).catch((error) => {
+      console.error("Branch task table fallback", error);
       return [];
     }),
   ]);
@@ -53,6 +63,22 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         city: task.lead.city,
         href: `/leads/${task.lead.id}`,
         type: "lead" as const,
+      },
+    })),
+    ...branchTasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description ?? "",
+      dueDate: (task.dueDate ?? task.createdAt).toISOString(),
+      priority: task.priority,
+      status: task.status,
+      assignedUserId: task.assignedUserId ?? task.assignedRole ?? "Atanmadı",
+      relation: {
+        id: task.branch.id,
+        fullName: task.branch.branchName,
+        city: task.branch.city,
+        href: `/branches/${task.branch.id}?tab=${encodeURIComponent("Görevler")}`,
+        type: "branch" as const,
       },
     })),
   ].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());

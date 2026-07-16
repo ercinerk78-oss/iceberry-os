@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarCheck2,
   CalendarRange,
+  ClipboardCheck,
   CheckSquare,
   Columns3,
   FolderOpen,
@@ -41,6 +42,7 @@ const navigation = [
   { label: "Franchise Adayları", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
   { label: "Satış Pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
   { label: "Görevler", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
+  { label: "Şube Portalı", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
   { label: "Dokümanlar", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
   { label: "Şubeler", href: "/branches", icon: Store, iconKey: "Store" },
   { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
@@ -212,6 +214,7 @@ export async function AppShell({
 function permissionFor(href: string): Permission {
   if (href === "/dashboard" || href === "/") return "dashboard";
   if (href.startsWith("/leads")) return "leads";
+  if (href.startsWith("/branch-portal")) return "branch_portal";
   if (href.startsWith("/appointments")) return "appointments";
   if (href.startsWith("/candidates")) return "candidates";
   if (href.startsWith("/pipeline")) return "pipeline";

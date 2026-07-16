@@ -34,6 +34,7 @@ model FranchiseCandidate {
   tasks             CandidateTask[]
   documents         Document[]
   franchisee        Franchisee?
+  branch            Branch?
 
   @@index([archivedAt, createdAt])
   @@index([city])
@@ -109,31 +110,237 @@ model Franchisee {
 
 model Branch {
   id                        String           @id @default(cuid())
-  franchiseeId              String
+  franchiseeId              String?
+  candidateId               String?          @unique
+  sourceLeadId              String?
+  branchCode                String?          @unique
   branchName                String
+  legalName                 String?
+  tradeName                 String?
+  ownershipType             String           @default("FRANCHISE")
+  conceptType               String?
   city                      String
   district                  String?
   address                   String?
+  country                   String           @default("Türkiye")
+  latitude                  Float?
+  longitude                 Float?
+  phone                     String?
+  email                     String?
+  mallName                  String?
+  floor                     String?
+  unitNumber                String?
+  squareMeters              Float?
+  authorizedPersonName      String?
+  authorizedPersonPhone     String?
+  authorizedPersonEmail     String?
+  taxOffice                 String?
+  taxNumber                 String?
+  billingAddress            String?
   concept                   String
   locationType              String
   openingDate               DateTime?
   plannedOpeningDate        DateTime?
+  closingDate               DateTime?
+  contractStartDate         DateTime?
+  contractEndDate           DateTime?
+  leaseStartDate            DateTime?
+  leaseEndDate              DateTime?
+  rentAmount                Float?
+  turnoverRentRate          Float?
+  depositAmount             Float?
   royaltyRate               Float?
   marketingContributionRate Float?
+  managerName               String?
+  managerPhone              String?
+  managerEmail              String?
   operationsManager         String?
   status                    String           @default("PLANNED")
   generalNotes              String?
+  createdById               String?
+  lastAuditAt               DateTime?
+  lastAuditScore            Float?
+  healthScore               Float?
   createdAt                 DateTime         @default(now())
   updatedAt                 DateTime         @updatedAt
   archivedAt                DateTime?
-  franchisee                Franchisee       @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  franchisee                Franchisee?      @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  candidate                 FranchiseCandidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
   documents                 Document[]
   openings                  BranchOpening[]
   orders                    FranchiseOrder[]
+  users                     BranchUser[]
+  tasks                     BranchTask[]
+  audits                    BranchAudit[]
+  developmentPlans          BranchDevelopmentPlan[]
+  operationCalendarItems    OperationCalendarItem[]
+  timeline                  BranchTimelineEvent[]
 
   @@index([franchiseeId, archivedAt])
+  @@index([candidateId])
+  @@index([branchCode])
+  @@index([ownershipType])
+  @@index([conceptType])
   @@index([city])
   @@index([status, plannedOpeningDate])
+}
+
+model BranchUser {
+  id        String   @id @default(cuid())
+  branchId  String
+  userId    String
+  role      String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([branchId, userId])
+  @@index([userId])
+  @@index([branchId, role])
+}
+
+model BranchTask {
+  id                  String         @id @default(cuid())
+  title               String
+  description         String?
+  branchId            String
+  assignedUserId      String?
+  assignedRole        String?
+  createdById         String?
+  priority            String         @default("NORMAL")
+  status              String         @default("OPEN")
+  startDate           DateTime?
+  dueDate             DateTime?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  completedAt         DateTime?
+  reviewerUserId      String?
+  rejectionReason     String?
+  completionNote      String?
+  progress            Int            @default(0)
+  requiresPhoto       Boolean        @default(false)
+  requiresVideo       Boolean        @default(false)
+  requiresFile        Boolean        @default(false)
+  requiresDescription Boolean        @default(false)
+  requiresResultNote  Boolean        @default(false)
+  minimumPhotoCount   Int            @default(0)
+  minimumVideoCount   Int            @default(0)
+  minimumFileCount    Int            @default(0)
+  requiresApproval    Boolean        @default(true)
+  sourceType          String?
+  sourceId            String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  branch              Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  assignedUser        User?          @relation("BranchTaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  createdBy           User?          @relation("BranchTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewer            User?          @relation("BranchTaskReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  evidence            TaskEvidence[]
+
+  @@index([branchId, status])
+  @@index([assignedUserId, status])
+  @@index([dueDate, status])
+  @@index([sourceType, sourceId])
+}
+
+model TaskEvidence {
+  id           String     @id @default(cuid())
+  taskId       String
+  evidenceType String
+  fileName     String?
+  mimeType     String?
+  fileSize     Int?
+  storageKey   String?
+  description  String?
+  uploadedById String?
+  uploadedAt   DateTime   @default(now())
+  metadata     String?
+  createdAt    DateTime   @default(now())
+  task         BranchTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  uploadedBy   User?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId, evidenceType])
+  @@index([uploadedById, uploadedAt])
+}
+
+model BranchAudit {
+  id             String   @id @default(cuid())
+  branchId       String
+  title          String
+  status         String   @default("DRAFT")
+  auditDate      DateTime @default(now())
+  score          Float?
+  criticalCount  Int      @default(0)
+  summary        String?
+  createdById    String?
+  approvedById   String?
+  completedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, auditDate])
+  @@index([status, auditDate])
+}
+
+model BranchDevelopmentPlan {
+  id          String   @id @default(cuid())
+  branchId    String
+  title       String
+  status      String   @default("OPEN")
+  priority    String   @default("NORMAL")
+  dueDate     DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, status])
+  @@index([dueDate, status])
+}
+
+model OperationCalendarItem {
+  id          String   @id @default(cuid())
+  branchId    String
+  title       String
+  description String?
+  eventType   String
+  startAt     DateTime
+  endAt       DateTime?
+  status      String   @default("PLANNED")
+  taskId      String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, startAt])
+  @@index([status, startAt])
+}
+
+model BranchTimelineEvent {
+  id          String   @id @default(cuid())
+  branchId    String
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  oldValue    String?
+  newValue    String?
+  description String
+  createdAt   DateTime @default(now())
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, createdAt])
+  @@index([action, createdAt])
 }
 
 model BranchOpening {
@@ -536,6 +743,12 @@ model User {
   archivedAt   DateTime?
   auditLogs    AuditLog[]
   roleRecord   Role?      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branchUsers  BranchUser[]
+  assignedBranchTasks BranchTask[] @relation("BranchTaskAssignedUser")
+  createdBranchTasks  BranchTask[] @relation("BranchTaskCreatedBy")
+  reviewedBranchTasks BranchTask[] @relation("BranchTaskReviewer")
+  taskEvidence TaskEvidence[]
+  branchTimeline BranchTimelineEvent[]
 
   @@index([role, isActive])
   @@index([archivedAt])
@@ -559,6 +772,8 @@ model AuditLog {
   entityType  String
   entityId    String?
   description String
+  oldValue    String?
+  newValue    String?
   ipAddress   String?
   createdAt   DateTime @default(now())
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)

@@ -16,7 +16,7 @@ export type TaskListItem = {
   priority: string;
   status: string;
   assignedUserId: string;
-  relation: { id: string; fullName: string; city: string; href: string; type: "lead" | "candidate" };
+  relation: { id: string; fullName: string; city: string; href: string; type: "lead" | "candidate" | "branch" };
 };
 
 const ALL = "Tümü";
@@ -100,7 +100,7 @@ export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; in
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary">{task.relation.type === "lead" ? "Lead" : "Aday"}</Badge>
+                          <Badge variant="secondary">{task.relation.type === "lead" ? "Lead" : task.relation.type === "branch" ? "Şube" : "Aday"}</Badge>
                           <Badge className={task.priority === "Acil" ? "bg-rose-700 text-white" : "bg-[#17201b] text-white"}>
                             {task.priority}
                           </Badge>
