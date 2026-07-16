@@ -22,6 +22,7 @@ import {
   previousMonth,
   realizationRate,
 } from "@/lib/branch-revenue";
+import { ensureBranchRevenueSchema } from "@/lib/branch-revenue-schema";
 import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
@@ -60,6 +61,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const { periodStart } = monthPeriod(year, month);
   const prev = previousMonth(year, month);
   const prevPeriod = monthPeriod(prev.year, prev.month);
+  await ensureBranchRevenueSchema();
   const branchWhere: Prisma.BranchWhereInput = {
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),

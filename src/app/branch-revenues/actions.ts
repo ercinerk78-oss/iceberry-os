@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { audit, requirePermission, requireUser } from "@/lib/auth";
 import { monthPeriod } from "@/lib/branch-revenue";
+import { ensureBranchRevenueSchema } from "@/lib/branch-revenue-schema";
 import { canAccessBranch } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
@@ -67,6 +68,7 @@ export async function upsertBranchRevenue(_: BranchRevenueState, formData: FormD
   const file = formData.get("supportFile") instanceof File ? formData.get("supportFile") as File : null;
 
   try {
+    await ensureBranchRevenueSchema();
     const existing = await prisma.branchRevenueRecord.findUnique({
       where: { branchId_periodType_periodStart: { branchId: parsed.data.branchId, periodType: "MONTHLY", periodStart } },
       select: { id: true },
@@ -140,6 +142,7 @@ export async function approveRevenue(id: string, formData: FormData) {
   await requirePermission("branch_revenue");
   const user = await requireUser();
   if (!canApprove(user.role)) throw new Error("Ciro onaylama yetkiniz yok.");
+  await ensureBranchRevenueSchema();
   const current = await prisma.branchRevenueRecord.findUnique({ where: { id } });
   if (!current) return;
   const record = await prisma.branchRevenueRecord.update({
@@ -158,6 +161,7 @@ export async function rejectRevenue(id: string, formData: FormData) {
   const user = await requireUser();
   if (!canApprove(user.role)) throw new Error("Ciro reddetme yetkiniz yok.");
   const parsed = revenueRejectSchema.parse(Object.fromEntries(formData));
+  await ensureBranchRevenueSchema();
   const current = await prisma.branchRevenueRecord.findUnique({ where: { id } });
   if (!current) return;
   const record = await prisma.branchRevenueRecord.update({
@@ -176,6 +180,7 @@ export async function lockRevenue(id: string, formData: FormData) {
   await requirePermission("branch_revenue");
   const user = await requireUser();
   if (user.role !== "GENERAL_MANAGER") throw new Error("Ciro kilitleme yetkiniz yok.");
+  await ensureBranchRevenueSchema();
   const current = await prisma.branchRevenueRecord.findUnique({ where: { id } });
   if (!current) return;
   const record = await prisma.branchRevenueRecord.update({ where: { id }, data: { status: "LOCKED", lockedAt: new Date() } });
