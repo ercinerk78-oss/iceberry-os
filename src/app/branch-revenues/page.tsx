@@ -238,7 +238,7 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
       <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[1320px] text-left text-sm">
           <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
-            <tr>{["Şube", "Kod", "Şehir", "Tip", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Kaynak", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+            <tr>{["Şube", "Şehir", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Kaynak", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
             {rows.map((row) => <RevenueRow key={row.branch.id} row={row} />)}

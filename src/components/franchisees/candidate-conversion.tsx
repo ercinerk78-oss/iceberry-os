@@ -24,7 +24,7 @@ export function CandidateConversion({
   branch,
 }: {
   candidate: Candidate;
-  branch: { id: string; branchName: string; branchCode: string | null } | null;
+  branch: { id: string; branchName: string } | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -34,10 +34,10 @@ export function CandidateConversion({
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold text-emerald-900">Şube kaydı oluşturuldu</p>
-            <p className="text-sm text-emerald-700">{branch.branchName} · {branch.branchCode ?? "Kod yok"}</p>
+            <p className="text-sm text-emerald-700">{branch.branchName}</p>
           </div>
           <Button asChild variant="outline">
-            <Link href={`/branches/${branch.id}`}>Şube Kaydını Aç</Link>
+            <Link href={`/branches/${branch.id}`}>Şube kaydını aç</Link>
           </Button>
         </CardContent>
       </Card>
@@ -66,20 +66,10 @@ export function CandidateConversion({
                 action={convertCandidateToBranch.bind(null, candidate.id)}
                 values={{
                   branchName: `${candidate.fullName} Şubesi`,
-                  branchCode: `IB-${candidate.id.slice(0, 6).toUpperCase()}`,
-                  legalName: candidate.fullName,
-                  tradeName: `${candidate.fullName} Iceberry`,
-                  ownershipType: "FRANCHISE",
                   concept: conceptValue(candidate.interestedConcept),
                   city: candidate.city,
                   district: candidate.district,
-                  phone: candidate.phone,
-                  email: candidate.email,
-                  authorizedPersonName: candidate.fullName,
-                  authorizedPersonPhone: candidate.phone,
-                  authorizedPersonEmail: candidate.email,
                   status: "CONTRACTED",
-                  candidateId: candidate.id,
                 }}
               />
             </div>

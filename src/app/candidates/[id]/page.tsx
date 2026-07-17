@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const record = await prisma.franchiseCandidate.findFirst({ where: { id, archivedAt: null }, include: { branch: { select: { id: true, branchName: true, branchCode: true } }, interactions: { orderBy: { interactionDate: "desc" } }, tasks: { orderBy: { dueDate: "asc" } }, documents: { orderBy: { createdAt: "desc" } } } });
+  const record = await prisma.franchiseCandidate.findFirst({ where: { id, archivedAt: null }, include: { branch: { select: { id: true, branchName: true } }, interactions: { orderBy: { interactionDate: "desc" } }, tasks: { orderBy: { dueDate: "asc" } }, documents: { orderBy: { createdAt: "desc" } } } });
   if (!record) notFound();
   const candidate = toCandidate(record);
   return <AppShell activeHref="/candidates" eyebrow="Franchise aday detayı" title={candidate.fullName}><div className="space-y-4">
