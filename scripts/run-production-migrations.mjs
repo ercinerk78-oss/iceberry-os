@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 const directDatabaseUrl = process.env.DIRECT_URL || process.env.DATABASE_DIRECT_URL || "";
-if (directDatabaseUrl.startsWith("postgres")) {
+const hasDirectDatabaseUrl = directDatabaseUrl.startsWith("postgres");
+if (hasDirectDatabaseUrl) {
   process.env.DATABASE_URL = directDatabaseUrl;
 }
 
@@ -17,6 +18,12 @@ const idempotentSqlFiles = [
 
 if (!shouldRun) {
   console.log("Skipping production migrations for this environment.");
+  process.exit(0);
+}
+
+if (!hasDirectDatabaseUrl) {
+  console.warn("Skipping production migrations because DIRECT_URL or DATABASE_DIRECT_URL is not configured.");
+  console.warn("The app deploy will continue; run migrations with a direct Postgres connection.");
   process.exit(0);
 }
 
