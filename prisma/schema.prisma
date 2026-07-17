@@ -177,6 +177,9 @@ model Branch {
   developmentPlans          BranchDevelopmentPlan[]
   operationCalendarItems    OperationCalendarItem[]
   timeline                  BranchTimelineEvent[]
+  externalMappings          ExternalBranchMapping[]
+  deliveryIssues            DeliveryIssue[]
+  supplyAlerts              SupplyComplianceAlert[]
 
   @@index([franchiseeId, archivedAt])
   @@index([candidateId])
@@ -588,12 +591,20 @@ model LeadTask {
 model ProductCategory {
   id          String    @id @default(cuid())
   name        String    @unique
+  code        String?   @unique
   description String?
+  parentCategoryId String?
+  sortOrder   Int       @default(0)
   orderIndex  Int       @default(0)
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  parent      ProductCategory?  @relation("ProductCategoryTree", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+  children    ProductCategory[] @relation("ProductCategoryTree")
   products    Product[]
+
+  @@index([parentCategoryId])
+  @@index([code])
 }
 
 model Product {
@@ -601,15 +612,32 @@ model Product {
   name              String
   sku               String               @unique
   barcode           String?              @unique
+  shortName         String?
   categoryId        String
+  brand             String?
   unit              String               @default("Adet")
+  packageQuantity   Float?
+  packageUnit       String?
+  baseUnit          String?
+  conversionFactor  Float                @default(1)
+  minimumOrderQuantity Float             @default(1)
+  orderIncrement    Float                @default(1)
   vatRate           Float                @default(20)
   purchasePrice     Float                @default(0)
   salePrice         Float
   currency          String               @default("TRY")
   minimumStockLevel Float                @default(0)
+  trackInventory    Boolean              @default(true)
+  trackLot          Boolean              @default(false)
+  trackExpiration   Boolean              @default(false)
+  shelfLifeDays     Int?
+  storageCondition  String?
+  isOrderable       Boolean              @default(true)
+  centralSupplyPolicy String             @default("PREFERRED_CENTRAL")
   isActive          Boolean              @default(true)
   parasutProductId  String?
+  ticimaxProductId  String?
+  createdById       String?
   description       String?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -618,26 +646,61 @@ model Product {
   stocks            WarehouseStock[]
   movements         StockMovement[]
   orderItems        FranchiseOrderItem[]
+  externalMappings  ExternalProductMapping[]
+  mappingQueueSuggestions ProductMappingQueue[] @relation("SuggestedProduct")
+  mappingQueueMatches ProductMappingQueue[] @relation("MatchedProduct")
+  lots              InventoryLot[]
+  goodsReceiptItems GoodsReceiptItem[]
+  pickingItems      PickingListItem[]
+  shipmentItems     ShipmentItem[]
+  returnItems       ReturnItem[]
+  inventoryLosses   InventoryLoss[]
+  stockCountItems   StockCountItem[]
+  supplyAlerts      SupplyComplianceAlert[]
 
   @@index([categoryId, isActive])
   @@index([name])
+  @@index([centralSupplyPolicy])
+  @@index([isOrderable, isActive])
 }
 
 model Warehouse {
   id                String           @id @default(cuid())
   name              String           @unique
+  code              String?          @unique
+  type              String           @default("CENTRAL")
+  status            String           @default("ACTIVE")
+  country           String           @default("Türkiye")
   city              String
   district          String?
   address           String?
+  latitude          Float?
+  longitude         Float?
   responsiblePerson String?
   phone             String?
+  email             String?
+  managerUserId     String?
+  createdById       String?
+  notes             String?
   isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  archivedAt        DateTime?
   stocks            WarehouseStock[]
   movements         StockMovement[]
   orders            FranchiseOrder[]
   shipments         Shipment[]
+  lots              InventoryLot[]
+  goodsReceipts     GoodsReceipt[]
+  pickingLists      PickingList[]
+  returns           ReturnRequest[]
+  inventoryLosses   InventoryLoss[]
+  stockCounts       StockCount[]
+  supplyAlerts      SupplyComplianceAlert[]
+
+  @@index([code])
+  @@index([type, status])
+  @@index([city])
 }
 
 model WarehouseStock {
@@ -647,32 +710,57 @@ model WarehouseStock {
   quantity          Float     @default(0)
   reservedQuantity  Float     @default(0)
   availableQuantity Float     @default(0)
+  minimumStockLevel Float     @default(0)
+  reorderPoint      Float?
+  maximumStockLevel Float?
+  averageCost       Float?
+  lastPurchasePrice Float?
+  lastMovementAt    DateTime?
+  lastCountedAt     DateTime?
+  version           Int       @default(0)
+  createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   product           Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@unique([warehouseId, productId])
   @@index([productId])
+  @@index([warehouseId, updatedAt])
 }
 
 model StockMovement {
   id             String    @id @default(cuid())
   warehouseId    String
   productId      String
+  lotId          String?
   movementType   String
+  direction      String    @default("IN")
   quantity       Float
+  unitCost       Float?
+  totalCost      Float?
   beforeQuantity Float
   afterQuantity  Float
+  previousQuantity Float?
+  newQuantity    Float?
   referenceType  String?
   referenceId    String?
+  reasonCode     String?
   description    String?
+  notes          String?
+  documentId     String?
+  performedById  String?
+  approvedById   String?
+  occurredAt     DateTime  @default(now())
   createdBy      String?
   createdAt      DateTime  @default(now())
   warehouse      Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   product        Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lot            InventoryLot? @relation(fields: [lotId], references: [id], onDelete: SetNull)
 
   @@index([warehouseId, createdAt])
   @@index([productId, createdAt])
+  @@index([lotId])
+  @@index([movementType, occurredAt])
   @@index([referenceType, referenceId])
 }
 
@@ -681,7 +769,12 @@ model FranchiseOrder {
   orderNumber           String               @unique
   franchiseeId          String
   branchId              String?
+  customerName          String?
+  source                String               @default("MANUAL_OTHER")
+  orderType             String               @default("FRANCHISE_SALE")
   warehouseId           String
+  externalOrderId       String?
+  ticimaxOrderNumber    String?
   status                String               @default("SUBMITTED")
   invoiceStatus         String               @default("NOT_CREATED")
   parasutInvoiceId      String?
@@ -692,6 +785,12 @@ model FranchiseOrder {
   currency              String               @default("TRY")
   requestedDeliveryDate DateTime?
   approvedAt            DateTime?
+  reservedAt            DateTime?
+  pickingStartedAt      DateTime?
+  packedAt              DateTime?
+  readyToShipAt         DateTime?
+  shippedAt             DateTime?
+  deliveredAt           DateTime?
   rejectedAt            DateTime?
   cancelledAt           DateTime?
   notes                 String?
@@ -705,8 +804,16 @@ model FranchiseOrder {
   items                 FranchiseOrderItem[]
   activities            OrderActivity[]
   shipment              Shipment?
+  pickingLists          PickingList[]
+  returnRequests        ReturnRequest[]
+  deliveryIssues        DeliveryIssue[]
+  supplyAlerts          SupplyComplianceAlert[]
 
+  @@unique([source, externalOrderId])
+  @@unique([ticimaxOrderNumber])
   @@index([status, createdAt])
+  @@index([source, createdAt])
+  @@index([orderType, createdAt])
   @@index([franchiseeId, createdAt])
   @@index([branchId, createdAt])
   @@index([warehouseId, status])
@@ -720,6 +827,13 @@ model FranchiseOrderItem {
   sku              String
   unit             String
   quantity         Float
+  approvedQuantity Float?
+  reservedQuantity Float          @default(0)
+  pickedQuantity   Float          @default(0)
+  packedQuantity   Float          @default(0)
+  shippedQuantity  Float          @default(0)
+  deliveredQuantity Float         @default(0)
+  returnedQuantity Float          @default(0)
   preparedQuantity Float          @default(0)
   missingQuantity  Float          @default(0)
   unitPrice        Float
@@ -727,10 +841,14 @@ model FranchiseOrderItem {
   lineSubtotal     Float
   lineVat          Float
   lineTotal        Float
+  notes            String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   order            FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
   product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pickingItems     PickingListItem[]
+  shipmentItems    ShipmentItem[]
+  returnItems      ReturnItem[]
 
   @@index([orderId])
   @@index([productId])
@@ -754,17 +872,440 @@ model Shipment {
   orderId        String         @unique
   warehouseId    String
   status         String         @default("PREPARING")
+  shipmentType   String         @default("CARGO")
   carrierName    String?
   trackingNumber String?
+  vehiclePlate   String?
+  driverName     String?
+  driverPhone    String?
   shippedAt      DateTime?
   deliveredAt    DateTime?
+  deliveredById  String?
+  receivedByName String?
+  deliveryProblemStatus String?
   notes          String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   order          FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
   warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items          ShipmentItem[]
+  deliveryIssues DeliveryIssue[]
 
   @@index([warehouseId, status])
+  @@index([status, shippedAt])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  code        String?  @unique
+  taxNumber   String?
+  taxOffice   String?
+  phone       String?
+  email       String?
+  address     String?
+  status      String   @default("ACTIVE")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivedAt  DateTime?
+  productMappings ExternalProductMapping[]
+  goodsReceipts GoodsReceipt[]
+  lots        InventoryLot[]
+
+  @@index([name])
+  @@index([status])
+}
+
+model ExternalProductMapping {
+  id                String   @id @default(cuid())
+  productId         String
+  sourceSystem      String
+  externalProductId String
+  externalSku       String?
+  externalBarcode   String?
+  externalName      String
+  supplierId        String?
+  conversionFactor  Float    @default(1)
+  externalUnit      String?
+  isActive          Boolean  @default(true)
+  lastMatchedAt     DateTime?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  supplier          Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceSystem, externalProductId, isActive])
+  @@index([productId, sourceSystem])
+  @@index([externalSku])
+  @@index([externalBarcode])
+}
+
+model ProductMappingQueue {
+  id                String   @id @default(cuid())
+  sourceSystem      String
+  externalProductId String?
+  externalName      String
+  externalSku       String?
+  externalBarcode   String?
+  externalUnit      String?
+  sourceDocumentId  String?
+  sourceOrderId     String?
+  status            String   @default("PENDING")
+  suggestedProductId String?
+  matchedProductId  String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  suggestedProduct  Product? @relation("SuggestedProduct", fields: [suggestedProductId], references: [id], onDelete: SetNull)
+  matchedProduct    Product? @relation("MatchedProduct", fields: [matchedProductId], references: [id], onDelete: SetNull)
+
+  @@index([sourceSystem, status])
+  @@index([externalProductId])
+  @@index([suggestedProductId])
+  @@index([matchedProductId])
+}
+
+model ExternalBranchMapping {
+  id                 String   @id @default(cuid())
+  branchId           String
+  sourceSystem       String
+  externalCustomerId String?
+  externalStoreId    String?
+  externalCode       String?
+  externalName       String
+  status             String   @default("ACTIVE")
+  lastSyncedAt       DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  branch             Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceSystem, externalCustomerId])
+  @@index([branchId, sourceSystem])
+  @@index([externalCode])
+}
+
+model InventoryLot {
+  id                 String   @id @default(cuid())
+  warehouseId        String
+  productId          String
+  lotNumber          String
+  productionDate     DateTime?
+  expirationDate     DateTime?
+  quantityOnHand     Float    @default(0)
+  quantityReserved   Float    @default(0)
+  supplierId         String?
+  goodsReceiptItemId String?
+  status             String   @default("ACTIVE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  warehouse          Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product            Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  supplier           Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  goodsReceiptItem   GoodsReceiptItem? @relation(fields: [goodsReceiptItemId], references: [id], onDelete: SetNull)
+  movements          StockMovement[]
+  pickingItems       PickingListItem[]
+  shipmentItems      ShipmentItem[]
+
+  @@unique([warehouseId, productId, lotNumber])
+  @@index([expirationDate, status])
+  @@index([productId, status])
+}
+
+model GoodsReceipt {
+  id                 String   @id @default(cuid())
+  warehouseId        String
+  supplierId         String?
+  sourceSystem       String   @default("MANUAL")
+  externalDocumentId String?
+  invoiceNumber      String?
+  invoiceDate        DateTime?
+  deliveryDate       DateTime?
+  status             String   @default("PENDING_RECEIPT")
+  totalExpectedItems Float    @default(0)
+  totalReceivedItems Float    @default(0)
+  discrepancyStatus  String   @default("NONE")
+  receivedById       String?
+  approvedById       String?
+  completedAt        DateTime?
+  approvedAt         DateTime?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  warehouse          Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  supplier           Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items              GoodsReceiptItem[]
+
+  @@index([warehouseId, status])
+  @@index([sourceSystem, externalDocumentId])
+  @@index([invoiceNumber])
+}
+
+model GoodsReceiptItem {
+  id                String   @id @default(cuid())
+  goodsReceiptId    String
+  productId         String?
+  externalProductId String?
+  expectedQuantity  Float    @default(0)
+  receivedQuantity  Float    @default(0)
+  acceptedQuantity  Float    @default(0)
+  damagedQuantity   Float    @default(0)
+  missingQuantity   Float    @default(0)
+  excessQuantity    Float    @default(0)
+  unit              String
+  unitCost          Float?
+  lotNumber         String?
+  productionDate    DateTime?
+  expirationDate    DateTime?
+  discrepancyReason String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  goodsReceipt      GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Restrict)
+  product           Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  lots              InventoryLot[]
+
+  @@index([goodsReceiptId])
+  @@index([productId])
+  @@index([externalProductId])
+}
+
+model PickingList {
+  id            String   @id @default(cuid())
+  orderId       String
+  warehouseId   String
+  status        String   @default("OPEN")
+  assignedUserId String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  order         FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items         PickingListItem[]
+
+  @@index([warehouseId, status])
+  @@index([orderId])
+}
+
+model PickingListItem {
+  id              String   @id @default(cuid())
+  pickingListId   String
+  orderItemId     String
+  productId       String
+  lotId           String?
+  requestedQuantity Float
+  pickedQuantity  Float    @default(0)
+  missingQuantity Float    @default(0)
+  status          String   @default("OPEN")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  pickingList     PickingList @relation(fields: [pickingListId], references: [id], onDelete: Restrict)
+  orderItem       FranchiseOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product         Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lot             InventoryLot? @relation(fields: [lotId], references: [id], onDelete: SetNull)
+
+  @@index([pickingListId])
+  @@index([orderItemId])
+  @@index([lotId])
+}
+
+model ShipmentItem {
+  id              String   @id @default(cuid())
+  shipmentId      String
+  orderItemId     String
+  productId       String
+  lotId           String?
+  packedQuantity  Float    @default(0)
+  shippedQuantity Float    @default(0)
+  deliveredQuantity Float   @default(0)
+  damagedQuantity Float    @default(0)
+  missingQuantity Float    @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  shipment        Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  orderItem       FranchiseOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product         Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lot             InventoryLot? @relation(fields: [lotId], references: [id], onDelete: SetNull)
+
+  @@unique([shipmentId, orderItemId])
+  @@index([shipmentId])
+  @@index([orderItemId])
+  @@index([lotId])
+}
+
+model DeliveryIssue {
+  id          String   @id @default(cuid())
+  orderId     String
+  shipmentId  String?
+  branchId    String?
+  issueType   String
+  severity    String   @default("ATTENTION")
+  status      String   @default("OPEN")
+  description String
+  reportedById String?
+  resolvedById String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  order       FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  shipment    Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  branch      Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, status])
+  @@index([shipmentId])
+  @@index([branchId, status])
+}
+
+model ReturnRequest {
+  id          String   @id @default(cuid())
+  orderId     String
+  warehouseId String
+  status      String   @default("REQUESTED")
+  reason      String?
+  requestedById String?
+  approvedById String?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  order       FranchiseOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items       ReturnItem[]
+
+  @@index([orderId, status])
+  @@index([warehouseId, status])
+}
+
+model ReturnItem {
+  id          String   @id @default(cuid())
+  returnId    String
+  orderItemId String
+  productId   String
+  quantity    Float
+  acceptedQuantity Float @default(0)
+  quarantinedQuantity Float @default(0)
+  damagedQuantity Float @default(0)
+  status      String   @default("REQUESTED")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  returnRequest ReturnRequest @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  orderItem   FranchiseOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([returnId])
+  @@index([orderItemId])
+}
+
+model InventoryLoss {
+  id          String   @id @default(cuid())
+  warehouseId String
+  productId   String
+  quantity    Float
+  lossType    String
+  status      String   @default("PENDING_APPROVAL")
+  estimatedCost Float?
+  reason      String?
+  notes       String?
+  reportedById String?
+  approvedById String?
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  warehouse  Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product    Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([warehouseId, status])
+  @@index([productId, createdAt])
+}
+
+model StockCount {
+  id          String   @id @default(cuid())
+  warehouseId String
+  title       String
+  countType   String   @default("FULL")
+  status      String   @default("DRAFT")
+  assignedUserId String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  approvedById String?
+  approvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items       StockCountItem[]
+
+  @@index([warehouseId, status])
+  @@index([createdAt])
+}
+
+model StockCountItem {
+  id          String   @id @default(cuid())
+  stockCountId String
+  productId   String
+  expectedQuantity Float
+  countedQuantity  Float?
+  differenceQuantity Float?
+  reasonCode  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  stockCount  StockCount @relation(fields: [stockCountId], references: [id], onDelete: Restrict)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([stockCountId, productId])
+  @@index([productId])
+}
+
+model SupplyComplianceAlert {
+  id          String   @id @default(cuid())
+  branchId    String
+  productId   String?
+  warehouseId String?
+  orderId     String?
+  alertType   String
+  severity    String   @default("INFO")
+  status      String   @default("OPEN")
+  title       String
+  description String
+  evidenceRequired Boolean @default(false)
+  assignedTaskId String?
+  resolvedById String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  branch      Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  order       FranchiseOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status])
+  @@index([severity, status])
+  @@index([productId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String?
+  role        String?
+  type        String
+  title       String
+  message     String
+  entityType  String?
+  entityId    String?
+  status      String   @default("UNREAD")
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  @@index([userId, status])
+  @@index([role, status])
+  @@index([type, createdAt])
 }
 
 model User {

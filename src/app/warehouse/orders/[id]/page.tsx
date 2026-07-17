@@ -1,2 +1,123 @@
-import{notFound}from"next/navigation";import{orderCommand,savePreparation}from"@/app/orders/actions";import{AppShell}from"@/components/app-shell";import{Button}from"@/components/ui/button";import{Card,CardContent,CardHeader,CardTitle}from"@/components/ui/card";import{prisma}from"@/lib/prisma";import{dateTime}from"@/lib/warehouse";export const dynamic="force-dynamic";
-export default async function PreparePage({params}:{params:Promise<{id:string}>}){const{id}=await params,o=await prisma.franchiseOrder.findUnique({where:{id},include:{items:{include:{product:{include:{stocks:true}}}},franchisee:true,branch:true,shipment:true}});if(!o)notFound();return <AppShell activeHref="/warehouse/orders" eyebrow="Depo hazırlık" title={o.orderNumber}><div className="grid gap-4 xl:grid-cols-[1fr_360px]"><form action={savePreparation.bind(null,id)}><Card className="shadow-none"><CardHeader><CardTitle>Toplama Listesi</CardTitle><p className="text-sm text-[#65705f]">{o.franchisee.companyName} · {o.branch?.branchName??"Genel"} · Teslim {dateTime(o.requestedDeliveryDate)}</p></CardHeader><CardContent className="space-y-3">{o.items.map(i=>{const stock=i.product.stocks.find(s=>s.warehouseId===o.warehouseId);return <div key={i.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_120px_120px]"><input type="hidden" name="itemId" value={i.id}/><div><b>{i.productName}</b><p className="text-xs text-[#65705f]">İstenen {i.quantity} {i.unit} · Fiziksel stok {stock?.quantity??0}</p></div><label className="text-xs">Hazırlanan<input name="preparedQuantity" type="number" min="0" max={i.quantity} step="0.01" defaultValue={i.preparedQuantity} className="mt-1 h-9 w-full rounded border px-2"/></label><label className="text-xs">Eksik<input name="missingQuantity" type="number" min="0" max={i.quantity} step="0.01" defaultValue={i.missingQuantity} className="mt-1 h-9 w-full rounded border px-2"/></label></div>})}<Button>Hazırlığı Kaydet</Button></CardContent></Card></form><Card className="h-fit shadow-none"><CardHeader><CardTitle>Sevkiyat</CardTitle></CardHeader><CardContent className="space-y-3">{o.items.some(i=>i.missingQuantity>0)&&<p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">Eksik ürün var. Sevkiyat yapılamaz.</p>}<form action={orderCommand.bind(null,id,"ready")}><Button variant="outline" className="w-full">Sevkiyata Hazır İşaretle</Button></form><form action={orderCommand.bind(null,id,"ship")} className="space-y-2"><input name="carrierName" placeholder="Taşıyıcı" className="h-10 w-full rounded-lg border px-3"/><input name="trackingNumber" placeholder="Takip numarası" className="h-10 w-full rounded-lg border px-3"/><Button className="w-full">Sevk Et ve Stoktan Düş</Button></form></CardContent></Card></div></AppShell>}
+import { notFound } from "next/navigation";
+
+import { orderCommand, savePreparation } from "@/app/orders/actions";
+import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { prisma } from "@/lib/prisma";
+import { dateTime } from "@/lib/warehouse";
+
+export const dynamic = "force-dynamic";
+
+export default async function PreparePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const order = await prisma.franchiseOrder.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      orderNumber: true,
+      warehouseId: true,
+      requestedDeliveryDate: true,
+      franchisee: { select: { companyName: true } },
+      branch: { select: { branchName: true } },
+      items: {
+        select: {
+          id: true,
+          productName: true,
+          quantity: true,
+          unit: true,
+          preparedQuantity: true,
+          missingQuantity: true,
+          product: {
+            select: {
+              stocks: { select: { warehouseId: true, quantity: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!order) notFound();
+
+  return (
+    <AppShell activeHref="/warehouse/orders" eyebrow="Depo hazırlık" title={order.orderNumber}>
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <form action={savePreparation.bind(null, id)}>
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>Toplama Listesi</CardTitle>
+              <p className="text-sm text-[#65705f]">
+                {order.franchisee.companyName} · {order.branch?.branchName ?? "Genel"} · Teslim{" "}
+                {dateTime(order.requestedDeliveryDate)}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {order.items.map((item) => {
+                const stock = item.product.stocks.find((row) => row.warehouseId === order.warehouseId);
+
+                return (
+                  <div key={item.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_120px_120px]">
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <div>
+                      <b>{item.productName}</b>
+                      <p className="text-xs text-[#65705f]">
+                        İstenen {item.quantity} {item.unit} · Fiziksel stok {stock?.quantity ?? 0}
+                      </p>
+                    </div>
+                    <label className="text-xs">
+                      Hazırlanan
+                      <input
+                        name="preparedQuantity"
+                        type="number"
+                        min="0"
+                        max={item.quantity}
+                        step="0.01"
+                        defaultValue={item.preparedQuantity}
+                        className="mt-1 h-9 w-full rounded border px-2"
+                      />
+                    </label>
+                    <label className="text-xs">
+                      Eksik
+                      <input
+                        name="missingQuantity"
+                        type="number"
+                        min="0"
+                        max={item.quantity}
+                        step="0.01"
+                        defaultValue={item.missingQuantity}
+                        className="mt-1 h-9 w-full rounded border px-2"
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+              <Button>Hazırlığı Kaydet</Button>
+            </CardContent>
+          </Card>
+        </form>
+
+        <Card className="h-fit shadow-none">
+          <CardHeader>
+            <CardTitle>Sevkiyat</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {order.items.some((item) => item.missingQuantity > 0) ? (
+              <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">Eksik ürün var. Sevkiyat yapılamaz.</p>
+            ) : null}
+            <form action={orderCommand.bind(null, id, "ready")}>
+              <Button variant="outline" className="w-full">
+                Sevkiyata Hazır İşaretle
+              </Button>
+            </form>
+            <form action={orderCommand.bind(null, id, "ship")} className="space-y-2">
+              <input name="carrierName" placeholder="Taşıyıcı" className="h-10 w-full rounded-lg border px-3" />
+              <input name="trackingNumber" placeholder="Takip numarası" className="h-10 w-full rounded-lg border px-3" />
+              <Button className="w-full">Sevk Et ve Stoktan Düş</Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
+  );
+}

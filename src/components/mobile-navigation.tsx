@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Bell,
   Building2,
   CalendarCheck2,
   CalendarRange,
@@ -30,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 const icons = {
+  Bell,
   Building2,
   CalendarCheck2,
   CalendarRange,

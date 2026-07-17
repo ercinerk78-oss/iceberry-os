@@ -51,6 +51,11 @@ const navigation = [
   { label: "Sipariş Yönetimi", href: "/orders/admin", icon: Package, iconKey: "Package" },
   { label: "Depo", href: "/warehouse", icon: Warehouse, iconKey: "Warehouse" },
   { label: "Depo Stokları", href: "/warehouse/stock", icon: Warehouse, iconKey: "Warehouse" },
+  { label: "Mal Kabuller", href: "/warehouse/goods-receipts", icon: ClipboardCheck, iconKey: "CheckSquare" },
+  { label: "Lot ve SKT", href: "/warehouse/lots", icon: CalendarRange, iconKey: "CalendarRange" },
+  { label: "Sayımlar", href: "/warehouse/counts", icon: CheckSquare, iconKey: "CheckSquare" },
+  { label: "Ürün Eşleştirmeleri", href: "/warehouse/product-mappings", icon: Package, iconKey: "Package" },
+  { label: "Tedarik Uyumsuzlukları", href: "/warehouse/compliance", icon: Bell, iconKey: "Bell" },
   { label: "Hazırlanacak Siparişler", href: "/warehouse/orders", icon: Package, iconKey: "Package" },
   { label: "Sevkiyatlar", href: "/warehouse/shipments", icon: Truck, iconKey: "Truck" },
   { label: "Stok Hareketleri", href: "/warehouse/movements", icon: LineChart, iconKey: "LineChart" },
@@ -103,7 +108,7 @@ export async function AppShell({
             </div>
           </Link>
 
-          <nav className="mt-8 space-y-1">
+          <nav className="mt-8 space-y-1 overflow-y-auto pr-1">
             {visibleNavigation.map((item) => {
               const active = item.href === activeHref;
 
@@ -129,8 +134,7 @@ export async function AppShell({
               Franchise CRM
             </Badge>
             <p className="mt-3 text-sm leading-6 text-white/74">
-              Aday yönetimi, takip akışı ve şube açılış operasyonları tek
-              merkezde.
+              Aday yönetimi, takip akışı ve şube açılış operasyonları tek merkezde.
             </p>
           </div>
         </aside>
