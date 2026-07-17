@@ -1,3 +1,5 @@
+import { translate, type Locale } from "@/lib/i18n/messages";
+
 export const LEAD_SOURCES = ["Instagram", "Facebook", "Web", "WhatsApp", "Manuel"] as const;
 export const LEAD_CONCEPTS = ["Corner", "Cafe", "Self Cafe"] as const;
 
@@ -114,16 +116,16 @@ export type LeadView = {
   }[];
 };
 
-export function leadStatusLabel(status: string) {
+export function leadStatusLabel(status: string, locale?: Locale) {
   const canonical = canonicalLeadStatus(status);
 
-  return canonical ? LEAD_STATUS_LABELS[canonical] : status;
+  return canonical ? translate(locale, `leadStatus.${canonical}`, LEAD_STATUS_LABELS[canonical]) : status;
 }
 
-export function leadCategoryLabel(category?: string | null) {
+export function leadCategoryLabel(category?: string | null, locale?: Locale) {
   return category && category in LEAD_CATEGORY_LABELS
-    ? LEAD_CATEGORY_LABELS[category as LeadCategory]
-    : "Kategori yok";
+    ? translate(locale, `leadCategory.${category}`, LEAD_CATEGORY_LABELS[category as LeadCategory])
+    : translate(locale, "leadCategory.NONE", "Kategori yok");
 }
 
 export function canonicalLeadStatus(status: string) {

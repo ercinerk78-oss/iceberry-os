@@ -1,3 +1,5 @@
+import { translate, type Locale } from "@/lib/i18n/messages";
+
 export const APPOINTMENT_TYPES = ["PHONE", "ONLINE", "FACE_TO_FACE"] as const;
 export const APPOINTMENT_STATUSES = [
   "SCHEDULED",
@@ -24,15 +26,15 @@ export const APPOINTMENT_STATUS_LABELS: Record<(typeof APPOINTMENT_STATUSES)[num
 export type AppointmentType = (typeof APPOINTMENT_TYPES)[number];
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
-export function appointmentTypeLabel(type: string) {
+export function appointmentTypeLabel(type: string, locale?: Locale) {
   return type in APPOINTMENT_TYPE_LABELS
-    ? APPOINTMENT_TYPE_LABELS[type as AppointmentType]
+    ? translate(locale, `appointmentType.${type}`, APPOINTMENT_TYPE_LABELS[type as AppointmentType])
     : type;
 }
 
-export function appointmentStatusLabel(status: string) {
+export function appointmentStatusLabel(status: string, locale?: Locale) {
   return status in APPOINTMENT_STATUS_LABELS
-    ? APPOINTMENT_STATUS_LABELS[status as AppointmentStatus]
+    ? translate(locale, `appointmentStatus.${status}`, APPOINTMENT_STATUS_LABELS[status as AppointmentStatus])
     : status;
 }
 

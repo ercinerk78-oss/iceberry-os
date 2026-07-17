@@ -1,3 +1,5 @@
+import { translate, type Locale } from "@/lib/i18n/messages";
+
 export const USER_ROLES = [
   "GENERAL_MANAGER",
   "OPERATIONS_MANAGER",
@@ -25,6 +27,10 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   BRANCH_MANAGER: "Şube Müdürü",
   BRANCH_STAFF: "Şube Personeli",
 };
+
+export function roleLabel(role: string, locale?: Locale) {
+  return translate(locale, `roles.${role}`, ROLE_LABELS[role as UserRole] ?? role);
+}
 
 export type Permission =
   | "dashboard"

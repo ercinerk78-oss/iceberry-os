@@ -15,7 +15,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LEAD_STATUS_LABELS } from "@/lib/leads";
+import { getTranslations } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,7 @@ function leadProcessWhere(values: string[], legacyValues: string[] = values) {
 }
 
 export default async function Home() {
+  const { t } = await getTranslations();
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -97,30 +98,30 @@ export default async function Home() {
   const positiveRate = totalLeads ? Math.round((positiveLeads / totalLeads) * 100) : 0;
   const unproductiveRate = totalLeads ? Math.round((unproductiveLeads / totalLeads) * 100) : 0;
   const metrics = [
-    { title: "Aktif Şube", value: activeBranches, href: "/branches?status=ACTIVE", change: "Aktif", description: "Faaliyetteki şubeler", icon: Store, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
-    { title: "Toplam Şube", value: totalBranches, href: "/branches", change: "Canlı", description: "Arşivlenmemiş şube sayısı", icon: Store, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
-    { title: "Yeni Lead", value: newLeads, href: "/leads?status=NEW", change: LEAD_STATUS_LABELS.NEW, description: "Henüz işleme alınmamış leadler", icon: MessageSquareText, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
-    { title: "Randevu Bekleyen Lead", value: waitingAppointmentLeads, href: "/leads?status=WAITING_FOR_APPOINTMENT", change: "Randevu", description: "Randevu departmanı takibindeki leadler", icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
-    { title: "Bugünkü Randevular", value: todayAppointments, href: "/appointments?date=today", change: "Bugün", description: "Bugün planlanan görüşmeler", icon: CalendarCheck2, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    { title: "Olumlu Lead", value: positiveLeads, href: "/leads?leadCategory=POSITIVE", change: "% " + positiveRate, description: "Olumlu değerlendirilen leadler", icon: CheckCircle2, tone: "bg-lime-50 text-lime-700 ring-lime-200" },
-    { title: "Yakın Takip Lead", value: closeFollowUpLeads, href: "/leads?leadCategory=CLOSE_FOLLOW_UP", change: "Takip", description: "Kısa vadede izlenecek leadler", icon: TimerReset, tone: "bg-violet-50 text-violet-700 ring-violet-200" },
-    { title: "Uzun Vade Lead", value: longTermLeads, href: "/leads?leadCategory=LONG_TERM", change: "Uzun vade", description: "Daha ileri tarihe planlanan leadler", icon: Clock3, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
-    { title: "Verimsiz Lead", value: unproductiveLeads, href: "/leads?leadCategory=UNPRODUCTIVE", change: "% " + unproductiveRate, description: "Düşük verimli başvurular", icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
-    { title: "Geciken Takipler", value: overdueFollowUps, href: "/tasks?filter=overdue", change: "Gecikme", description: "Takip tarihi geçen lead ve görevler", icon: CalendarClock, tone: "bg-orange-50 text-orange-700 ring-orange-200" },
+    { title: t("dashboard.activeBranches"), value: activeBranches, href: "/branches?status=ACTIVE", change: t("dashboard.active"), description: t("dashboard.activeBranchesDesc"), icon: Store, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
+    { title: t("dashboard.totalBranches"), value: totalBranches, href: "/branches", change: t("dashboard.live"), description: t("dashboard.totalBranchesDesc"), icon: Store, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+    { title: t("dashboard.newLeads"), value: newLeads, href: "/leads?status=NEW", change: t("leadStatus.NEW"), description: t("dashboard.newLeadsDesc"), icon: MessageSquareText, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+    { title: t("dashboard.waitingAppointmentLeads"), value: waitingAppointmentLeads, href: "/leads?status=WAITING_FOR_APPOINTMENT", change: t("dashboard.appointment"), description: t("dashboard.waitingAppointmentDesc"), icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
+    { title: t("dashboard.todayAppointments"), value: todayAppointments, href: "/appointments?date=today", change: t("dashboard.today"), description: t("dashboard.todayAppointmentsDesc"), icon: CalendarCheck2, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+    { title: t("dashboard.positiveLeads"), value: positiveLeads, href: "/leads?leadCategory=POSITIVE", change: `% ${positiveRate}`, description: t("dashboard.positiveLeadsDesc"), icon: CheckCircle2, tone: "bg-lime-50 text-lime-700 ring-lime-200" },
+    { title: t("dashboard.closeFollowUpLeads"), value: closeFollowUpLeads, href: "/leads?leadCategory=CLOSE_FOLLOW_UP", change: t("dashboard.followUp"), description: t("dashboard.closeFollowUpDesc"), icon: TimerReset, tone: "bg-violet-50 text-violet-700 ring-violet-200" },
+    { title: t("dashboard.longTermLeads"), value: longTermLeads, href: "/leads?leadCategory=LONG_TERM", change: t("dashboard.longTerm"), description: t("dashboard.longTermDesc"), icon: Clock3, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
+    { title: t("dashboard.unproductiveLeads"), value: unproductiveLeads, href: "/leads?leadCategory=UNPRODUCTIVE", change: `% ${unproductiveRate}`, description: t("dashboard.unproductiveDesc"), icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
+    { title: t("dashboard.overdueFollowUps"), value: overdueFollowUps, href: "/tasks?filter=overdue", change: t("dashboard.delay"), description: t("dashboard.overdueDesc"), icon: CalendarClock, tone: "bg-orange-50 text-orange-700 ring-orange-200" },
   ];
   const reporting = [
-    ["Gelen lead sayısı", totalLeads],
-    ["Aranan lead sayısı", calledLeads],
-    ["Ulaşılamayan lead sayısı", unreachableLeads],
-    ["Alınan randevu sayısı", appointmentCount],
-    ["Randevuya dönüşüm oranı", `%${conversionRate}`],
-    ["Görüşmeye katılım oranı", `%${attendanceRate}`],
-    ["Olumlu lead oranı", `%${positiveRate}`],
-    ["Verimsiz lead oranı", `%${unproductiveRate}`],
+    [t("dashboard.incomingLeadCount"), totalLeads],
+    [t("dashboard.calledLeadCount"), calledLeads],
+    [t("dashboard.unreachableLeadCount"), unreachableLeads],
+    [t("dashboard.appointmentCount"), appointmentCount],
+    [t("dashboard.appointmentConversionRate"), `%${conversionRate}`],
+    [t("dashboard.attendanceRate"), `%${attendanceRate}`],
+    [t("dashboard.positiveLeadRate"), `%${positiveRate}`],
+    [t("dashboard.unproductiveLeadRate"), `%${unproductiveRate}`],
   ];
 
   return (
-    <AppShell activeHref="/dashboard" eyebrow="Franchise operasyon merkezi" title="Dashboard">
+    <AppShell activeHref="/dashboard" eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")}>
       <div className="space-y-6">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric) => (
@@ -151,7 +152,7 @@ export default async function Home() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <LineChart className="size-5" />
-                Lead ve Randevu Raporları
+                {t("dashboard.leadAppointmentReports")}
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
@@ -168,17 +169,17 @@ export default async function Home() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="size-5" />
-                Personel Bazlı Randevu
+                {t("dashboard.staffAppointments")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {staffAppointments.map((item) => (
-                <div key={item.assignedUserId ?? "Atanmadı"} className="flex items-center justify-between rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                  <span className="text-sm font-medium">{item.assignedUserId ?? "Atanmadı"}</span>
+                <div key={item.assignedUserId ?? t("dashboard.unassigned")} className="flex items-center justify-between rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+                  <span className="text-sm font-medium">{item.assignedUserId ?? t("dashboard.unassigned")}</span>
                   <Badge>{number.format(item._count._all)}</Badge>
                 </div>
               ))}
-              {!staffAppointments.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz randevu verisi yok.</p> : null}
+              {!staffAppointments.length ? <p className="py-8 text-center text-sm text-[#65705f]">{t("dashboard.noAppointmentData")}</p> : null}
             </CardContent>
           </Card>
         </section>

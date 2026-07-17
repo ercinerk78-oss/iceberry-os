@@ -24,47 +24,44 @@ import {
 } from "lucide-react";
 
 import { logout } from "@/app/login/actions";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { MobileNavigation, type MobileNavigationItem } from "@/components/mobile-navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
-import {
-  hasPermission,
-  ROLE_LABELS,
-  type Permission,
-  type UserRole,
-} from "@/lib/permissions";
+import { getTranslations } from "@/lib/i18n/server";
+import { hasPermission, type Permission } from "@/lib/permissions";
 
 const navigation = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, iconKey: "LayoutDashboard" },
-  { label: "Lead Havuzu", href: "/leads", icon: MessageSquareText, iconKey: "MessageSquareText" },
-  { label: "Randevular", href: "/appointments", icon: CalendarCheck2, iconKey: "CalendarCheck2" },
-  { label: "Franchise Adayları", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
-  { label: "Satış Pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
-  { label: "Görevler", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
-  { label: "Şube Portalı", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
-  { label: "Dokümanlar", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
-  { label: "Şubeler", href: "/branches", icon: Store, iconKey: "Store" },
-  { label: "Şube Ciroları", href: "/branch-revenues", icon: LineChart, iconKey: "LineChart" },
-  { label: "Açılış Yönetimi", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
-  { label: "Sipariş Ver", href: "/orders", icon: ShoppingCart, iconKey: "ShoppingCart" },
-  { label: "Sipariş Yönetimi", href: "/orders/admin", icon: Package, iconKey: "Package" },
-  { label: "Depo", href: "/warehouse", icon: Warehouse, iconKey: "Warehouse" },
-  { label: "Depo Stokları", href: "/warehouse/stock", icon: Warehouse, iconKey: "Warehouse" },
-  { label: "Mal Kabuller", href: "/warehouse/goods-receipts", icon: ClipboardCheck, iconKey: "CheckSquare" },
-  { label: "Lot ve SKT", href: "/warehouse/lots", icon: CalendarRange, iconKey: "CalendarRange" },
-  { label: "Sayımlar", href: "/warehouse/counts", icon: CheckSquare, iconKey: "CheckSquare" },
-  { label: "Ürün Eşleştirmeleri", href: "/warehouse/product-mappings", icon: Package, iconKey: "Package" },
-  { label: "Tedarik Uyumsuzlukları", href: "/warehouse/compliance", icon: Bell, iconKey: "Bell" },
-  { label: "Hazırlanacak Siparişler", href: "/warehouse/orders", icon: Package, iconKey: "Package" },
-  { label: "Sevkiyatlar", href: "/warehouse/shipments", icon: Truck, iconKey: "Truck" },
-  { label: "Stok Hareketleri", href: "/warehouse/movements", icon: LineChart, iconKey: "LineChart" },
-  { label: "Entegrasyon ve Mutabakat", href: "/integrations", icon: PlugZap, iconKey: "Settings" },
-  { label: "Şube Haritası", href: "#", icon: MapPinned, iconKey: "MapPinned" },
-  { label: "Raporlar", href: "#", icon: LineChart, iconKey: "LineChart" },
-  { label: "Ayarlar", href: "/settings", icon: Settings, iconKey: "Settings" },
-  { label: "Kullanıcı Yönetimi", href: "/settings/users", icon: UsersRound, iconKey: "UsersRound" },
+  { key: "navigation.dashboard", href: "/dashboard", icon: LayoutDashboard, iconKey: "LayoutDashboard" },
+  { key: "navigation.leads", href: "/leads", icon: MessageSquareText, iconKey: "MessageSquareText" },
+  { key: "navigation.appointments", href: "/appointments", icon: CalendarCheck2, iconKey: "CalendarCheck2" },
+  { key: "navigation.candidates", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
+  { key: "navigation.pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
+  { key: "navigation.tasks", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
+  { key: "navigation.branchPortal", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
+  { key: "navigation.documents", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
+  { key: "navigation.branches", href: "/branches", icon: Store, iconKey: "Store" },
+  { key: "navigation.branchRevenues", href: "/branch-revenues", icon: LineChart, iconKey: "LineChart" },
+  { key: "navigation.openings", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
+  { key: "navigation.orders", href: "/orders", icon: ShoppingCart, iconKey: "ShoppingCart" },
+  { key: "navigation.orderAdmin", href: "/orders/admin", icon: Package, iconKey: "Package" },
+  { key: "navigation.warehouse", href: "/warehouse", icon: Warehouse, iconKey: "Warehouse" },
+  { key: "navigation.stock", href: "/warehouse/stock", icon: Warehouse, iconKey: "Warehouse" },
+  { key: "navigation.goodsReceipts", href: "/warehouse/goods-receipts", icon: ClipboardCheck, iconKey: "CheckSquare" },
+  { key: "navigation.lots", href: "/warehouse/lots", icon: CalendarRange, iconKey: "CalendarRange" },
+  { key: "navigation.counts", href: "/warehouse/counts", icon: CheckSquare, iconKey: "CheckSquare" },
+  { key: "navigation.productMappings", href: "/warehouse/product-mappings", icon: Package, iconKey: "Package" },
+  { key: "navigation.compliance", href: "/warehouse/compliance", icon: Bell, iconKey: "Bell" },
+  { key: "navigation.warehouseOrders", href: "/warehouse/orders", icon: Package, iconKey: "Package" },
+  { key: "navigation.shipments", href: "/warehouse/shipments", icon: Truck, iconKey: "Truck" },
+  { key: "navigation.movements", href: "/warehouse/movements", icon: LineChart, iconKey: "LineChart" },
+  { key: "navigation.integrations", href: "/integrations", icon: PlugZap, iconKey: "Settings" },
+  { key: "navigation.branchMap", href: "#", icon: MapPinned, iconKey: "MapPinned" },
+  { key: "navigation.reports", href: "#", icon: LineChart, iconKey: "LineChart" },
+  { key: "navigation.settings", href: "/settings", icon: Settings, iconKey: "Settings" },
+  { key: "navigation.users", href: "/settings/users", icon: UsersRound, iconKey: "UsersRound" },
 ] as const;
 
 type AppShellProps = {
@@ -83,13 +80,14 @@ export async function AppShell({
   action,
 }: AppShellProps) {
   const user = await requireUser();
+  const { locale, t } = await getTranslations();
   const visibleNavigation = navigation.filter(
     (item) => !user || hasPermission(user.role, permissionFor(item.href)),
   );
   const mobileNavigation: MobileNavigationItem[] = visibleNavigation
     .filter((item) => item.href !== "#")
     .map((item) => ({
-      label: item.label,
+      label: t(item.key),
       href: item.href,
       icon: item.iconKey,
     }));
@@ -104,9 +102,9 @@ export async function AppShell({
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#a8ff60]">
-                Iceberry
+                {t("app.brand")}
               </p>
-              <h1 className="text-xl font-semibold">OS Panel</h1>
+              <h1 className="text-xl font-semibold">{t("app.panel")}</h1>
             </div>
           </Link>
 
@@ -117,7 +115,7 @@ export async function AppShell({
               return (
                 <Link
                   href={item.href}
-                  key={item.label}
+                  key={item.key}
                   className={`flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition ${
                     active
                       ? "bg-white text-[#17201b] shadow-sm"
@@ -125,7 +123,7 @@ export async function AppShell({
                   }`}
                 >
                   <item.icon className="size-4" />
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               );
             })}
@@ -133,10 +131,10 @@ export async function AppShell({
 
           <div className="mt-auto rounded-lg border border-white/12 bg-white/8 p-4">
             <Badge className="bg-[#a8ff60] text-[#17201b] hover:bg-[#a8ff60]">
-              Franchise CRM
+              {t("app.productBadge")}
             </Badge>
             <p className="mt-3 text-sm leading-6 text-white/74">
-              Aday yönetimi, takip akışı ve şube açılış operasyonları tek merkezde.
+              {t("app.sidebarHint")}
             </p>
           </div>
         </aside>
@@ -157,9 +155,13 @@ export async function AppShell({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="hidden h-10 items-center gap-2 rounded-lg border border-[#d3d9cf] bg-white px-3 text-sm text-[#65705f] md:flex">
                   <Search className="size-4" />
-                  Aday, şehir veya lead ara
+                  {t("app.searchPlaceholder")}
                 </div>
                 {action}
+                <LanguageSwitcher
+                  locale={locale}
+                  labels={{ label: t("language.label"), tr: t("language.tr"), en: t("language.en") }}
+                />
                 <Button size="icon" variant="outline" className="size-10 bg-white">
                   <Bell className="size-4" />
                 </Button>
@@ -167,13 +169,13 @@ export async function AppShell({
                   <div className="hidden text-right sm:block">
                     <p className="text-sm font-semibold">{user.name}</p>
                     <p className="text-xs text-[#65705f]">
-                      {ROLE_LABELS[user.role as UserRole]}
+                      {t(`roles.${user.role}`, user.role)}
                     </p>
                   </div>
                 ) : null}
                 {user ? (
                   <form action={logout}>
-                    <Button variant="outline">Çıkış</Button>
+                    <Button variant="outline">{t("app.logout")}</Button>
                   </form>
                 ) : null}
                 <Avatar className="size-10">
@@ -198,13 +200,13 @@ export async function AppShell({
                   return (
                     <Link
                       href={item.href}
-                      key={item.label}
+                      key={item.key}
                       className={`flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium ${
                         active ? "bg-[#17201b] text-white" : "bg-white text-[#65705f]"
                       }`}
                     >
                       <item.icon className="size-4" />
-                      {item.label}
+                      {t(item.key)}
                     </Link>
                   );
                 })}
