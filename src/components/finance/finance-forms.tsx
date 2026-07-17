@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { Calculator, CreditCard, Save } from "lucide-react";
+import { Calculator, CreditCard, FileWarning, GitCompareArrows, Save, Scale } from "lucide-react";
 
-import { calculateRoyalty, recordCollection, saveFinancialProfile } from "@/app/finance/actions";
+import { calculateRoyalty, createFinancialDispute, createManualLedgerEntry, createReconciliation, recordCollection, saveFinancialProfile } from "@/app/finance/actions";
 import { Button } from "@/components/ui/button";
-import { FINANCE_CURRENCIES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, ROYALTY_MODEL_LABELS, ROYALTY_MODELS } from "@/lib/finance/constants";
+import { FINANCE_CURRENCIES, FINANCIAL_DISPUTE_TYPES, LEDGER_ENTRY_TYPES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, ROYALTY_MODEL_LABELS, ROYALTY_MODELS } from "@/lib/finance/constants";
 
 const initial = { message: "" };
 
@@ -15,6 +15,10 @@ export function FinanceForms({ branches, year, month }: { branches: BranchOption
   const [profileState, profileAction, profilePending] = useActionState(saveFinancialProfile, initial);
   const [royaltyState, royaltyAction, royaltyPending] = useActionState(calculateRoyalty, initial);
   const [paymentState, paymentAction, paymentPending] = useActionState(recordCollection, initial);
+  const [entryState, entryAction, entryPending] = useActionState(createManualLedgerEntry, initial);
+  const [reconciliationState, reconciliationAction, reconciliationPending] = useActionState(createReconciliation, initial);
+  const [disputeState, disputeAction, disputePending] = useActionState(createFinancialDispute, initial);
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <section className="grid gap-4 xl:grid-cols-3">
@@ -51,12 +55,57 @@ export function FinanceForms({ branches, year, month }: { branches: BranchOption
           <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branch.branchName])} />
           <input name="amount" type="number" min={0} step="0.01" placeholder="Tahsilat tutarı" className="h-10 rounded-lg border px-3" />
           <Select name="currency" label="Para birimi" options={FINANCE_CURRENCIES.map((item) => [item, item])} />
-          <input name="paymentDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="h-10 rounded-lg border px-3" />
+          <input name="paymentDate" type="date" defaultValue={today} className="h-10 rounded-lg border px-3" />
           <Select name="paymentMethod" label="Tahsilat yöntemi" options={PAYMENT_METHODS.map((item) => [item, PAYMENT_METHOD_LABELS[item]])} />
           <input name="referenceNumber" placeholder="Referans no" className="h-10 rounded-lg border px-3" />
           <input name="description" placeholder="Açıklama" className="h-10 rounded-lg border px-3" />
           <Button disabled={paymentPending} className="bg-[#17201b] text-white">{paymentPending ? "Kaydediliyor..." : "Tahsilatı Kaydet"}</Button>
           {paymentState.message ? <p className="text-sm text-[#65705f]">{paymentState.message}</p> : null}
+        </div>
+      </form>
+
+      <form action={entryAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4 shadow-none">
+        <h3 className="flex items-center gap-2 font-semibold"><Scale className="size-4" /> Manuel Cari Hareket</h3>
+        <div className="mt-4 grid gap-3">
+          <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branch.branchName])} />
+          <Select name="direction" label="Yön" options={[["DEBIT", "Borç"], ["CREDIT", "Alacak"]]} />
+          <Select name="entryType" label="İşlem türü" options={LEDGER_ENTRY_TYPES.filter((item) => item.startsWith("MANUAL") || item.includes("FEE") || item.includes("CREDIT") || item === "PENALTY_DEBIT").map((item) => [item, item])} />
+          <input name="amount" type="number" min={0} step="0.01" placeholder="Tutar" className="h-10 rounded-lg border px-3" />
+          <Select name="currency" label="Para birimi" options={FINANCE_CURRENCIES.map((item) => [item, item])} />
+          <input name="transactionDate" type="date" defaultValue={today} className="h-10 rounded-lg border px-3" />
+          <input name="dueDate" type="date" className="h-10 rounded-lg border px-3" />
+          <input name="externalReferenceId" placeholder="Referans" className="h-10 rounded-lg border px-3" />
+          <input name="description" placeholder="Açıklama" className="h-10 rounded-lg border px-3" />
+          <Button disabled={entryPending} className="bg-[#17201b] text-white">{entryPending ? "Kaydediliyor..." : "Hareket Oluştur"}</Button>
+          {entryState.message ? <p className="text-sm text-[#65705f]">{entryState.message}</p> : null}
+        </div>
+      </form>
+
+      <form action={reconciliationAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4 shadow-none">
+        <h3 className="flex items-center gap-2 font-semibold"><GitCompareArrows className="size-4" /> Cari Mutabakat</h3>
+        <div className="mt-4 grid gap-3">
+          <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branch.branchName])} />
+          <Select name="currency" label="Para birimi" options={FINANCE_CURRENCIES.map((item) => [item, item])} />
+          <input name="periodStart" type="date" defaultValue={today.slice(0, 8) + "01"} className="h-10 rounded-lg border px-3" />
+          <input name="periodEnd" type="date" defaultValue={today} className="h-10 rounded-lg border px-3" />
+          <input name="externalBalance" type="number" step="0.01" placeholder="Paraşüt / dış bakiye" className="h-10 rounded-lg border px-3" />
+          <input name="provider" placeholder="Kaynak (PARASUT)" defaultValue="PARASUT" className="h-10 rounded-lg border px-3" />
+          <Button disabled={reconciliationPending} className="bg-[#17201b] text-white">{reconciliationPending ? "Oluşturuluyor..." : "Mutabakat Oluştur"}</Button>
+          {reconciliationState.message ? <p className="text-sm text-[#65705f]">{reconciliationState.message}</p> : null}
+        </div>
+      </form>
+
+      <form action={disputeAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4 shadow-none">
+        <h3 className="flex items-center gap-2 font-semibold"><FileWarning className="size-4" /> Finansal İtiraz</h3>
+        <div className="mt-4 grid gap-3">
+          <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branch.branchName])} />
+          <Select name="disputeType" label="İtiraz türü" options={FINANCIAL_DISPUTE_TYPES.map((item) => [item, item])} />
+          <input name="royaltyAccrualId" placeholder="Royalty ID (opsiyonel)" className="h-10 rounded-lg border px-3" />
+          <input name="ledgerEntryId" placeholder="Cari hareket ID (opsiyonel)" className="h-10 rounded-lg border px-3" />
+          <input name="invoiceId" placeholder="Fatura ID (opsiyonel)" className="h-10 rounded-lg border px-3" />
+          <textarea name="description" placeholder="İtiraz açıklaması" rows={3} className="rounded-lg border px-3 py-2" />
+          <Button disabled={disputePending} className="bg-[#17201b] text-white">{disputePending ? "Kaydediliyor..." : "İtiraz Aç"}</Button>
+          {disputeState.message ? <p className="text-sm text-[#65705f]">{disputeState.message}</p> : null}
         </div>
       </form>
     </section>

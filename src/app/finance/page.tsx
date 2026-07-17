@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, Banknote, CheckCircle2, Clock3, FileWarning, Landmark, LineChart, ReceiptText } from "lucide-react";
 import { Prisma } from "@prisma/client";
 
-import { approveRoyalty } from "@/app/finance/actions";
+import { approveRoyalty, reverseLedgerEntry } from "@/app/finance/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,9 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     openAccruals,
     recentPayments,
     disputes,
+    openDisputes,
+    recentLedgerEntries,
+    reconciliations,
   ] = await Promise.all([
     prisma.branch.findMany({
       where: scopedBranchWhere,
@@ -82,6 +85,24 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       take: 12,
     }),
     prisma.financialDispute.count({ where: { branch: scopedBranchWhere, status: { in: ["OPEN", "UNDER_REVIEW", "WAITING_DOCUMENT"] } } }),
+    prisma.financialDispute.findMany({
+      where: { branch: scopedBranchWhere, status: { in: ["OPEN", "UNDER_REVIEW", "WAITING_DOCUMENT"] } },
+      include: { branch: { select: { branchName: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
+    prisma.branchLedgerEntry.findMany({
+      where: { branch: scopedBranchWhere },
+      include: { branch: { select: { branchName: true } } },
+      orderBy: { transactionDate: "desc" },
+      take: 20,
+    }),
+    prisma.branchFinancialReconciliation.findMany({
+      where: { branch: scopedBranchWhere },
+      include: { branch: { select: { branchName: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
   ]);
 
   const totalReceivable = sumDecimals(ledgerAccounts.map((account) => account.currentBalance.gt(0) ? account.currentBalance : new Prisma.Decimal(0)));
@@ -180,6 +201,59 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
 
         <section className="grid gap-4 xl:grid-cols-2">
           <Card className="shadow-none">
+            <CardHeader><CardTitle>Cari Hareketler</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full min-w-[940px] text-left text-sm">
+                <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
+                  <tr>{["No", "Şube", "Tür", "Yön", "Tutar", "Vade", "Durum", "İşlem"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">
+                  {recentLedgerEntries.map((entry) => (
+                    <tr key={entry.id}>
+                      <td className="px-3 py-3 font-mono text-xs">{entry.entryNumber}</td>
+                      <td className="px-3 py-3">{entry.branch.branchName}</td>
+                      <td className="px-3 py-3">{entry.entryType}</td>
+                      <td className="px-3 py-3"><Badge variant="outline">{entry.direction === "DEBIT" ? "Borç" : "Alacak"}</Badge></td>
+                      <td className="px-3 py-3">{money(entry.amount, entry.currency)}</td>
+                      <td className="px-3 py-3">{entry.dueDate ? date(entry.dueDate) : "—"}</td>
+                      <td className="px-3 py-3">{entry.status}</td>
+                      <td className="px-3 py-3">
+                        {canManageFinance(user.role) && entry.status !== "REVERSED" ? (
+                          <form action={reverseLedgerEntry.bind(null, entry.id)}>
+                            <Button size="sm" variant="outline">Ters Kayıt</Button>
+                          </form>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!recentLedgerEntries.length ? <tr><td colSpan={8} className="p-8 text-center text-[#65705f]">Cari hareket yok.</td></tr> : null}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardHeader><CardTitle>Cari Mutabakat</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {reconciliations.map((item) => (
+                <div key={item.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{item.branch.branchName}</p>
+                      <p className="text-xs text-[#65705f]">{date(item.periodStart)} - {date(item.periodEnd)} · {item.provider ?? "ICEBERRY"}</p>
+                    </div>
+                    <Badge className={item.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"}>{item.status}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-[#65705f]">Iceberry: {money(item.internalBalance, item.currency)} · Dış bakiye: {item.externalBalance ? money(item.externalBalance, item.currency) : "—"} · Fark: {item.differenceAmount ? money(item.differenceAmount, item.currency) : "—"}</p>
+                </div>
+              ))}
+              {!reconciliations.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz mutabakat kaydı yok.</p> : null}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <Card className="shadow-none">
             <CardHeader><CardTitle>Son Tahsilatlar</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {recentPayments.map((payment) => (
@@ -192,6 +266,25 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                 </div>
               ))}
               {!recentPayments.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz tahsilat kaydı yok.</p> : null}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardHeader><CardTitle>Finansal İtirazlar</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {openDisputes.map((dispute) => (
+                <div key={dispute.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{dispute.branch.branchName}</p>
+                      <p className="text-xs text-[#65705f]">{dispute.disputeType} · {date(dispute.createdAt)}</p>
+                    </div>
+                    <Badge variant="outline">{dispute.status}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-[#364036]">{dispute.description}</p>
+                </div>
+              ))}
+              {!openDisputes.length ? <p className="py-8 text-center text-sm text-[#65705f]">Açık finansal itiraz yok.</p> : null}
             </CardContent>
           </Card>
 
