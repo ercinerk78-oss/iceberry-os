@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isMissingSchemaError } from "@/lib/supply-chain-data";
 
 export const dynamic = "force-dynamic";
 
@@ -49,23 +50,23 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
     last24Events,
     last24Success,
   ] = await Promise.all([
-    prisma.integrationConnection.findMany({ orderBy: [{ provider: "asc" }, { environment: "asc" }] }),
-    prisma.integrationEvent.findMany({ where: eventWhere, orderBy: { createdAt: "desc" }, take: 80 }),
-    prisma.reconciliationRecord.findMany({ orderBy: { createdAt: "desc" }, take: 80 }),
-    prisma.franchiseOrder.count({ where: { source: "TICIMAX", createdAt: { gte: today } } }),
-    prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: { in: ["BRANCH_MAPPING_ERROR", "PRODUCT_MAPPING_ERROR"] } } }),
-    prisma.franchiseOrder.count({ where: { financialStatus: { in: ["INVOICE_PENDING", "INVOICE_FAILED"] }, orderType: { notIn: ["INTERNAL_TRANSFER", "BRANCH_TRANSFER", "WAREHOUSE_TRANSFER"] } } }),
-    prisma.externalInvoice.count({ where: { invoiceType: "SALES", orderId: null } }),
-    prisma.reconciliationRecord.count({ where: { reconciliationType: "SALES_ORDER_INVOICE", status: "AMOUNT_MISMATCH" } }),
-    prisma.externalInvoice.count({ where: { invoiceType: "PURCHASE", goodsReceiptId: null } }),
+    safeList(prisma.integrationConnection.findMany({ orderBy: [{ provider: "asc" }, { environment: "asc" }] }), "IntegrationConnection"),
+    safeList(prisma.integrationEvent.findMany({ where: eventWhere, orderBy: { createdAt: "desc" }, take: 80 }), "IntegrationEvent"),
+    safeList(prisma.reconciliationRecord.findMany({ orderBy: { createdAt: "desc" }, take: 80 }), "ReconciliationRecord"),
+    safeCount(prisma.franchiseOrder.count({ where: { source: "TICIMAX", createdAt: { gte: today } } }), "FranchiseOrder.source"),
+    safeCount(prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: { in: ["BRANCH_MAPPING_ERROR", "PRODUCT_MAPPING_ERROR"] } } }), "IntegrationEvent"),
+    safeCount(prisma.franchiseOrder.count({ where: { financialStatus: { in: ["INVOICE_PENDING", "INVOICE_FAILED"] }, orderType: { notIn: ["INTERNAL_TRANSFER", "BRANCH_TRANSFER", "WAREHOUSE_TRANSFER"] } } }), "FranchiseOrder.financialStatus"),
+    safeCount(prisma.externalInvoice.count({ where: { invoiceType: "SALES", orderId: null } }), "ExternalInvoice"),
+    safeCount(prisma.reconciliationRecord.count({ where: { reconciliationType: "SALES_ORDER_INVOICE", status: "AMOUNT_MISMATCH" } }), "ReconciliationRecord"),
+    safeCount(prisma.externalInvoice.count({ where: { invoiceType: "PURCHASE", goodsReceiptId: null } }), "ExternalInvoice"),
     prisma.goodsReceipt.count({ where: { status: "PENDING_RECEIPT" } }),
     prisma.productMappingQueue.count({ where: { status: "PENDING" } }),
-    prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: "BRANCH_MAPPING_ERROR" } }),
-    prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: "SUPPLIER_MAPPING_ERROR" } }),
-    prisma.integrationEvent.count({ where: { status: "FAILED" } }),
-    prisma.integrationEvent.count({ where: { status: "RETRY_PENDING" } }),
-    prisma.integrationEvent.count({ where: { createdAt: { gte: since24h } } }),
-    prisma.integrationEvent.count({ where: { status: "SUCCESS", createdAt: { gte: since24h } } }),
+    safeCount(prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: "BRANCH_MAPPING_ERROR" } }), "IntegrationEvent"),
+    safeCount(prisma.integrationEvent.count({ where: { status: "MANUAL_REVIEW", errorCode: "SUPPLIER_MAPPING_ERROR" } }), "IntegrationEvent"),
+    safeCount(prisma.integrationEvent.count({ where: { status: "FAILED" } }), "IntegrationEvent"),
+    safeCount(prisma.integrationEvent.count({ where: { status: "RETRY_PENDING" } }), "IntegrationEvent"),
+    safeCount(prisma.integrationEvent.count({ where: { createdAt: { gte: since24h } } }), "IntegrationEvent"),
+    safeCount(prisma.integrationEvent.count({ where: { status: "SUCCESS", createdAt: { gte: since24h } } }), "IntegrationEvent"),
   ]);
 
   const successRate = last24Events ? Math.round((last24Success / last24Events) * 100) : 100;
@@ -238,4 +239,28 @@ function StatusBadge({ status }: { status: string }) {
 function formatDate(value?: Date | string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(new Date(value));
+}
+
+async function safeCount(promise: Promise<number>, label: string) {
+  try {
+    return await promise;
+  } catch (error) {
+    if (isMissingSchemaError(error)) {
+      console.warn(`[integrations] ${label} henüz production şemasında yok.`);
+      return 0;
+    }
+    throw error;
+  }
+}
+
+async function safeList<T>(promise: Promise<T[]>, label: string) {
+  try {
+    return await promise;
+  } catch (error) {
+    if (isMissingSchemaError(error)) {
+      console.warn(`[integrations] ${label} henüz production şemasında yok.`);
+      return [] as T[];
+    }
+    throw error;
+  }
 }
