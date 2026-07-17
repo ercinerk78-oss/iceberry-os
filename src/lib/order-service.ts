@@ -1,4 +1,5 @@
-import { accountingService } from "@/lib/accounting";
+import { ORDER_FINANCIAL_STATUSES } from "@/lib/integrations/constants";
+import { ParasutInvoiceService } from "@/lib/integrations/parasut/invoice-service";
 import { prisma } from "@/lib/prisma";
 import { reserveStock, releaseReservation, shipReservedStock } from "@/lib/stock-service";
 import { orderNumber } from "@/lib/warehouse";
@@ -56,6 +57,8 @@ export async function createOrder(input: Input) {
         warehouseId: data.warehouseId,
         source: "MANUAL_OTHER",
         orderType: "FRANCHISE_SALE",
+        invoiceStatus: data.invoicePreference === "NOT_REQUIRED" ? "NOT_REQUIRED" : "PENDING_MATCH",
+        financialStatus: data.invoicePreference === "NOT_REQUIRED" ? ORDER_FINANCIAL_STATUSES.INVOICE_NOT_REQUIRED : ORDER_FINANCIAL_STATUSES.INVOICE_PENDING,
         subtotal,
         vatTotal,
         grandTotal: subtotal + vatTotal,
@@ -104,30 +107,8 @@ export async function approveOrder(id: string) {
 }
 
 export async function createInvoice(id: string) {
-  const order = await prisma.franchiseOrder.findUnique({ where: { id }, include: { franchisee: true, items: true } });
-  if (!order) throw new Error("Sipariş bulunamadı.");
-  if (order.parasutInvoiceId) return order;
-
-  const accounting = accountingService();
-  await accounting.findOrCreateContact(order.franchisee.companyName, order.franchisee.taxNumber);
-  for (const item of order.items) await accounting.findOrCreateProduct({ name: item.productName, sku: item.sku });
-  const invoice = await accounting.createSalesInvoice({
-    orderId: id,
-    orderNumber: order.orderNumber,
-    contactName: order.franchisee.companyName,
-    total: order.grandTotal,
-    currency: order.currency,
-  });
-
-  return prisma.franchiseOrder.update({
-    where: { id },
-    data: {
-      invoiceStatus: "CREATED",
-      parasutInvoiceId: invoice.id,
-      parasutInvoiceNumber: invoice.number,
-      activities: { create: { type: "INVOICE_CREATED", description: `Mock satış faturası oluşturuldu: ${invoice.number}` } },
-    },
-  });
+  await new ParasutInvoiceService().createSalesInvoiceForOrder(id);
+  return prisma.franchiseOrder.findUniqueOrThrow({ where: { id } });
 }
 
 export async function changeOrderStatus(id: string, status: string) {

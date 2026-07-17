@@ -14,6 +14,7 @@ const idempotentSqlFiles = [
   "prisma/migrations/20260716183000_branch_operations_core/migration.sql",
   "prisma/migrations/20260716193000_branch_revenue_records/migration.sql",
   "prisma/migrations/20260717132000_sprint3_supply_chain_core/migration.sql",
+  "prisma/migrations/20260717150000_sprint4_integrations_reconciliation/migration.sql",
 ];
 
 if (!shouldRun) {

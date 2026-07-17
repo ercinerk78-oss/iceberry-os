@@ -12,6 +12,7 @@ import {
   MapPinned,
   MessageSquareText,
   Package,
+  PlugZap,
   Search,
   Settings,
   ShoppingCart,
@@ -59,6 +60,7 @@ const navigation = [
   { label: "Hazırlanacak Siparişler", href: "/warehouse/orders", icon: Package, iconKey: "Package" },
   { label: "Sevkiyatlar", href: "/warehouse/shipments", icon: Truck, iconKey: "Truck" },
   { label: "Stok Hareketleri", href: "/warehouse/movements", icon: LineChart, iconKey: "LineChart" },
+  { label: "Entegrasyon ve Mutabakat", href: "/integrations", icon: PlugZap, iconKey: "Settings" },
   { label: "Şube Haritası", href: "#", icon: MapPinned, iconKey: "MapPinned" },
   { label: "Raporlar", href: "#", icon: LineChart, iconKey: "LineChart" },
   { label: "Ayarlar", href: "/settings", icon: Settings, iconKey: "Settings" },
@@ -232,6 +234,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/orders/admin")) return "order_admin";
   if (href.startsWith("/orders")) return "orders";
   if (href.startsWith("/warehouse")) return "warehouse";
+  if (href.startsWith("/integrations")) return "integrations";
   if (href.startsWith("/settings/users")) return "users";
   if (href.startsWith("/settings")) return "settings";
   if (href.startsWith("/reports")) return "reports";

@@ -26,9 +26,29 @@ export async function submitOrder(_: ActionResult, formData: FormData): Promise<
       branchId: formData.get("branchId") || undefined,
       warehouseId: formData.get("warehouseId"),
       requestedDeliveryDate: formData.get("requestedDeliveryDate") || undefined,
+      invoicePreference: formData.get("invoicePreference") || undefined,
       notes: formData.get("notes") || undefined,
       items,
     });
+    if (formData.get("invoicePreference") === "CREATE_PARASUT_INVOICE") {
+      try {
+        await createInvoice(order.id);
+      } catch (error) {
+        await prisma.franchiseOrder.update({
+          where: { id: order.id },
+          data: {
+            financialStatus: "INVOICE_FAILED",
+            invoiceStatus: "FAILED",
+            activities: {
+              create: {
+                type: "PARASUT_INVOICE_CREATE_FAILED",
+                description: error instanceof Error ? error.message : "Paraşüt faturası oluşturulamadı.",
+              },
+            },
+          },
+        });
+      }
+    }
     refresh();
 
     return { ok: true, message: `${order.orderNumber} numaralı sipariş oluşturuldu.` };

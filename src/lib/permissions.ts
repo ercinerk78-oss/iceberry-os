@@ -3,6 +3,7 @@ export const USER_ROLES = [
   "OPERATIONS_MANAGER",
   "FRANCHISE_MANAGER",
   "WAREHOUSE_MANAGER",
+  "MUHASEBE",
   "APPOINTMENT_DEPARTMENT",
   "RANDEVU_DEPARTMANI",
   "BRANCH_OWNER",
@@ -17,6 +18,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   OPERATIONS_MANAGER: "Operasyon Müdürü",
   FRANCHISE_MANAGER: "Şube Operasyon Yöneticisi",
   WAREHOUSE_MANAGER: "Depo Sorumlusu",
+  MUHASEBE: "Muhasebe",
   APPOINTMENT_DEPARTMENT: "Randevu Departmanı",
   RANDEVU_DEPARTMANI: "Randevu Departmanı",
   BRANCH_OWNER: "Şube Sahibi",
@@ -42,6 +44,7 @@ export type Permission =
   | "reports"
   | "settings"
   | "users"
+  | "integrations"
   | "invoice"
   | "stock_manage"
   | "shipment_manage"
@@ -64,6 +67,7 @@ const all: Permission[] = [
   "reports",
   "settings",
   "users",
+  "integrations",
   "invoice",
   "stock_manage",
   "shipment_manage",
@@ -75,6 +79,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings"],
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
+  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks"],
   RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks"],
   BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents"],
@@ -93,6 +98,7 @@ export function routePermission(path: string): Permission | null {
   if (path === "/" || path.startsWith("/dashboard")) return "dashboard";
   if (path.startsWith("/api/documents")) return "documents";
   if (path.startsWith("/settings/users")) return "users";
+  if (path.startsWith("/integrations")) return "integrations";
   if (path.startsWith("/settings")) return "settings";
   if (path.startsWith("/leads")) return "leads";
   if (path.startsWith("/branch-portal")) return "branch_portal";

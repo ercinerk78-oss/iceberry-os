@@ -779,6 +779,10 @@ model FranchiseOrder {
   invoiceStatus         String               @default("NOT_CREATED")
   parasutInvoiceId      String?
   parasutInvoiceNumber  String?
+  invoicedAt            DateTime?
+  invoiceTotal          Decimal?             @db.Decimal(18, 2)
+  invoiceCurrency       String?
+  financialStatus       String               @default("INVOICE_PENDING")
   subtotal              Float
   vatTotal              Float
   grandTotal            Float
@@ -814,6 +818,8 @@ model FranchiseOrder {
   @@index([status, createdAt])
   @@index([source, createdAt])
   @@index([orderType, createdAt])
+  @@index([financialStatus, createdAt])
+  @@index([parasutInvoiceId])
   @@index([franchiseeId, createdAt])
   @@index([branchId, createdAt])
   @@index([warehouseId, status])
@@ -1376,6 +1382,155 @@ model IntegrationLog {
 
   @@index([provider, status, createdAt])
   @@index([externalId])
+}
+
+model IntegrationConnection {
+  id                    String   @id @default(cuid())
+  provider              String
+  name                  String
+  environment           String   @default("PRODUCTION")
+  status                String   @default("DISCONNECTED")
+  accountId             String?
+  companyId             String?
+  storeId               String?
+  encryptedCredentials  String?
+  accessTokenExpiresAt  DateTime?
+  lastSuccessfulSyncAt  DateTime?
+  lastFailedSyncAt      DateTime?
+  lastErrorMessage      String?
+  isActive              Boolean  @default(false)
+  createdById           String?
+  updatedById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([provider, environment, name])
+  @@index([provider, status])
+  @@index([isActive, provider])
+}
+
+model IntegrationEvent {
+  id                 String    @id @default(cuid())
+  provider           String
+  eventType          String
+  direction          String
+  externalEventId    String?
+  externalEntityId   String?
+  internalEntityType String?
+  internalEntityId   String?
+  idempotencyKey     String    @unique
+  status             String    @default("RECEIVED")
+  attemptCount       Int       @default(0)
+  nextRetryAt        DateTime?
+  requestPayload     String?
+  responsePayload    String?
+  errorCode          String?
+  errorMessage       String?
+  processedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([provider, status, createdAt])
+  @@index([nextRetryAt, status])
+  @@index([externalEntityId])
+  @@index([internalEntityType, internalEntityId])
+}
+
+model ExternalCustomerMapping {
+  id                   String   @id @default(cuid())
+  branchId             String?
+  customerId           String?
+  provider             String
+  externalCustomerId   String
+  externalCustomerCode String?
+  externalName         String
+  taxNumber            String?
+  isActive             Boolean  @default(true)
+  lastSyncedAt         DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([provider, externalCustomerId, isActive])
+  @@index([branchId, provider])
+  @@index([customerId, provider])
+  @@index([taxNumber])
+}
+
+model ExternalSupplierMapping {
+  id                   String   @id @default(cuid())
+  supplierId           String?
+  provider             String
+  externalSupplierId   String
+  externalSupplierCode String?
+  externalName         String
+  taxNumber            String?
+  isActive             Boolean  @default(true)
+  lastSyncedAt         DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([provider, externalSupplierId, isActive])
+  @@index([supplierId, provider])
+  @@index([taxNumber])
+}
+
+model ExternalInvoice {
+  id                  String    @id @default(cuid())
+  provider            String
+  invoiceType         String
+  externalInvoiceId   String
+  invoiceNumber       String?
+  externalOrderId     String?
+  orderId             String?
+  goodsReceiptId      String?
+  customerName        String?
+  supplierName        String?
+  invoiceDate         DateTime?
+  status              String    @default("RECEIVED")
+  subtotal            Decimal?  @db.Decimal(18, 2)
+  vatTotal            Decimal?  @db.Decimal(18, 2)
+  total               Decimal?  @db.Decimal(18, 2)
+  currency            String    @default("TRY")
+  payload             String?
+  matchedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([provider, externalInvoiceId])
+  @@index([invoiceType, status])
+  @@index([orderId])
+  @@index([goodsReceiptId])
+  @@index([externalOrderId])
+}
+
+model ReconciliationRecord {
+  id                 String    @id @default(cuid())
+  reconciliationType String
+  orderId            String?
+  shipmentId         String?
+  goodsReceiptId     String?
+  externalInvoiceId  String?
+  provider           String?
+  status             String
+  internalAmount     Decimal?  @db.Decimal(18, 2)
+  externalAmount     Decimal?  @db.Decimal(18, 2)
+  differenceAmount   Decimal?  @db.Decimal(18, 2)
+  currency           String?
+  discrepancyDetails String?
+  assignedUserId     String?
+  reviewedById       String?
+  reviewedAt         DateTime?
+  resolution         String?
+  resolutionNote     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  closedAt           DateTime?
+
+  @@index([reconciliationType, status])
+  @@index([orderId])
+  @@index([goodsReceiptId])
+  @@index([externalInvoiceId])
+  @@index([assignedUserId, status])
 }
 
 model MetaWebhookLog {
