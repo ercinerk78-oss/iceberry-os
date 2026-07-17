@@ -8,6 +8,9 @@ export const USER_ROLES = [
   "MUHASEBE",
   "APPOINTMENT_DEPARTMENT",
   "RANDEVU_DEPARTMANI",
+  "ARCHITECTURAL_LEAD",
+  "OPENING_COORDINATOR",
+  "AUDITOR",
   "BRANCH_OWNER",
   "BRANCH_MANAGER",
   "BRANCH_STAFF",
@@ -23,6 +26,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   MUHASEBE: "Muhasebe",
   APPOINTMENT_DEPARTMENT: "Randevu Departmanı",
   RANDEVU_DEPARTMANI: "Randevu Departmanı",
+  ARCHITECTURAL_LEAD: "Mimari Sorumlu",
+  OPENING_COORDINATOR: "Açılış Koordinatörü",
+  AUDITOR: "Denetçi",
   BRANCH_OWNER: "Şube Sahibi",
   BRANCH_MANAGER: "Şube Müdürü",
   BRANCH_STAFF: "Şube Personeli",
@@ -104,20 +110,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   GENERAL_MANAGER: all.filter((permission) => permission !== "franchisees"),
   OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees", "locations.delete", "locations.archive", "locations.view_financials"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations"],
-  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
-  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance"],
+  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "openings", "tasks"],
+  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance", "openings", "documents"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
   RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations"],
+  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents"],
+  OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse"],
+  AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents"],
+  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings"],
+  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings"],
   BRANCH_STAFF: ["branch_portal", "tasks", "documents"],
 };
 
 export function hasPermission(role: string, permission: Permission) {
-  return (
-    USER_ROLES.includes(role as UserRole) &&
-    ROLE_PERMISSIONS[role as UserRole].includes(permission)
-  );
+  return USER_ROLES.includes(role as UserRole) && ROLE_PERMISSIONS[role as UserRole].includes(permission);
 }
 
 export function routePermission(path: string): Permission | null {

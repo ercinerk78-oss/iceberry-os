@@ -1,4 +1,152 @@
-/* eslint-disable react-hooks/purity */
-import Link from"next/link";import type{Prisma}from"@prisma/client";import{AlertTriangle,Plus,Search}from"lucide-react";import{AppShell}from"@/components/app-shell";import{Badge}from"@/components/ui/badge";import{Button}from"@/components/ui/button";import{Card}from"@/components/ui/card";import{formatDate}from"@/lib/franchise";import{OPENING_STATUSES,STAGE_STATUSES,openingLabel}from"@/lib/openings";import{prisma}from"@/lib/prisma";export const dynamic="force-dynamic";type P=Record<string,string|string[]|undefined>;const g=(p:P,k:string)=>typeof p[k]==="string"?p[k]as string:"";
-export default async function Openings({searchParams}:{searchParams:Promise<P>}){const p=await searchParams,q=g(p,"q"),status=g(p,"status"),stage=g(p,"stage"),city=g(p,"city"),manager=g(p,"manager"),date=g(p,"date"),alert=g(p,"alert");const now=new Date(),soon=new Date(Date.now()+14*86400000);const where:Prisma.BranchOpeningWhereInput={archivedAt:null};if(q)where.OR=[{branch:{branchName:{contains:q}}},{branch:{city:{contains:q}}},{projectManager:{contains:q}}];if(status)where.status=status;if(city)where.branch={city};if(manager)where.projectManager=manager;if(stage)where.stages={some:{stageType:stage,status:"IN_PROGRESS"}};if(date)where.plannedOpeningDate={gte:new Date(`${date}T00:00:00`),lte:new Date(`${date}T23:59:59`)};if(alert==="late")where.AND=[{plannedOpeningDate:{lt:now}},{status:{notIn:["COMPLETED","CANCELLED"]}}];if(alert==="soon")where.plannedOpeningDate={gte:now,lte:soon};const items=await prisma.branchOpening.findMany({where,include:{branch:{select:{branchName:true,city:true}},stages:{include:{tasks:true},orderBy:{orderIndex:"asc"}}},orderBy:{plannedOpeningDate:"asc"}});const cities=await prisma.branch.findMany({select:{city:true},distinct:["city"]});const managers=await prisma.branchOpening.findMany({where:{projectManager:{not:null}},select:{projectManager:true},distinct:["projectManager"]});return <AppShell activeHref="/openings" eyebrow="Şube operasyonları" title="Açılış Yönetimi" action={<Button asChild><Link href="/openings/new"><Plus/>Yeni Açılış Projesi</Link></Button>}><div className="space-y-4"><Card className="p-4 shadow-none"><form className="grid gap-3 md:grid-cols-3 xl:grid-cols-8"><label className="relative xl:col-span-2"><Search className="absolute left-3 top-3 size-4"/><input name="q" defaultValue={q} placeholder="Şube, kod, şehir veya sorumlu" className="h-10 w-full rounded-lg border pl-9 pr-3"/></label><Sel name="status" value={status} first="Tüm durumlar" options={Object.entries(OPENING_STATUSES)}/><Sel name="stage" value={stage} first="Tüm aşamalar" options={Object.entries(STAGE_STATUSES)}/><Sel name="city" value={city} first="Tüm şehirler" options={cities.map(x=>[x.city,x.city])}/><Sel name="manager" value={manager} first="Tüm sorumlular" options={managers.filter(x=>x.projectManager).map(x=>[x.projectManager!,x.projectManager!])}/><input name="date" type="date" defaultValue={date} aria-label="Planlanan açılış" className="h-10 rounded-lg border px-3"/><Sel name="alert" value={alert} first="Tüm zaman durumları" options={[["late","Geciken projeler"],["soon","Yaklaşan açılışlar"]]}/><Button>Filtrele</Button></form></Card><div className="grid gap-4 xl:grid-cols-2">{items.map(x=>{const current=x.stages.find(s=>s.status==="IN_PROGRESS")??x.stages.find(s=>s.status==="NOT_STARTED");const lateTasks=x.stages.flatMap(s=>s.tasks).filter(t=>t.dueDate&&t.dueDate<now&&!['COMPLETED','CANCELLED'].includes(t.status)).length;const critical=x.plannedOpeningDate<now&&!['COMPLETED','CANCELLED'].includes(x.status);return <Card key={x.id} className="p-5 shadow-none"><div className="flex justify-between gap-3"><div><Link href={`/openings/${x.id}`} className="text-lg font-semibold hover:underline">{x.branch.branchName}</Link><p className="text-sm text-[#65705f]"> · {x.branch.city}</p></div><Badge>{openingLabel(OPENING_STATUSES,x.status)}</Badge></div><div className="mt-4 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{width:`${x.progressPercentage}%`}}/></div><div className="mt-2 flex justify-between text-sm"><span>{current?.title??"Tamamlandı"}</span><strong>%{x.progressPercentage}</strong></div><div className="mt-4 grid grid-cols-3 gap-2 text-sm"><span>Açılış<br/><strong>{formatDate(x.plannedOpeningDate)}</strong></span><span>Geciken görev<br/><strong className={lateTasks?"text-rose-700":""}>{lateTasks}</strong></span><span>Sorumlu<br/><strong>{x.projectManager||"—"}</strong></span></div>{critical&&<p className="mt-3 flex items-center gap-2 text-sm font-semibold text-rose-700"><AlertTriangle className="size-4"/>Kritik Gecikme</p>}</Card>})}{!items.length&&<p className="col-span-full rounded-lg border border-dashed p-12 text-center text-[#65705f]">Filtrelere uygun açılış projesi yok.</p>}</div></div></AppShell>}
-function Sel({name,value,first,options}:{name:string;value:string;first:string;options:string[][]}){return <select name={name} defaultValue={value} aria-label={first} className="h-10 rounded-lg border px-3"><option value="">{first}</option>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>}
+import Link from "next/link";
+import type React from "react";
+import type { Prisma } from "@prisma/client";
+import { AlertTriangle, CalendarDays, CheckCircle2, Plus, Search, ShieldAlert } from "lucide-react";
+
+import { AppShell } from "@/components/app-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { dateTR, openingProjectStatusLabels, openingRiskLevelLabels } from "@/lib/openings";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+type Params = Record<string, string | string[] | undefined>;
+const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] as string : "");
+
+export default async function Openings({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams;
+  const q = get(params, "q");
+  const status = get(params, "status");
+  const risk = get(params, "risk");
+  const city = get(params, "city");
+  const alert = get(params, "alert");
+  const now = new Date();
+  const soon = new Date(now.getTime() + 14 * 86400000);
+
+  const where: Prisma.OpeningProjectWhereInput = { archivedAt: null };
+  if (q) {
+    where.OR = [
+      { projectNumber: { contains: q } },
+      { name: { contains: q } },
+      { branch: { branchName: { contains: q } } },
+      { city: { contains: q } },
+      { investorName: { contains: q } },
+    ];
+  }
+  if (status) where.status = status as Prisma.EnumOpeningProjectStatusFilter["equals"];
+  if (risk) where.riskLevel = risk as Prisma.EnumOpeningRiskLevelFilter["equals"];
+  if (city) where.city = city;
+  if (alert === "late") where.AND = [{ targetOpeningDate: { lt: now } }, { status: { notIn: ["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"] } }];
+  if (alert === "soon") where.targetOpeningDate = { gte: now, lte: soon };
+
+  const [items, statusCounts, riskCounts, cities, legacyCount] = await Promise.all([
+    prisma.openingProject.findMany({
+      where,
+      include: {
+        branch: { select: { branchName: true, city: true, status: true } },
+        stages: { orderBy: { sortOrder: "asc" } },
+        milestones: true,
+        risks: { where: { status: { in: ["OPEN", "WATCHING"] } } },
+        _count: { select: { tasks: true, documents: true, budgetItems: true } },
+      },
+      orderBy: { targetOpeningDate: "asc" },
+    }),
+    prisma.openingProject.groupBy({ by: ["status"], where: { archivedAt: null }, _count: { _all: true } }),
+    prisma.openingProject.groupBy({ by: ["riskLevel"], where: { archivedAt: null }, _count: { _all: true } }),
+    prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" } }),
+    prisma.branchOpening.count({ where: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
+  ]);
+
+  const activeCount = statusCounts.filter((item) => !["COMPLETED", "CANCELLED"].includes(item.status)).reduce((sum, item) => sum + item._count._all, 0);
+  const readyCount = statusCounts.find((item) => item.status === "READY_FOR_OPENING")?._count._all ?? 0;
+  const delayedCount = items.filter((item) => item.targetOpeningDate < now && !["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"].includes(item.status)).length;
+  const criticalRiskCount = riskCounts.find((item) => item.riskLevel === "CRITICAL")?._count._all ?? 0;
+
+  return (
+    <AppShell activeHref="/openings" eyebrow="Şube kurulum projeleri" title="Açılış Yönetimi" action={<Button asChild><Link href="/openings/new"><Plus className="size-4" />Yeni Açılış Projesi</Link></Button>}>
+      <div className="space-y-5">
+        <section className="grid gap-3 md:grid-cols-4">
+          <Kpi title="Aktif Açılış Projesi" value={activeCount} icon={<CalendarDays className="size-5" />} />
+          <Kpi title="Açılışa Hazır" value={readyCount} icon={<CheckCircle2 className="size-5" />} />
+          <Kpi title="Geciken Proje" value={delayedCount} icon={<AlertTriangle className="size-5" />} danger />
+          <Kpi title="Kritik Risk" value={criticalRiskCount} icon={<ShieldAlert className="size-5" />} danger />
+        </section>
+
+        {legacyCount ? (
+          <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-none">
+            Sistemde {legacyCount} eski tip BranchOpening kaydı var. Bu kayıtlar korunuyor; yeni projeler gelişmiş OpeningProject motoruyla oluşturulur.
+          </Card>
+        ) : null}
+
+        <Card className="p-4 shadow-none">
+          <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
+            <label className="relative xl:col-span-2">
+              <Search className="absolute left-3 top-3 size-4" />
+              <input name="q" defaultValue={q} placeholder="Proje, şube, şehir veya yatırımcı ara" className="h-10 w-full rounded-lg border pl-9 pr-3 text-sm" />
+            </label>
+            <Select name="status" value={status} first="Tüm durumlar" options={Object.entries(openingProjectStatusLabels)} />
+            <Select name="risk" value={risk} first="Tüm riskler" options={Object.entries(openingRiskLevelLabels)} />
+            <Select name="city" value={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
+            <Select name="alert" value={alert} first="Tüm zaman durumları" options={[["late", "Geciken projeler"], ["soon", "Yaklaşan açılışlar"]]} />
+            <Button>Filtrele</Button>
+          </form>
+        </Card>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {items.map((project) => {
+            const currentStage = project.stages.find((stage) => ["READY_TO_START", "IN_PROGRESS", "DELAYED", "AT_RISK"].includes(stage.status)) ?? project.stages[0];
+            const lateMilestones = project.milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(milestone.status)).length;
+            const isLate = project.targetOpeningDate < now && !["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"].includes(project.status);
+            return (
+              <Card key={project.id} className={`p-5 shadow-none ${isLate ? "border-rose-300" : ""}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <Link href={`/openings/${project.id}`} className="text-lg font-semibold hover:underline">{project.name}</Link>
+                    <p className="mt-1 text-sm text-[#65705f]">{project.projectNumber} · {project.branch.branchName} · {project.city}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>{openingProjectStatusLabels[project.status]}</Badge>
+                    <Badge className={project.riskLevel === "CRITICAL" || project.riskLevel === "HIGH" ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}>{openingRiskLevelLabels[project.riskLevel]}</Badge>
+                  </div>
+                </div>
+                <div className="mt-4 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${project.progressPercentage}%` }} /></div>
+                <div className="mt-2 flex justify-between text-sm"><span>{currentStage?.nameSnapshot ?? "Aşama yok"}</span><strong>%{project.progressPercentage}</strong></div>
+                <div className="mt-4 grid grid-cols-4 gap-2 text-sm">
+                  <span>Açılış<br /><strong>{dateTR(project.targetOpeningDate)}</strong></span>
+                  <span>Hazırlık<br /><strong>%{project.openingReadinessScore}</strong></span>
+                  <span>Geciken<br /><strong className={lateMilestones ? "text-rose-700" : ""}>{lateMilestones}</strong></span>
+                  <span>Görev<br /><strong>{project._count.tasks}</strong></span>
+                </div>
+                {isLate ? <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-rose-700"><AlertTriangle className="size-4" />Hedef açılış tarihi geçmiş.</p> : null}
+              </Card>
+            );
+          })}
+          {!items.length ? <p className="col-span-full rounded-lg border border-dashed p-12 text-center text-[#65705f]">Filtrelere uygun açılış projesi yok.</p> : null}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function Kpi({ title, value, icon, danger = false }: { title: string; value: number; icon: React.ReactNode; danger?: boolean }) {
+  return (
+    <Card className={`p-4 shadow-none ${danger ? "border-rose-200" : ""}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-[#65705f]">{title}</p>
+        <span className={danger ? "text-rose-700" : "text-[#2f5f20]"}>{icon}</span>
+      </div>
+      <p className="mt-3 text-2xl font-semibold">{value.toLocaleString("tr-TR")}</p>
+    </Card>
+  );
+}
+
+function Select({ name, value, first, options }: { name: string; value: string; first: string; options: [string, string][] }) {
+  return (
+    <select name={name} defaultValue={value} className="h-10 rounded-lg border px-3 text-sm">
+      <option value="">{first}</option>
+      {options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+    </select>
+  );
+}

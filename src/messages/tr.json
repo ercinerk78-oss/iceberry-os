@@ -75,6 +75,9 @@
     "MUHASEBE": "Muhasebe",
     "APPOINTMENT_DEPARTMENT": "Randevu Departmanı",
     "RANDEVU_DEPARTMANI": "Randevu Departmanı",
+    "ARCHITECTURAL_LEAD": "Mimari Sorumlu",
+    "OPENING_COORDINATOR": "Açılış Koordinatörü",
+    "AUDITOR": "Denetçi",
     "BRANCH_OWNER": "Şube Sahibi",
     "BRANCH_MANAGER": "Şube Müdürü",
     "BRANCH_STAFF": "Şube Personeli"

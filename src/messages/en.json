@@ -75,6 +75,9 @@
     "MUHASEBE": "Accounting",
     "APPOINTMENT_DEPARTMENT": "Appointment Department",
     "RANDEVU_DEPARTMANI": "Appointment Department",
+    "ARCHITECTURAL_LEAD": "Architectural Lead",
+    "OPENING_COORDINATOR": "Opening Coordinator",
+    "AUDITOR": "Auditor",
     "BRANCH_OWNER": "Branch Owner",
     "BRANCH_MANAGER": "Branch Manager",
     "BRANCH_STAFF": "Branch Staff"

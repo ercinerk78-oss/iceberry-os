@@ -35,6 +35,7 @@ model FranchiseCandidate {
   documents         Document[]
   franchisee        Franchisee?
   branch            Branch?
+  openingProjects   OpeningProject[]
 
   @@index([archivedAt, createdAt])
   @@index([city])
@@ -67,6 +68,8 @@ model Document {
   franchisee       Franchisee?         @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
   branch           Branch?             @relation(fields: [branchId], references: [id], onDelete: Restrict)
   opening          BranchOpening?      @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  openingProjectId String?
+  openingProject   OpeningProject?     @relation(fields: [openingProjectId], references: [id], onDelete: Restrict)
   revenueRecords   BranchRevenueRecord[]
 
   @@index([candidateId, documentType, uploadedAt])
@@ -74,6 +77,7 @@ model Document {
   @@index([branchId])
   @@index([franchiseeId])
   @@index([openingId])
+  @@index([openingProjectId])
   @@index([documentType, archivedAt])
 }
 
@@ -169,6 +173,7 @@ model Branch {
   candidate                 FranchiseCandidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
   documents                 Document[]
   openings                  BranchOpening[]
+  openingProjects           OpeningProject[]
   orders                    FranchiseOrder[]
   users                     BranchUser[]
   tasks                     BranchTask[]
@@ -251,12 +256,18 @@ model BranchTask {
   requiresApproval    Boolean        @default(true)
   sourceType          String?
   sourceId            String?
+  openingProjectId    String?
+  openingStageId      String?
+  openingMilestoneId  String?
   auditId             String?
   findingId           String?
   correctiveActionId  String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   branch              Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  openingProject      OpeningProject? @relation(fields: [openingProjectId], references: [id], onDelete: SetNull)
+  openingStage        OpeningProjectStage? @relation(fields: [openingStageId], references: [id], onDelete: SetNull)
+  openingMilestone    OpeningMilestone? @relation(fields: [openingMilestoneId], references: [id], onDelete: SetNull)
   assignedUser        User?          @relation("BranchTaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
   createdBy           User?          @relation("BranchTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   reviewer            User?          @relation("BranchTaskReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
@@ -266,6 +277,9 @@ model BranchTask {
   @@index([assignedUserId, status])
   @@index([dueDate, status])
   @@index([sourceType, sourceId])
+  @@index([openingProjectId])
+  @@index([openingStageId])
+  @@index([openingMilestoneId])
   @@index([auditId])
   @@index([findingId])
   @@index([correctiveActionId])
@@ -844,6 +858,437 @@ model OpeningTask {
   @@index([status, dueDate])
 }
 
+model OpeningProjectTemplate {
+  id                    String                     @id @default(cuid())
+  name                  String
+  code                  String
+  description           String?
+  version               Int                        @default(1)
+  status                OpeningTemplateStatus      @default(DRAFT)
+  branchConcept         String?
+  ownershipType         String?
+  country               String                     @default("Türkiye")
+  estimatedDurationDays Int                        @default(90)
+  defaultCurrency       String                     @default("TRY")
+  isDefault             Boolean                    @default(false)
+  validFrom             DateTime?
+  validUntil            DateTime?
+  createdById           String?
+  approvedById          String?
+  publishedAt           DateTime?
+  archivedAt            DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  stages                OpeningStageTemplate[]
+  projects              OpeningProject[]
+
+  @@unique([code, version])
+  @@index([status, branchConcept, ownershipType])
+  @@index([isDefault])
+}
+
+model OpeningStageTemplate {
+  id                    String                     @id @default(cuid())
+  templateId            String
+  name                  String
+  code                  String
+  description           String?
+  sortOrder             Int
+  estimatedDurationDays Int                        @default(7)
+  weight                Int                        @default(1)
+  isRequired            Boolean                    @default(true)
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  template              OpeningProjectTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  milestones            OpeningMilestoneTemplate[]
+  projectStages         OpeningProjectStage[]
+
+  @@unique([templateId, code])
+  @@index([templateId, sortOrder])
+}
+
+model OpeningMilestoneTemplate {
+  id                    String                       @id @default(cuid())
+  stageTemplateId        String
+  name                  String
+  code                  String
+  description           String?
+  sortOrder             Int
+  estimatedDurationDays Int                          @default(3)
+  defaultOwnerRole      String?
+  priority              OpeningPriority              @default(NORMAL)
+  isRequired            Boolean                      @default(true)
+  isCritical            Boolean                      @default(false)
+  requiresApproval      Boolean                      @default(false)
+  requiresEvidence      Boolean                      @default(false)
+  requiresDocument      Boolean                      @default(false)
+  requiresAudit         Boolean                      @default(false)
+  auditType             String?
+  completionRule        String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  stageTemplate         OpeningStageTemplate         @relation(fields: [stageTemplateId], references: [id], onDelete: Restrict)
+  tasks                 OpeningTaskTemplate[]
+  predecessorLinks      OpeningMilestoneDependency[] @relation("OpeningDependencyPredecessor")
+  successorLinks        OpeningMilestoneDependency[] @relation("OpeningDependencySuccessor")
+  milestones            OpeningMilestone[]
+
+  @@unique([stageTemplateId, code])
+  @@index([stageTemplateId, sortOrder])
+}
+
+model OpeningMilestoneDependency {
+  id                             String                   @id @default(cuid())
+  predecessorMilestoneTemplateId String
+  successorMilestoneTemplateId   String
+  dependencyType                 OpeningDependencyType    @default(FINISH_TO_START)
+  lagDays                        Int                      @default(0)
+  isBlocking                     Boolean                  @default(true)
+  createdAt                      DateTime                 @default(now())
+  predecessor                    OpeningMilestoneTemplate @relation("OpeningDependencyPredecessor", fields: [predecessorMilestoneTemplateId], references: [id], onDelete: Restrict)
+  successor                      OpeningMilestoneTemplate @relation("OpeningDependencySuccessor", fields: [successorMilestoneTemplateId], references: [id], onDelete: Restrict)
+
+  @@unique([predecessorMilestoneTemplateId, successorMilestoneTemplateId])
+}
+
+model OpeningTaskTemplate {
+  id                  String                   @id @default(cuid())
+  milestoneTemplateId String
+  title               String
+  description         String?
+  priority            OpeningPriority          @default(NORMAL)
+  defaultOwnerRole    String?
+  dueOffsetDays       Int                      @default(0)
+  isRequired          Boolean                  @default(true)
+  requiresEvidence    Boolean                  @default(false)
+  requiresDocument    Boolean                  @default(false)
+  requiresApproval    Boolean                  @default(true)
+  autoCreate          Boolean                  @default(true)
+  sortOrder           Int                      @default(0)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  milestoneTemplate   OpeningMilestoneTemplate @relation(fields: [milestoneTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([milestoneTemplateId, sortOrder])
+}
+
+model OpeningProject {
+  id                       String                       @id @default(cuid())
+  projectNumber            String                       @unique
+  name                     String
+  branchId                 String
+  franchiseCandidateId     String?
+  contractId               String?
+  locationAnalysisId       String?
+  candidateLocationId      String?
+  templateId               String?
+  templateVersion          Int?
+  branchConcept            String?
+  ownershipType            String?
+  country                  String                       @default("Türkiye")
+  city                     String
+  district                 String?
+  address                  String?
+  shoppingMallName         String?
+  investorName             String?
+  investorCompanyName      String?
+  projectManagerId         String?
+  operationManagerId       String?
+  architecturalLeadId      String?
+  openingCoordinatorId     String?
+  plannedStartDate         DateTime?
+  targetOpeningDate        DateTime
+  forecastOpeningDate      DateTime?
+  actualOpeningDate        DateTime?
+  status                   OpeningProjectStatus         @default(PLANNING)
+  progressPercentage       Int                          @default(0)
+  riskLevel                OpeningRiskLevel             @default(LOW)
+  openingReadinessScore    Int                          @default(0)
+  currentStageId           String?
+  currency                 String                       @default("TRY")
+  plannedBudget            Decimal?                     @db.Decimal(18, 2)
+  approvedBudget           Decimal?                     @db.Decimal(18, 2)
+  actualCost               Decimal?                     @db.Decimal(18, 2)
+  budgetVariance           Decimal?                     @db.Decimal(18, 2)
+  description              String?
+  cancellationReason       String?
+  completedAt              DateTime?
+  createdById              String?
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  archivedAt               DateTime?
+  branch                   Branch                       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  franchiseCandidate       FranchiseCandidate?          @relation(fields: [franchiseCandidateId], references: [id], onDelete: SetNull)
+  template                 OpeningProjectTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  candidateLocation        CandidateLocation?           @relation(fields: [candidateLocationId], references: [id], onDelete: SetNull)
+  stages                   OpeningProjectStage[]
+  milestones               OpeningMilestone[]
+  budgetItems              OpeningBudgetItem[]
+  risks                    OpeningRisk[]
+  targetDateChanges        OpeningTargetDateChange[]
+  readinessChecks          OpeningReadinessCheck[]
+  postOpeningReviews       OpeningPostOpeningReview[]
+  documents                Document[]
+  tasks                    BranchTask[]
+
+  @@index([branchId, status])
+  @@index([franchiseCandidateId])
+  @@index([candidateLocationId])
+  @@index([targetOpeningDate, status])
+  @@index([riskLevel, status])
+  @@index([archivedAt])
+}
+
+model OpeningProjectStage {
+  id                 String               @id @default(cuid())
+  projectId          String
+  stageTemplateId    String?
+  nameSnapshot       String
+  codeSnapshot       String
+  descriptionSnapshot String?
+  sortOrder          Int
+  weight             Int                  @default(1)
+  plannedStartDate   DateTime?
+  plannedEndDate     DateTime?
+  actualStartDate    DateTime?
+  actualEndDate      DateTime?
+  status             OpeningStageStatus   @default(NOT_STARTED)
+  progressPercentage Int                  @default(0)
+  ownerUserId         String?
+  delayDays           Int                  @default(0)
+  delayReason         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  project             OpeningProject       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  stageTemplate       OpeningStageTemplate? @relation(fields: [stageTemplateId], references: [id], onDelete: SetNull)
+  milestones          OpeningMilestone[]
+  tasks               BranchTask[]
+
+  @@index([projectId, sortOrder])
+  @@index([status, plannedEndDate])
+}
+
+model OpeningMilestone {
+  id                  String                    @id @default(cuid())
+  projectId           String
+  projectStageId      String
+  milestoneTemplateId String?
+  nameSnapshot        String
+  codeSnapshot        String
+  descriptionSnapshot String?
+  status              OpeningMilestoneStatus    @default(PENDING)
+  priority            OpeningPriority           @default(NORMAL)
+  isRequired          Boolean                   @default(true)
+  isCritical          Boolean                   @default(false)
+  plannedStartDate    DateTime?
+  dueDate             DateTime?
+  actualStartDate     DateTime?
+  completedAt         DateTime?
+  assignedUserId      String?
+  approvedById        String?
+  approvedAt          DateTime?
+  progressPercentage  Int                       @default(0)
+  delayDays           Int                       @default(0)
+  delayReason         String?
+  completionNote      String?
+  requiresApproval    Boolean                   @default(false)
+  requiresEvidence    Boolean                   @default(false)
+  requiresDocument    Boolean                   @default(false)
+  requiresAudit       Boolean                   @default(false)
+  relatedAuditId      String?
+  relatedTaskId       String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  project             OpeningProject            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  projectStage        OpeningProjectStage       @relation(fields: [projectStageId], references: [id], onDelete: Restrict)
+  milestoneTemplate   OpeningMilestoneTemplate? @relation(fields: [milestoneTemplateId], references: [id], onDelete: SetNull)
+  tasks               BranchTask[]
+
+  @@index([projectId, status])
+  @@index([projectStageId, status])
+  @@index([dueDate, status])
+  @@index([relatedTaskId])
+}
+
+model OpeningBudgetItem {
+  id             String              @id @default(cuid())
+  projectId      String
+  category       String
+  title          String
+  plannedAmount  Decimal             @default(0) @db.Decimal(18, 2)
+  approvedAmount Decimal?            @db.Decimal(18, 2)
+  actualAmount   Decimal?            @db.Decimal(18, 2)
+  currency       String              @default("TRY")
+  status         OpeningBudgetStatus @default(PLANNED)
+  invoiceId      String?
+  documentId     String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  project        OpeningProject      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, category])
+  @@index([status])
+}
+
+model OpeningRisk {
+  id             String           @id @default(cuid())
+  projectId      String
+  title          String
+  category       String
+  level          OpeningRiskLevel @default(MEDIUM)
+  status         OpeningRiskStatus @default(OPEN)
+  probability    Int              @default(50)
+  impact         Int              @default(50)
+  mitigationPlan String?
+  ownerUserId    String?
+  dueDate        DateTime?
+  resolvedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  project        OpeningProject   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, status])
+  @@index([level, status])
+}
+
+model OpeningTargetDateChange {
+  id              String         @id @default(cuid())
+  projectId       String
+  oldDate         DateTime
+  newDate         DateTime
+  reason          String
+  changedById     String?
+  affectedSummary String?
+  createdAt       DateTime       @default(now())
+  project         OpeningProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+}
+
+model OpeningReadinessCheck {
+  id             String         @id @default(cuid())
+  projectId      String
+  component      String
+  title          String
+  status         String         @default("PENDING")
+  score          Int            @default(0)
+  blocker        Boolean        @default(false)
+  notes          String?
+  checkedById    String?
+  checkedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  project        OpeningProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, component])
+  @@index([status, blocker])
+}
+
+model OpeningPostOpeningReview {
+  id            String         @id @default(cuid())
+  projectId     String
+  dayNumber     Int
+  plannedDate   DateTime
+  completedAt   DateTime?
+  status        String         @default("PENDING")
+  revenueAmount Decimal?       @db.Decimal(18, 2)
+  healthScore   Int?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  project       OpeningProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, dayNumber])
+  @@index([status, plannedDate])
+}
+
+enum OpeningProjectStatus {
+  DRAFT
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  AT_RISK
+  DELAYED
+  READY_FOR_REVIEW
+  READY_FOR_OPENING
+  OPENED
+  POST_OPENING
+  COMPLETED
+  CANCELLED
+}
+
+enum OpeningTemplateStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OpeningStageStatus {
+  NOT_STARTED
+  READY_TO_START
+  IN_PROGRESS
+  BLOCKED
+  AT_RISK
+  DELAYED
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum OpeningMilestoneStatus {
+  PENDING
+  READY_TO_START
+  IN_PROGRESS
+  WAITING_APPROVAL
+  WAITING_CORRECTION
+  COMPLETED
+  BLOCKED
+  DELAYED
+  SKIPPED
+  CANCELLED
+}
+
+enum OpeningPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum OpeningRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum OpeningRiskStatus {
+  OPEN
+  WATCHING
+  MITIGATED
+  RESOLVED
+  CLOSED
+}
+
+enum OpeningBudgetStatus {
+  PLANNED
+  APPROVED
+  SPENT
+  OVER_BUDGET
+  CANCELLED
+}
+
+enum OpeningDependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+}
+
 model CandidateTask {
   id             String             @id @default(cuid())
   candidateId    String
@@ -1021,6 +1466,7 @@ model CandidateLocation {
   archivedAt               DateTime?
   documents                CandidateLocationDocument[]
   leadMatches              LeadCandidateLocation[]
+  openingProjects          OpeningProject[]
 
   @@index([city, district])
   @@index([locationType])
