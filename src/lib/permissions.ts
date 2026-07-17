@@ -52,6 +52,7 @@ export type Permission =
   | "users"
   | "integrations"
   | "invoice"
+  | "finance"
   | "stock_manage"
   | "shipment_manage"
   | "branch_portal";
@@ -75,6 +76,7 @@ const all: Permission[] = [
   "users",
   "integrations",
   "invoice",
+  "finance",
   "stock_manage",
   "shipment_manage",
   "branch_portal",
@@ -85,11 +87,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings"],
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
-  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports"],
+  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks"],
   RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents"],
+  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance"],
+  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance"],
   BRANCH_STAFF: ["branch_portal", "tasks", "documents"],
 };
 
@@ -105,6 +107,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/api/documents")) return "documents";
   if (path.startsWith("/settings/users")) return "users";
   if (path.startsWith("/integrations")) return "integrations";
+  if (path.startsWith("/finance")) return "finance";
   if (path.startsWith("/settings")) return "settings";
   if (path.startsWith("/leads")) return "leads";
   if (path.startsWith("/branch-portal")) return "branch_portal";

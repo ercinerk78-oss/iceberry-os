@@ -180,6 +180,14 @@ model Branch {
   externalMappings          ExternalBranchMapping[]
   deliveryIssues            DeliveryIssue[]
   supplyAlerts              SupplyComplianceAlert[]
+  financialProfile          BranchFinancialProfile?
+  ledgerAccounts            BranchLedgerAccount[]
+  ledgerEntries             BranchLedgerEntry[]
+  royaltyAccruals           RoyaltyAccrual[]
+  collectionPayments        CollectionPayment[]
+  financialReconciliations  BranchFinancialReconciliation[]
+  financialDisputes         FinancialDispute[]
+  financialActivities       FinancialActivityLog[]
 
   @@index([franchiseeId, archivedAt])
   @@index([candidateId])
@@ -1294,6 +1302,318 @@ model SupplyComplianceAlert {
   @@index([branchId, status])
   @@index([severity, status])
   @@index([productId])
+}
+
+model BranchFinancialProfile {
+  id                              String        @id @default(cuid())
+  branchId                        String        @unique
+  status                          String        @default("ACTIVE")
+  royaltyModel                    String        @default("PERCENTAGE_OF_REVENUE")
+  royaltyRate                     Decimal?      @db.Decimal(8, 4)
+  fixedRoyaltyAmount              Decimal?      @db.Decimal(18, 2)
+  minimumRoyaltyAmount            Decimal?      @db.Decimal(18, 2)
+  royaltyCurrency                 String        @default("TRY")
+  royaltyCalculationBase          String        @default("APPROVED_REVENUE")
+  royaltyPeriod                   String        @default("MONTHLY")
+  royaltyDueDay                   Int           @default(15)
+  royaltyGracePeriodDays          Int           @default(0)
+  royaltyStartDate                DateTime?
+  royaltyEndDate                  DateTime?
+  royaltyExemptionStartDate       DateTime?
+  royaltyExemptionEndDate         DateTime?
+  advertisingContributionModel    String        @default("NONE")
+  advertisingContributionRate     Decimal?      @db.Decimal(8, 4)
+  fixedAdvertisingContribution    Decimal?      @db.Decimal(18, 2)
+  paymentTermDays                 Int           @default(15)
+  defaultCurrency                 String        @default("TRY")
+  lateFeePolicy                   String        @default("NONE")
+  lateFeeRate                     Decimal?      @db.Decimal(8, 4)
+  lateFeeFixedAmount              Decimal?      @db.Decimal(18, 2)
+  creditLimit                     Decimal?      @db.Decimal(18, 2)
+  riskLimit                       Decimal?      @db.Decimal(18, 2)
+  allowPartialPayment             Boolean       @default(true)
+  allowAdvancePayment             Boolean       @default(true)
+  invoiceRequired                 Boolean       @default(true)
+  isActive                        Boolean       @default(true)
+  approvedById                    String?
+  createdById                     String?
+  createdAt                       DateTime      @default(now())
+  updatedAt                       DateTime      @updatedAt
+  branch                          Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  royaltyTiers                    RoyaltyTier[]
+  royaltyAccruals                 RoyaltyAccrual[]
+
+  @@index([status, isActive])
+  @@index([royaltyModel])
+}
+
+model RoyaltyTier {
+  id                 String                 @id @default(cuid())
+  financialProfileId String
+  minimumRevenue     Decimal                @db.Decimal(18, 2)
+  maximumRevenue     Decimal?               @db.Decimal(18, 2)
+  royaltyRate        Decimal                @db.Decimal(8, 4)
+  fixedAddition      Decimal?               @db.Decimal(18, 2)
+  sortOrder          Int                    @default(0)
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  financialProfile   BranchFinancialProfile @relation(fields: [financialProfileId], references: [id], onDelete: Restrict)
+
+  @@index([financialProfileId, isActive, sortOrder])
+}
+
+model RoyaltyAccrual {
+  id                     String                  @id @default(cuid())
+  branchId               String
+  financialProfileId     String?
+  periodStart            DateTime
+  periodEnd              DateTime
+  accrualDate            DateTime                @default(now())
+  dueDate                DateTime
+  royaltyModel           String
+  calculationBase        String                  @default("APPROVED_REVENUE")
+  revenueAmount          Decimal                 @db.Decimal(18, 2)
+  royaltyRate            Decimal?                @db.Decimal(8, 4)
+  fixedAmount            Decimal?                @db.Decimal(18, 2)
+  minimumAmount          Decimal?                @db.Decimal(18, 2)
+  calculatedRoyalty      Decimal                 @db.Decimal(18, 2)
+  discountAmount         Decimal                 @default(0) @db.Decimal(18, 2)
+  additionalFeeAmount    Decimal                 @default(0) @db.Decimal(18, 2)
+  taxRate                Decimal                 @default(0) @db.Decimal(8, 4)
+  taxAmount              Decimal                 @default(0) @db.Decimal(18, 2)
+  totalAmount            Decimal                 @db.Decimal(18, 2)
+  paidAmount             Decimal                 @default(0) @db.Decimal(18, 2)
+  outstandingAmount      Decimal                 @db.Decimal(18, 2)
+  currency               String                  @default("TRY")
+  exchangeRate           Decimal?                @db.Decimal(18, 6)
+  status                 String                  @default("CALCULATED")
+  sourceRevenueRecordIds String?
+  calculationSnapshot    String?
+  parasutInvoiceId       String?
+  parasutInvoiceNumber   String?
+  invoiceStatus          String?
+  approvedById           String?
+  approvedAt             DateTime?
+  cancelledById          String?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  createdById            String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  branch                 Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  financialProfile       BranchFinancialProfile? @relation(fields: [financialProfileId], references: [id], onDelete: SetNull)
+  ledgerEntries          BranchLedgerEntry[]
+  paymentAllocations     PaymentAllocation[]
+  disputes               FinancialDispute[]
+
+  @@unique([branchId, periodStart, periodEnd, royaltyModel])
+  @@index([branchId, status])
+  @@index([periodStart, periodEnd])
+  @@index([dueDate, status])
+}
+
+model BranchLedgerAccount {
+  id               String              @id @default(cuid())
+  branchId         String
+  accountNumber    String              @unique
+  currency         String              @default("TRY")
+  openingBalance   Decimal             @default(0) @db.Decimal(18, 2)
+  currentBalance   Decimal             @default(0) @db.Decimal(18, 2)
+  creditLimit      Decimal?            @db.Decimal(18, 2)
+  riskLimit        Decimal?            @db.Decimal(18, 2)
+  status           String              @default("ACTIVE")
+  lastMovementAt   DateTime?
+  lastReconciledAt DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  branch           Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  entries          BranchLedgerEntry[]
+  payments         CollectionPayment[]
+
+  @@unique([branchId, currency])
+  @@index([branchId, status])
+  @@index([currency])
+}
+
+model BranchLedgerEntry {
+  id                  String               @id @default(cuid())
+  ledgerAccountId     String
+  branchId            String
+  entryNumber         String               @unique
+  entryType           String
+  direction           String
+  amount              Decimal              @db.Decimal(18, 2)
+  currency            String               @default("TRY")
+  exchangeRate        Decimal?             @db.Decimal(18, 6)
+  baseCurrencyAmount  Decimal?             @db.Decimal(18, 2)
+  transactionDate     DateTime             @default(now())
+  dueDate             DateTime?
+  status              String               @default("POSTED")
+  referenceType       String?
+  referenceId         String?
+  royaltyAccrualId    String?
+  orderId             String?
+  invoiceId           String?
+  paymentId           String?
+  description         String?
+  sourceSystem        String               @default("ICEBERRY")
+  externalReferenceId String?
+  performedById       String?
+  approvedById        String?
+  reversedEntryId     String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  ledgerAccount       BranchLedgerAccount  @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  royaltyAccrual      RoyaltyAccrual?      @relation(fields: [royaltyAccrualId], references: [id], onDelete: SetNull)
+  collectionPayment   CollectionPayment?   @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  allocations         PaymentAllocation[]
+
+  @@unique([sourceSystem, referenceType, referenceId, entryType])
+  @@index([ledgerAccountId, transactionDate])
+  @@index([branchId, status])
+  @@index([dueDate, status])
+  @@index([royaltyAccrualId])
+  @@index([orderId])
+  @@index([invoiceId])
+  @@index([externalReferenceId])
+}
+
+model CollectionPayment {
+  id                 String                @id @default(cuid())
+  paymentNumber      String                @unique
+  branchId           String
+  ledgerAccountId    String
+  amount             Decimal               @db.Decimal(18, 2)
+  currency           String                @default("TRY")
+  exchangeRate       Decimal?              @db.Decimal(18, 6)
+  baseCurrencyAmount Decimal?              @db.Decimal(18, 2)
+  paymentDate        DateTime
+  valueDate          DateTime?
+  paymentMethod      String                @default("BANK_TRANSFER")
+  bankAccountId      String?
+  referenceNumber    String?
+  description        String?
+  sourceSystem       String                @default("ICEBERRY")
+  externalPaymentId  String?
+  status             String                @default("APPROVED")
+  unappliedAmount    Decimal               @default(0) @db.Decimal(18, 2)
+  createdById        String?
+  approvedById       String?
+  approvedAt         DateTime?
+  cancelledById      String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  branch             Branch                @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  ledgerAccount      BranchLedgerAccount   @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  ledgerEntries      BranchLedgerEntry[]
+  allocations        PaymentAllocation[]
+
+  @@unique([sourceSystem, externalPaymentId])
+  @@index([branchId, status])
+  @@index([ledgerAccountId, paymentDate])
+  @@index([valueDate])
+}
+
+model PaymentAllocation {
+  id               String             @id @default(cuid())
+  paymentId        String
+  ledgerEntryId    String?
+  royaltyAccrualId String?
+  invoiceId        String?
+  allocatedAmount  Decimal            @db.Decimal(18, 2)
+  currency         String             @default("TRY")
+  allocationDate   DateTime           @default(now())
+  createdById      String?
+  createdAt        DateTime           @default(now())
+  payment          CollectionPayment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  ledgerEntry      BranchLedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: SetNull)
+  royaltyAccrual   RoyaltyAccrual?    @relation(fields: [royaltyAccrualId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([ledgerEntryId])
+  @@index([royaltyAccrualId])
+}
+
+model BranchFinancialReconciliation {
+  id                    String   @id @default(cuid())
+  branchId              String
+  ledgerAccountId       String?
+  provider              String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  internalBalance       Decimal  @default(0) @db.Decimal(18, 2)
+  externalBalance       Decimal? @db.Decimal(18, 2)
+  differenceAmount      Decimal? @db.Decimal(18, 2)
+  currency              String   @default("TRY")
+  status                String   @default("PENDING")
+  discrepancyDetails    String?
+  resolution            String?
+  resolutionNote        String?
+  sentAt                DateTime?
+  confirmedAt           DateTime?
+  disputedAt            DateTime?
+  resolvedAt            DateTime?
+  createdById           String?
+  reviewedById          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  branch                Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, status])
+  @@index([periodStart, periodEnd])
+  @@index([provider, status])
+}
+
+model FinancialDispute {
+  id               String             @id @default(cuid())
+  branchId         String
+  royaltyAccrualId String?
+  ledgerEntryId    String?
+  invoiceId        String?
+  disputeType      String
+  description      String
+  status           String             @default("OPEN")
+  createdById      String?
+  assignedUserId   String?
+  resolution       String?
+  resolutionNote   String?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  branch           Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  royaltyAccrual   RoyaltyAccrual?    @relation(fields: [royaltyAccrualId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status])
+  @@index([royaltyAccrualId])
+  @@index([ledgerEntryId])
+  @@index([invoiceId])
+  @@index([assignedUserId, status])
+}
+
+model FinancialActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  branchId    String?
+  entityType  String
+  entityId    String?
+  action      String
+  oldValue    String?
+  newValue    String?
+  amount      Decimal? @db.Decimal(18, 2)
+  currency    String?
+  description String
+  createdAt   DateTime @default(now())
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
 }
 
 model Notification {

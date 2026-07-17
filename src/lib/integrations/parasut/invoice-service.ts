@@ -19,6 +19,7 @@ import {
 import { idempotencyKey, stringifyPayload } from "@/lib/integrations/payload";
 import { ParasutClient } from "@/lib/integrations/parasut/client";
 import type { ParasutInvoicePayload } from "@/lib/integrations/parasut/types";
+import { BranchLedgerService } from "@/lib/finance/ledger-service";
 import { prisma } from "@/lib/prisma";
 
 const invoiceBlockedOrderTypes = ["INTERNAL_TRANSFER", "BRANCH_TRANSFER", "SAMPLE", "WAREHOUSE_TRANSFER"];
@@ -106,6 +107,16 @@ export class ParasutInvoiceService {
       currency: invoice.currency ?? order.currency,
       details: status,
     });
+    if (order.branchId && order.orderType === "FRANCHISE_SALE") {
+      await createLedgerDebitForSalesInvoice({
+        branchId: order.branchId,
+        invoiceId: saved.id,
+        orderId: order.id,
+        amount: invoice.total,
+        currency: invoice.currency ?? order.currency,
+        invoiceNumber: invoice.invoiceNumber ?? invoice.id,
+      });
+    }
 
     return { entityType: "FranchiseOrder", entityId: order.id };
   }
@@ -267,8 +278,38 @@ async function matchOrderForInvoice(invoice: ParasutInvoicePayload) {
         { orderNumber: reference },
       ],
     },
-    select: { id: true, grandTotal: true, currency: true },
+    select: { id: true, grandTotal: true, currency: true, branchId: true, orderType: true },
   });
+}
+
+async function createLedgerDebitForSalesInvoice(input: {
+  branchId: string;
+  invoiceId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  invoiceNumber: string;
+}) {
+  try {
+    const ledger = new BranchLedgerService();
+    await ledger.createEntry({
+      branchId: input.branchId,
+      currency: input.currency,
+      entryType: "PRODUCT_SALE_DEBIT",
+      direction: "DEBIT",
+      amount: input.amount,
+      referenceType: "ExternalInvoice",
+      referenceId: input.invoiceId,
+      orderId: input.orderId,
+      invoiceId: input.invoiceId,
+      sourceSystem: "PARASUT",
+      externalReferenceId: input.invoiceNumber,
+      description: `${input.invoiceNumber} numaralı Paraşüt satış faturası cariye yansıtıldı.`,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
+    throw error;
+  }
 }
 
 async function matchSupplier(invoice: ParasutInvoicePayload) {
