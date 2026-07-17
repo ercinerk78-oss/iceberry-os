@@ -24,6 +24,14 @@ type Permission =
   | "invoice"
   | "finance"
   | "operations"
+  | "locations.view"
+  | "locations.create"
+  | "locations.update"
+  | "locations.delete"
+  | "locations.archive"
+  | "locations.upload_document"
+  | "locations.link_lead"
+  | "locations.view_financials"
   | "stock_manage"
   | "shipment_manage"
   | "branch_portal";
@@ -56,6 +64,14 @@ const allPermissions: Permission[] = [
   "invoice",
   "finance",
   "operations",
+  "locations.view",
+  "locations.create",
+  "locations.update",
+  "locations.delete",
+  "locations.archive",
+  "locations.upload_document",
+  "locations.link_lead",
+  "locations.view_financials",
   "stock_manage",
   "shipment_manage",
   "branch_portal",
@@ -63,12 +79,12 @@ const allPermissions: Permission[] = [
 
 const rolePermissions: Record<string, readonly Permission[]> = {
   GENERAL_MANAGER: allPermissions.filter((permission) => permission !== "franchisees"),
-  OPERATIONS_MANAGER: allPermissions.filter((permission) => !["settings", "users", "franchisees"].includes(permission)),
+  OPERATIONS_MANAGER: allPermissions.filter((permission) => !["settings", "users", "franchisees", "locations.delete", "locations.archive", "locations.view_financials"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations"],
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage"],
   MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance"],
-  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks"],
-  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks"],
+  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
+  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
   BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations"],
   BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations"],
   BRANCH_STAFF: ["branch_portal", "tasks", "documents"],
@@ -85,6 +101,7 @@ function routePermission(path: string): Permission | null {
   if (path.startsWith("/integrations")) return "integrations";
   if (path.startsWith("/finance")) return "finance";
   if (path.startsWith("/operations")) return "operations";
+  if (path.startsWith("/locations")) return "locations.view";
   if (path.startsWith("/settings")) return "settings";
   if (path.startsWith("/leads")) return "leads";
   if (path.startsWith("/branch-portal")) return "branch_portal";

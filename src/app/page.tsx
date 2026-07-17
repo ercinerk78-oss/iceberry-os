@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   LineChart,
+  MapPinned,
   MessageSquareText,
   Store,
   Target,
@@ -61,6 +62,10 @@ export default async function Home() {
     appointmentCount,
     attendedAppointments,
     staffAppointments,
+    newLocationOpportunities,
+    readyLocationReports,
+    waitingInvestorLocations,
+    negotiatingLocations,
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
@@ -90,6 +95,10 @@ export default async function Home() {
     safe(prisma.leadAppointment.count(), 0),
     safe(prisma.leadAppointment.count({ where: { status: "COMPLETED" } }), 0),
     safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
+    safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "NEW_OPPORTUNITY" } }), 0),
+    safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
+    safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "WAITING_FOR_INVESTOR" } }), 0),
+    safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "IN_NEGOTIATION" } }), 0),
   ]);
   const number = new Intl.NumberFormat("tr-TR");
   const overdueFollowUps = overdueLeadFollowUps + overdueLeadTasks;
@@ -119,6 +128,12 @@ export default async function Home() {
     [t("dashboard.positiveLeadRate"), `%${positiveRate}`],
     [t("dashboard.unproductiveLeadRate"), `%${unproductiveRate}`],
   ];
+  const locationOpportunities = [
+    ["Yeni Fırsatlar", newLocationOpportunities, "/locations?status=NEW_OPPORTUNITY"],
+    ["Raporu Hazır", readyLocationReports, "/locations?report=ready"],
+    ["Yatırımcı Bekleyen", waitingInvestorLocations, "/locations?status=WAITING_FOR_INVESTOR"],
+    ["Görüşme Aşamasında", negotiatingLocations, "/locations?status=IN_NEGOTIATION"],
+  ] as const;
 
   return (
     <AppShell activeHref="/dashboard" eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")}>
@@ -183,6 +198,23 @@ export default async function Home() {
             </CardContent>
           </Card>
         </section>
+
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPinned className="size-5" />
+              Lokasyon Fırsatları
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-4">
+            {locationOpportunities.map(([label, value, href]) => (
+              <Link key={label} href={href} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4 hover:border-[#17201b]">
+                <p className="text-sm text-[#65705f]">{label}</p>
+                <p className="mt-2 text-2xl font-semibold">{number.format(value)}</p>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );

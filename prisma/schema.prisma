@@ -907,6 +907,7 @@ model Lead {
   activities           LeadActivity[]
   appointments         LeadAppointment[]
   tasks                LeadTask[]
+  candidateLocations   LeadCandidateLocation[]
 
   @@index([status, leadDate])
   @@index([processStatus, leadDate])
@@ -982,6 +983,165 @@ model LeadTask {
   @@index([leadId, dueDate])
   @@index([status, dueDate])
   @@index([assignedUserId])
+}
+
+model CandidateLocation {
+  id                       String                      @id @default(cuid())
+  name                     String
+  city                     String
+  district                 String?
+  neighborhood             String?
+  fullAddress              String?
+  locationType             LocationType
+  mallName                 String?
+  latitude                 Float?
+  longitude                Float?
+  areaM2                   Float?
+  monthlyRent              Decimal?                    @db.Decimal(18, 2)
+  turnoverRentRate         Float?
+  transferFee              Decimal?                    @db.Decimal(18, 2)
+  estimatedSetupCost       Decimal?                    @db.Decimal(18, 2)
+  estimatedTotalInvestment Decimal?                    @db.Decimal(18, 2)
+  conceptSuitability       ConceptSuitability          @default(NOT_EVALUATED)
+  currentBusinessName      String?
+  previousBrand            String?
+  sourceType               SourceType                  @default(INTERNAL)
+  sourceUrl                String?
+  contactName              String?
+  contactPhone             String?
+  contactEmail             String?
+  assignedUserId           String?
+  status                   LocationStatus              @default(NEW_OPPORTUNITY)
+  description              String?
+  internalNotes            String?
+  availableFrom            DateTime?
+  createdByUserId          String?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+  archivedAt               DateTime?
+  documents                CandidateLocationDocument[]
+  leadMatches              LeadCandidateLocation[]
+
+  @@index([city, district])
+  @@index([locationType])
+  @@index([status, archivedAt])
+  @@index([conceptSuitability])
+  @@index([assignedUserId])
+  @@index([createdAt])
+}
+
+model CandidateLocationDocument {
+  id               String            @id @default(cuid())
+  locationId       String
+  documentType     LocationDocumentType
+  fileName         String            @unique
+  originalFileName String
+  filePath         String
+  fileUrl          String?
+  mimeType         String
+  fileSize         Int
+  description      String?
+  uploadedByUserId String?
+  createdAt        DateTime          @default(now())
+  archivedAt       DateTime?
+  location         CandidateLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@index([locationId, documentType, createdAt])
+  @@index([archivedAt])
+}
+
+model LeadCandidateLocation {
+  id               String            @id @default(cuid())
+  leadId           String
+  locationId       String
+  matchStatus      MatchStatus       @default(SUGGESTED)
+  assignedByUserId String?
+  presentedAt      DateTime?
+  nextFollowUpAt   DateTime?
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  lead             Lead              @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  location         CandidateLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([leadId, locationId])
+  @@index([leadId, matchStatus])
+  @@index([locationId, matchStatus])
+  @@index([nextFollowUpAt])
+}
+
+enum LocationType {
+  SHOPPING_MALL
+  STREET_STORE
+  UNIVERSITY
+  HOTEL
+  FOOD_COURT
+  KIOSK
+  CORNER
+  CAFE
+  MIXED_USE
+  OTHER
+}
+
+enum LocationStatus {
+  NEW_OPPORTUNITY
+  UNDER_REVIEW
+  REPORT_READY
+  WAITING_FOR_INVESTOR
+  IN_NEGOTIATION
+  OFFER_SUBMITTED
+  LEASING_PROCESS
+  APPROVED
+  REJECTED
+  PASSIVE
+  LEASED
+  TRANSFERRED
+}
+
+enum ConceptSuitability {
+  CORNER
+  SELF_CAFE
+  CAFE
+  KIOSK
+  PREMIUM_CAFE
+  HOTEL_KIOSK
+  MULTIPLE
+  NOT_EVALUATED
+}
+
+enum SourceType {
+  INTERNAL
+  REAL_ESTATE_AGENT
+  MALL_MANAGEMENT
+  FRANCHISEE
+  ADVERTISEMENT
+  TRANSFER_OPPORTUNITY
+  OTHER
+}
+
+enum LocationDocumentType {
+  LOCATION_ANALYSIS_PDF
+  LOCATION_ANALYSIS_JPEG
+  LOCATION_PHOTO
+  RENT_OFFER
+  TRANSFER_OFFER
+  ARCHITECTURAL_PLAN
+  CONTRACT_DRAFT
+  MALL_PRESENTATION
+  TITLE_DEED
+  OTHER
+}
+
+enum MatchStatus {
+  SUGGESTED
+  SENT_TO_LEAD
+  INTERESTED
+  WILL_REVIEW
+  VISIT_PLANNED
+  REQUESTED_OFFER
+  SUITABLE_FOR_INVESTMENT
+  REJECTED_BY_LEAD
+  CLOSED
 }
 
 model ProductCategory {

@@ -40,6 +40,7 @@ const navigation = [
   { key: "navigation.leads", href: "/leads", icon: MessageSquareText, iconKey: "MessageSquareText" },
   { key: "navigation.appointments", href: "/appointments", icon: CalendarCheck2, iconKey: "CalendarCheck2" },
   { key: "navigation.candidates", href: "/candidates", icon: UsersRound, iconKey: "UsersRound" },
+  { key: "navigation.locations", href: "/locations", icon: MapPinned, iconKey: "MapPinned" },
   { key: "navigation.pipeline", href: "/pipeline", icon: Columns3, iconKey: "Columns3" },
   { key: "navigation.tasks", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
   { key: "navigation.branchPortal", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
@@ -230,6 +231,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/branch-portal")) return "branch_portal";
   if (href.startsWith("/appointments")) return "appointments";
   if (href.startsWith("/candidates")) return "candidates";
+  if (href.startsWith("/locations")) return "locations.view";
   if (href.startsWith("/pipeline")) return "pipeline";
   if (href.startsWith("/tasks")) return "tasks";
   if (href.startsWith("/documents")) return "documents";

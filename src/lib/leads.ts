@@ -114,6 +114,23 @@ export type LeadView = {
     assignedUserId: string;
     completedAt: string;
   }[];
+  candidateLocations?: {
+    id: string;
+    matchStatus: string;
+    nextFollowUpAt: string;
+    notes: string;
+    location: {
+      id: string;
+      name: string;
+      city: string;
+      district: string;
+      areaM2: number | null;
+      monthlyRent: string;
+      transferFee: string;
+      status: string;
+      documents: { id: string; fileName: string; documentType: string; archivedAt: string }[];
+    };
+  }[];
 };
 
 export function leadStatusLabel(status: string, locale?: Locale) {
@@ -193,6 +210,23 @@ type LeadRecord = {
     assignedUserId: string | null;
     completedAt: Date | null;
   }[];
+  candidateLocations?: {
+    id: string;
+    matchStatus: string;
+    nextFollowUpAt: Date | null;
+    notes: string | null;
+    location: {
+      id: string;
+      name: string;
+      city: string;
+      district: string | null;
+      areaM2: number | null;
+      monthlyRent: unknown;
+      transferFee: unknown;
+      status: string;
+      documents: { id: string; fileName: string; documentType: string; archivedAt: Date | null }[];
+    };
+  }[];
 };
 
 export function toLead(lead: LeadRecord): LeadView {
@@ -236,6 +270,21 @@ export function toLead(lead: LeadRecord): LeadView {
       dueDate: task.dueDate.toISOString(),
       assignedUserId: task.assignedUserId ?? "Atanmadı",
       completedAt: task.completedAt?.toISOString() ?? "",
+    })),
+    candidateLocations: lead.candidateLocations?.map((match) => ({
+      ...match,
+      nextFollowUpAt: match.nextFollowUpAt?.toISOString() ?? "",
+      notes: match.notes ?? "",
+      location: {
+        ...match.location,
+        district: match.location.district ?? "",
+        monthlyRent: match.location.monthlyRent?.toString?.() ?? "",
+        transferFee: match.location.transferFee?.toString?.() ?? "",
+        documents: match.location.documents.map((document) => ({
+          ...document,
+          archivedAt: document.archivedAt?.toISOString() ?? "",
+        })),
+      },
     })),
   };
 }

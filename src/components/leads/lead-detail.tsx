@@ -4,14 +4,18 @@ import Link from "next/link";
 import type React from "react";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { MatchStatus } from "@prisma/client";
 import { ArrowRight, CalendarClock, CheckCircle2, Clock3, Phone, Send } from "lucide-react";
 
 import { addLeadActivity } from "@/app/leads/actions";
+import { unlinkLocationMatch } from "@/app/locations/actions";
 import { changeLeadCategoryForm, changeLeadStatusForm, convertLeadForm } from "@/app/leads/form-actions";
+import { LeadLocationLinkForm, MatchUpdateForm } from "@/components/locations/location-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { appointmentStatusLabel, appointmentTypeLabel } from "@/lib/appointments";
 import { formatDate } from "@/lib/candidates";
+import { hasReport, locationStatusLabel, matchStatusLabel, money, numberTR } from "@/lib/locations";
 import {
   LEAD_ACTIVITY_TYPES,
   LEAD_CATEGORIES,
@@ -27,9 +31,11 @@ import type { LeadActionState } from "@/lib/validations/lead";
 const initial: LeadActionState = { success: false, message: "" };
 const tabs = ["Genel Bilgiler", "Arama Geçmişi", "Randevular", "Görevler", "Zaman Çizelgesi", "Notlar"] as const;
 
-export function LeadDetail({ lead }: { lead: LeadView }) {
+const tabsWithLocations = [...tabs.slice(0, 2), "Aday Lokasyonlar", ...tabs.slice(2)] as const;
+
+export function LeadDetail({ lead, availableLocations = [] }: { lead: LeadView; availableLocations?: { id: string; name: string; city: string; district: string | null }[] }) {
   const router = useRouter();
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Genel Bilgiler");
+  const [tab, setTab] = useState<(typeof tabsWithLocations)[number]>("Genel Bilgiler");
   const [state, activityAction, activityPending] = useActionState(addLeadActivity.bind(null, lead.id), initial);
   const [statusState, statusAction, statusPending] = useActionState(changeLeadStatusForm.bind(null, lead.id), initial);
   const [categoryState, categoryAction, categoryPending] = useActionState(changeLeadCategoryForm.bind(null, lead.id), initial);
@@ -80,7 +86,7 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
 
       <div className="rounded-lg border border-[#dfe4dc] bg-white">
         <nav className="flex gap-2 overflow-x-auto border-b p-3">
-          {tabs.map((item) => (
+          {tabsWithLocations.map((item) => (
             <Button key={item} type="button" variant={tab === item ? "default" : "outline"} onClick={() => setTab(item)} className="shrink-0">
               {item}
             </Button>
@@ -168,6 +174,55 @@ export function LeadDetail({ lead }: { lead: LeadView }) {
                 <TimelineItem key={activity.id} title={activity.type} date={activity.createdAt} description={activity.description} />
               )}
             />
+          ) : null}
+
+          {tab === "Aday Lokasyonlar" ? (
+            <div className="grid gap-5 xl:grid-cols-[340px_1fr]">
+              <LeadLocationLinkForm
+                leadId={lead.id}
+                leads={[{ id: lead.id, fullName: lead.fullName, city: lead.city, phone: lead.phone }]}
+                locations={availableLocations}
+              />
+              <List
+                empty="Bu lead'e henüz aday lokasyon bağlanmadı."
+                items={lead.candidateLocations ?? []}
+                render={(match) => {
+                  const report = match.location.documents.find((document) => ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"].includes(document.documentType));
+
+                  return (
+                    <article key={match.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <Link href={`/locations/${match.location.id}`} className="font-semibold hover:underline">{match.location.name}</Link>
+                          <p className="mt-1 text-sm text-[#65705f]">
+                            {match.location.city}{match.location.district ? ` / ${match.location.district}` : ""} · {numberTR(match.location.areaM2, " m²")} · {money(match.location.monthlyRent)} kira · {money(match.location.transferFee)} devir
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Badge>{matchStatusLabel(match.matchStatus)}</Badge>
+                            <Badge variant="secondary">{locationStatusLabel(match.location.status)}</Badge>
+                            <Badge className={hasReport(match.location.documents) ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{hasReport(match.location.documents) ? "Rapor Hazır" : "Rapor Bekleniyor"}</Badge>
+                            {match.nextFollowUpAt ? <Badge variant="secondary">Takip: {formatDate(match.nextFollowUpAt)}</Badge> : null}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {report ? (
+                            <Button asChild size="sm" variant="outline">
+                              <a href={`/api/locations/documents/${report.fileName}`} target="_blank">Raporu Aç</a>
+                            </Button>
+                          ) : null}
+                          <form action={unlinkLocationMatch.bind(null, match.id)}>
+                            <Button size="sm" variant="outline">Bağlantıyı Kaldır</Button>
+                          </form>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <MatchUpdateForm match={{ id: match.id, matchStatus: match.matchStatus as MatchStatus, nextFollowUpAt: match.nextFollowUpAt ? new Date(match.nextFollowUpAt) : null, notes: match.notes }} />
+                      </div>
+                    </article>
+                  );
+                }}
+              />
+            </div>
           ) : null}
 
           {tab === "Randevular" ? (

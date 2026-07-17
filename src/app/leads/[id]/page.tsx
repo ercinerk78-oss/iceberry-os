@@ -20,6 +20,27 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         activities: { orderBy: { createdAt: "desc" } },
         appointments: { orderBy: { appointmentDate: "desc" } },
         tasks: { orderBy: { dueDate: "asc" } },
+        candidateLocations: {
+          include: {
+            location: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                district: true,
+                areaM2: true,
+                monthlyRent: true,
+                transferFee: true,
+                status: true,
+                documents: {
+                  where: { archivedAt: null },
+                  select: { id: true, fileName: true, documentType: true, archivedAt: true },
+                },
+              },
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+        },
       },
     });
   } catch (error) {
@@ -43,6 +64,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   }
 
   if (!record) notFound();
+  const availableLocations = await prisma.candidateLocation.findMany({
+    where: { archivedAt: null },
+    select: { id: true, name: true, city: true, district: true },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+  });
 
   return (
     <AppShell activeHref="/leads" eyebrow="Lead inceleme" title={record.fullName}>
@@ -51,7 +78,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <ArrowLeft className="size-4" />
           Lead Havuzuna dön
         </Link>
-        <LeadDetail lead={toLead(record)} />
+        <LeadDetail lead={toLead(record)} availableLocations={availableLocations} />
       </div>
     </AppShell>
   );
