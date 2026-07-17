@@ -305,6 +305,589 @@ model TaskEvidence {
   @@index([uploadedById, uploadedAt])
 }
 
+model TrainingCategory {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  parentId    String?
+  sortOrder   Int      @default(0)
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  programs    TrainingProgram[]
+
+  @@index([parentId])
+  @@index([isActive, sortOrder])
+}
+
+model TrainingProgram {
+  id                       String                @id @default(cuid())
+  title                    String
+  code                     String
+  description              String?
+  categoryId               String
+  version                  Int                   @default(1)
+  status                   TrainingProgramStatus @default(DRAFT)
+  difficultyLevel          TrainingDifficulty    @default(BEGINNER)
+  estimatedDurationMinutes Int                   @default(0)
+  passingScore             Int                   @default(70)
+  maximumAttempts          Int                   @default(3)
+  completionValidityDays   Int?
+  certificateValidityDays  Int?
+  requiresCertificate      Boolean               @default(false)
+  requiresFinalExam        Boolean               @default(false)
+  requiresManagerApproval  Boolean               @default(false)
+  allowSelfEnrollment      Boolean               @default(false)
+  isMandatory              Boolean               @default(false)
+  language                 String                @default("tr")
+  coverImageDocumentId     String?
+  createdById              String?
+  approvedById             String?
+  approvedAt               DateTime?
+  publishedAt              DateTime?
+  archivedAt               DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  category                 TrainingCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  modules                  TrainingModule[]
+  assignments              TrainingAssignment[]
+  learningPathPrograms     LearningPathProgram[]
+  quizzes                  Quiz[]
+  certificates             TrainingCertificate[]
+
+  @@unique([code, version])
+  @@index([categoryId, status])
+  @@index([status, isMandatory])
+}
+
+model TrainingModule {
+  id                       String           @id @default(cuid())
+  programId                String
+  title                    String
+  description              String?
+  sortOrder                Int              @default(0)
+  estimatedDurationMinutes Int              @default(0)
+  isRequired               Boolean          @default(true)
+  completionRule           String?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  program                  TrainingProgram  @relation(fields: [programId], references: [id], onDelete: Restrict)
+  lessons                  TrainingLesson[]
+
+  @@index([programId, sortOrder])
+}
+
+model TrainingLesson {
+  id                       String             @id @default(cuid())
+  moduleId                 String
+  title                    String
+  description              String?
+  lessonType               TrainingLessonType
+  sortOrder                Int                @default(0)
+  estimatedDurationMinutes Int                @default(0)
+  isRequired               Boolean            @default(true)
+  minimumWatchPercentage   Int                @default(90)
+  requiresAcknowledgement  Boolean            @default(false)
+  requiresTaskCompletion   Boolean            @default(false)
+  relatedDocumentId        String?
+  relatedQuizId            String?
+  externalUrl              String?
+  videoDocumentId          String?
+  thumbnailDocumentId      String?
+  contentHtml              String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  module                   TrainingModule     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  progress                 LessonProgress[]
+
+  @@index([moduleId, sortOrder])
+  @@index([lessonType])
+}
+
+model TrainingAssignment {
+  id                 String                   @id @default(cuid())
+  programId          String
+  programVersion     Int
+  userId             String
+  branchId           String?
+  openingProjectId   String?
+  sourceType         TrainingAssignmentSource @default(MANUAL)
+  sourceId           String?
+  assignedById       String?
+  assignedAt         DateTime                 @default(now())
+  dueAt              DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  status             TrainingAssignmentStatus @default(ASSIGNED)
+  progressPercentage Int                      @default(0)
+  finalScore         Float?
+  result             TrainingResult?
+  attemptCount       Int                      @default(0)
+  exemptionReason    String?
+  exemptedById       String?
+  exemptedAt         DateTime?
+  certificateId      String?
+  renewalDueAt       DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  program            TrainingProgram          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  lessonProgress     LessonProgress[]
+  quizAttempts       QuizAttempt[]
+  certificate        TrainingCertificate?     @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([branchId, status])
+  @@index([openingProjectId, status])
+  @@index([dueAt, status])
+  @@unique([programId, programVersion, userId, sourceType, sourceId])
+}
+
+model LessonProgress {
+  id                  String               @id @default(cuid())
+  assignmentId        String
+  lessonId            String
+  userId              String
+  status              LessonProgressStatus @default(NOT_STARTED)
+  progressPercentage  Int                  @default(0)
+  watchedSeconds      Int                  @default(0)
+  lastPositionSeconds Int                  @default(0)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  lastAccessedAt      DateTime?
+  acknowledgementAt   DateTime?
+  practicalTaskId     String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assignment          TrainingAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  lesson              TrainingLesson       @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+
+  @@unique([assignmentId, lessonId])
+  @@index([userId, status])
+}
+
+model LearningPath {
+  id                       String                @id @default(cuid())
+  name                     String
+  code                     String
+  description              String?
+  version                  Int                   @default(1)
+  status                   LearningPathStatus    @default(DRAFT)
+  targetRoleCode           String?
+  branchConcept            String?
+  country                  String                @default("Türkiye")
+  estimatedDurationMinutes Int                   @default(0)
+  completionValidityDays   Int?
+  createdById              String?
+  publishedAt              DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  programs                 LearningPathProgram[]
+
+  @@unique([code, version])
+  @@index([status, targetRoleCode])
+}
+
+model LearningPathProgram {
+  id                    String          @id @default(cuid())
+  learningPathId        String
+  programId             String
+  sortOrder             Int             @default(0)
+  isRequired            Boolean         @default(true)
+  prerequisiteProgramId String?
+  dueOffsetDays         Int             @default(0)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  learningPath          LearningPath    @relation(fields: [learningPathId], references: [id], onDelete: Restrict)
+  program               TrainingProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+
+  @@unique([learningPathId, programId])
+  @@index([learningPathId, sortOrder])
+}
+
+model Quiz {
+  id               String           @id @default(cuid())
+  programId        String?
+  title            String
+  description      String?
+  status           QuizStatus       @default(DRAFT)
+  passingScore     Int              @default(70)
+  timeLimitMinutes Int?
+  maximumAttempts  Int              @default(3)
+  shuffleQuestions Boolean          @default(true)
+  shuffleOptions   Boolean          @default(true)
+  createdById      String?
+  publishedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  program          TrainingProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  questions        QuizQuestion[]
+  attempts         QuizAttempt[]
+
+  @@index([programId, status])
+}
+
+model QuizQuestion {
+  id           String           @id @default(cuid())
+  quizId       String
+  questionText String
+  questionType QuizQuestionType
+  sortOrder    Int              @default(0)
+  points       Int              @default(1)
+  explanation  String?
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  quiz         Quiz             @relation(fields: [quizId], references: [id], onDelete: Restrict)
+  options      QuizOption[]
+  answers      QuizAttemptAnswer[]
+
+  @@index([quizId, sortOrder])
+}
+
+model QuizOption {
+  id         String       @id @default(cuid())
+  questionId String
+  optionText String
+  isCorrect  Boolean      @default(false)
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@index([questionId, sortOrder])
+}
+
+model QuizAttempt {
+  id               String              @id @default(cuid())
+  quizId           String
+  assignmentId     String?
+  userId           String
+  status           QuizAttemptStatus   @default(IN_PROGRESS)
+  score            Float?
+  passed           Boolean?
+  startedAt        DateTime            @default(now())
+  submittedAt      DateTime?
+  evaluatedAt      DateTime?
+  questionSnapshot String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  quiz             Quiz                @relation(fields: [quizId], references: [id], onDelete: Restrict)
+  assignment       TrainingAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  answers          QuizAttemptAnswer[]
+
+  @@index([quizId, userId])
+  @@index([assignmentId])
+}
+
+model QuizAttemptAnswer {
+  id                String       @id @default(cuid())
+  attemptId         String
+  questionId        String
+  selectedOptionIds String?
+  answerText        String?
+  isCorrect         Boolean?
+  pointsAwarded     Float?
+  createdAt         DateTime     @default(now())
+  attempt           QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  question          QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionId])
+}
+
+model TrainingCertificate {
+  id                String               @id @default(cuid())
+  certificateNumber String               @unique
+  verificationCode  String               @unique
+  programId         String
+  userId            String
+  assignmentId      String?
+  issuedAt          DateTime             @default(now())
+  validUntil        DateTime?
+  status            CertificateStatus    @default(ACTIVE)
+  revokedAt         DateTime?
+  revokedById       String?
+  revokeReason      String?
+  pdfDocumentId     String?
+  createdAt         DateTime             @default(now())
+  program           TrainingProgram      @relation(fields: [programId], references: [id], onDelete: Restrict)
+  assignments       TrainingAssignment[]
+
+  @@index([userId, status])
+  @@index([validUntil, status])
+}
+
+model CorporateDocumentCategory {
+  id          String              @id @default(cuid())
+  name        String
+  code        String              @unique
+  description String?
+  sortOrder   Int                 @default(0)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  documents   CorporateDocument[]
+
+  @@index([isActive, sortOrder])
+}
+
+model CorporateDocument {
+  id               String                    @id @default(cuid())
+  title            String
+  code             String                    @unique
+  description      String?
+  categoryId       String
+  status           CorporateDocumentStatus   @default(DRAFT)
+  confidentiality  DocumentConfidentiality   @default(INTERNAL)
+  ownerRoleCode    String?
+  branchConcept    String?
+  country          String                    @default("Türkiye")
+  reviewDueAt      DateTime?
+  expiresAt        DateTime?
+  createdById      String?
+  approvedById     String?
+  approvedAt       DateTime?
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  category         CorporateDocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  versions         CorporateDocumentVersion[]
+  acknowledgements DocumentAcknowledgement[]
+
+  @@index([categoryId, status])
+  @@index([confidentiality, status])
+}
+
+model CorporateDocumentVersion {
+  id                  String                @id @default(cuid())
+  corporateDocumentId String
+  version             Int
+  titleSnapshot       String
+  contentHtml         String?
+  fileDocumentId      String?
+  changeSummary       String?
+  status              DocumentVersionStatus @default(DRAFT)
+  createdById         String?
+  approvedById        String?
+  approvedAt          DateTime?
+  publishedAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  corporateDocument   CorporateDocument     @relation(fields: [corporateDocumentId], references: [id], onDelete: Restrict)
+  acknowledgements    DocumentAcknowledgement[]
+
+  @@unique([corporateDocumentId, version])
+  @@index([status, publishedAt])
+}
+
+model DocumentAcknowledgement {
+  id                  String                       @id @default(cuid())
+  corporateDocumentId String
+  versionId           String
+  userId              String
+  branchId            String?
+  assignedById        String?
+  assignedAt          DateTime                     @default(now())
+  dueAt               DateTime?
+  openedAt            DateTime?
+  acknowledgedAt      DateTime?
+  status              DocumentAcknowledgementStatus @default(ASSIGNED)
+  evidenceText        String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  corporateDocument   CorporateDocument            @relation(fields: [corporateDocumentId], references: [id], onDelete: Restrict)
+  version             CorporateDocumentVersion     @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  @@unique([versionId, userId])
+  @@index([userId, status])
+  @@index([branchId, status])
+  @@index([dueAt, status])
+}
+
+model LiveTrainingSession {
+  id          String                   @id @default(cuid())
+  programId   String?
+  title       String
+  description String?
+  trainerName String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  capacity    Int?
+  location    String?
+  meetingUrl  String?
+  status      LiveTrainingStatus       @default(PLANNED)
+  createdById String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  attendances LiveTrainingAttendance[]
+
+  @@index([startsAt, status])
+}
+
+model LiveTrainingAttendance {
+  id         String               @id @default(cuid())
+  sessionId  String
+  userId     String
+  status     LiveAttendanceStatus @default(REGISTERED)
+  attendedAt DateTime?
+  notes      String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  session    LiveTrainingSession  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, userId])
+  @@index([userId, status])
+}
+
+enum TrainingProgramStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TrainingDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum TrainingLessonType {
+  VIDEO
+  TEXT
+  DOCUMENT
+  PDF
+  IMAGE
+  EXTERNAL_LINK
+  QUIZ
+  PRACTICAL_TASK
+  ACKNOWLEDGEMENT
+}
+
+enum TrainingAssignmentStatus {
+  ASSIGNED
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  OVERDUE
+  EXEMPTED
+  CANCELLED
+  EXPIRED
+  RENEWAL_REQUIRED
+}
+
+enum TrainingAssignmentSource {
+  MANUAL
+  ROLE_BASED
+  BRANCH_BASED
+  CONCEPT_BASED
+  ORIENTATION
+  OPENING_PROJECT
+  AUDIT_FINDING
+  CORRECTIVE_ACTION
+  DEVELOPMENT_PLAN
+  DOCUMENT_UPDATE
+  CERTIFICATE_RENEWAL
+  SYSTEM_POLICY
+  OTHER
+}
+
+enum TrainingResult {
+  PASSED
+  FAILED
+  PENDING_APPROVAL
+}
+
+enum LessonProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum LearningPathStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuizStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuizQuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  TEXT
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EVALUATED
+  CANCELLED
+}
+
+enum CertificateStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  RENEWED
+}
+
+enum CorporateDocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentVersionStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentConfidentiality {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum DocumentAcknowledgementStatus {
+  ASSIGNED
+  OPENED
+  ACKNOWLEDGED
+  OVERDUE
+  CANCELLED
+}
+
+enum LiveTrainingStatus {
+  PLANNED
+  OPEN_FOR_REGISTRATION
+  COMPLETED
+  CANCELLED
+}
+
+enum LiveAttendanceStatus {
+  REGISTERED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
 model BranchRevenueRecord {
   id                String    @id @default(cuid())
   branchId          String

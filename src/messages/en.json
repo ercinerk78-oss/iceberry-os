@@ -23,6 +23,7 @@
     "tasks": "Tasks",
     "branchPortal": "Branch Portal",
     "documents": "Documents",
+    "academy": "Training Academy",
     "branches": "Branches",
     "branchRevenues": "Branch Revenues",
     "openings": "Opening Management",
@@ -78,6 +79,8 @@
     "ARCHITECTURAL_LEAD": "Architectural Lead",
     "OPENING_COORDINATOR": "Opening Coordinator",
     "AUDITOR": "Auditor",
+    "TRAINING_MANAGER": "Training Manager",
+    "DOCUMENT_MANAGER": "Document Manager",
     "BRANCH_OWNER": "Branch Owner",
     "BRANCH_MANAGER": "Branch Manager",
     "BRANCH_STAFF": "Branch Staff"

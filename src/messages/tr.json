@@ -23,6 +23,7 @@
     "tasks": "Görevler",
     "branchPortal": "Şube Portalı",
     "documents": "Dokümanlar",
+    "academy": "Eğitim Akademisi",
     "branches": "Şubeler",
     "branchRevenues": "Şube Ciroları",
     "openings": "Açılış Yönetimi",
@@ -78,6 +79,8 @@
     "ARCHITECTURAL_LEAD": "Mimari Sorumlu",
     "OPENING_COORDINATOR": "Açılış Koordinatörü",
     "AUDITOR": "Denetçi",
+    "TRAINING_MANAGER": "Eğitim Yöneticisi",
+    "DOCUMENT_MANAGER": "Doküman Yöneticisi",
     "BRANCH_OWNER": "Şube Sahibi",
     "BRANCH_MANAGER": "Şube Müdürü",
     "BRANCH_STAFF": "Şube Personeli"

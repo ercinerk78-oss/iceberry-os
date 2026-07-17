@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Columns3,
   FolderOpen,
+  GraduationCap,
   LayoutDashboard,
   LineChart,
   Landmark,
@@ -45,6 +46,7 @@ const navigation = [
   { key: "navigation.tasks", href: "/tasks", icon: CheckSquare, iconKey: "CheckSquare" },
   { key: "navigation.branchPortal", href: "/branch-portal", icon: ClipboardCheck, iconKey: "CheckSquare" },
   { key: "navigation.documents", href: "/documents", icon: FolderOpen, iconKey: "FolderOpen" },
+  { key: "navigation.academy", href: "/academy", icon: GraduationCap, iconKey: "GraduationCap" },
   { key: "navigation.branches", href: "/branches", icon: Store, iconKey: "Store" },
   { key: "navigation.branchRevenues", href: "/branch-revenues", icon: LineChart, iconKey: "LineChart" },
   { key: "navigation.openings", href: "/openings", icon: CalendarRange, iconKey: "CalendarRange" },
@@ -235,6 +237,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/pipeline")) return "pipeline";
   if (href.startsWith("/tasks")) return "tasks";
   if (href.startsWith("/documents")) return "documents";
+  if (href.startsWith("/academy")) return "academy.view";
   if (href.startsWith("/franchisees")) return "franchisees";
   if (href.startsWith("/branches")) return "branches";
   if (href.startsWith("/branch-revenues")) return "branch_revenue";

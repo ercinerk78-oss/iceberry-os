@@ -11,6 +11,8 @@ export const USER_ROLES = [
   "ARCHITECTURAL_LEAD",
   "OPENING_COORDINATOR",
   "AUDITOR",
+  "TRAINING_MANAGER",
+  "DOCUMENT_MANAGER",
   "BRANCH_OWNER",
   "BRANCH_MANAGER",
   "BRANCH_STAFF",
@@ -29,6 +31,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   ARCHITECTURAL_LEAD: "Mimari Sorumlu",
   OPENING_COORDINATOR: "Açılış Koordinatörü",
   AUDITOR: "Denetçi",
+  TRAINING_MANAGER: "Eğitim Yöneticisi",
+  DOCUMENT_MANAGER: "Doküman Yöneticisi",
   BRANCH_OWNER: "Şube Sahibi",
   BRANCH_MANAGER: "Şube Müdürü",
   BRANCH_STAFF: "Şube Personeli",
@@ -46,6 +50,7 @@ export type Permission =
   | "pipeline"
   | "tasks"
   | "documents"
+  | "documents.manage"
   | "franchisees"
   | "branches"
   | "branch_revenue"
@@ -68,6 +73,11 @@ export type Permission =
   | "locations.upload_document"
   | "locations.link_lead"
   | "locations.view_financials"
+  | "academy.view"
+  | "academy.manage"
+  | "academy.assign"
+  | "academy.reports"
+  | "academy.certificates"
   | "stock_manage"
   | "shipment_manage"
   | "branch_portal";
@@ -80,6 +90,7 @@ const all: Permission[] = [
   "pipeline",
   "tasks",
   "documents",
+  "documents.manage",
   "branches",
   "branch_revenue",
   "openings",
@@ -101,6 +112,11 @@ const all: Permission[] = [
   "locations.upload_document",
   "locations.link_lead",
   "locations.view_financials",
+  "academy.view",
+  "academy.manage",
+  "academy.assign",
+  "academy.reports",
+  "academy.certificates",
   "stock_manage",
   "shipment_manage",
   "branch_portal",
@@ -109,17 +125,19 @@ const all: Permission[] = [
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   GENERAL_MANAGER: all.filter((permission) => permission !== "franchisees"),
   OPERATIONS_MANAGER: all.filter((permission) => !["settings", "users", "franchisees", "locations.delete", "locations.archive", "locations.view_financials"].includes(permission)),
-  FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations", "locations.view", "locations.link_lead"],
-  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "openings", "tasks"],
+  FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations", "locations.view", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
+  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "openings", "tasks", "academy.view"],
   MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance", "openings", "documents"],
-  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
-  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead"],
-  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document"],
-  OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead"],
-  AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings"],
-  BRANCH_STAFF: ["branch_portal", "tasks", "documents"],
+  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead", "academy.view"],
+  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead", "academy.view"],
+  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
+  AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
+  TRAINING_MANAGER: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
+  DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
+  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
+  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
+  BRANCH_STAFF: ["branch_portal", "tasks", "documents", "academy.view"],
 };
 
 export function hasPermission(role: string, permission: Permission) {
@@ -142,6 +160,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/pipeline")) return "pipeline";
   if (path.startsWith("/tasks")) return "tasks";
   if (path.startsWith("/documents")) return "documents";
+  if (path.startsWith("/academy")) return "academy.view";
   if (path.startsWith("/franchisees")) return "franchisees";
   if (path.startsWith("/branches")) return "branches";
   if (path.startsWith("/branch-revenues")) return "branch_revenue";
