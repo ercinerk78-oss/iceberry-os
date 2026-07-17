@@ -174,6 +174,11 @@ model Branch {
   tasks                     BranchTask[]
   revenueRecords            BranchRevenueRecord[]
   audits                    BranchAudit[]
+  auditAssignments          AuditAssignment[]
+  operationalAudits         Audit[]
+  auditFindings             AuditFinding[]
+  correctiveActions         CorrectiveAction[]
+  healthScoreSnapshots      BranchHealthScoreSnapshot[]
   developmentPlans          BranchDevelopmentPlan[]
   operationCalendarItems    OperationCalendarItem[]
   timeline                  BranchTimelineEvent[]
@@ -246,6 +251,9 @@ model BranchTask {
   requiresApproval    Boolean        @default(true)
   sourceType          String?
   sourceId            String?
+  auditId             String?
+  findingId           String?
+  correctiveActionId  String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   branch              Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -258,6 +266,9 @@ model BranchTask {
   @@index([assignedUserId, status])
   @@index([dueDate, status])
   @@index([sourceType, sourceId])
+  @@index([auditId])
+  @@index([findingId])
+  @@index([correctiveActionId])
 }
 
 model TaskEvidence {
@@ -336,6 +347,383 @@ model BranchAudit {
 
   @@index([branchId, auditDate])
   @@index([status, auditDate])
+}
+
+model AuditTemplate {
+  id                       String         @id @default(cuid())
+  name                     String
+  code                     String
+  description              String?
+  auditType                String
+  version                  Int            @default(1)
+  status                   String         @default("DRAFT")
+  country                  String?
+  branchConcept            String?
+  ownershipType            String?
+  validFrom                DateTime?
+  validUntil               DateTime?
+  scoringMethod            String         @default("WEIGHTED_PERCENTAGE")
+  passingScore             Decimal        @default(80) @db.Decimal(5, 2)
+  warningScore             Decimal        @default(70) @db.Decimal(5, 2)
+  criticalFailurePolicy    String         @default("FAIL_AUDIT")
+  requiresFinalApproval    Boolean        @default(true)
+  allowNotApplicable       Boolean        @default(true)
+  allowPartialCompletion   Boolean        @default(true)
+  estimatedDurationMinutes Int?
+  createdById              String?
+  approvedById             String?
+  approvedAt               DateTime?
+  publishedAt              DateTime?
+  archivedAt               DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  sections                 AuditSection[]
+  assignments              AuditAssignment[]
+  audits                   Audit[]
+
+  @@unique([code, version])
+  @@index([status, auditType])
+  @@index([branchConcept, ownershipType])
+}
+
+model AuditSection {
+  id                  String          @id @default(cuid())
+  templateId          String
+  name                String
+  code                String
+  description         String?
+  sortOrder           Int             @default(0)
+  weight              Decimal         @default(1) @db.Decimal(8, 4)
+  minimumSectionScore Decimal?        @db.Decimal(5, 2)
+  isCriticalSection   Boolean         @default(false)
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  template            AuditTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  questions           AuditQuestion[]
+  findings            AuditFinding[]
+
+  @@unique([templateId, code])
+  @@index([templateId, isActive, sortOrder])
+}
+
+model AuditQuestion {
+  id                       String                   @id @default(cuid())
+  sectionId                String
+  code                     String
+  title                    String
+  description              String?
+  instruction              String?
+  questionType             String
+  scoringType              String                   @default("FULL_OR_ZERO")
+  maximumScore             Decimal                  @default(1) @db.Decimal(8, 2)
+  weight                   Decimal                  @default(1) @db.Decimal(8, 4)
+  passingScore             Decimal?                 @db.Decimal(8, 2)
+  isRequired               Boolean                  @default(true)
+  isCritical               Boolean                  @default(false)
+  criticalFailureValue     String?
+  allowNotApplicable       Boolean                  @default(true)
+  requiresComment          Boolean                  @default(false)
+  requiresPhoto            Boolean                  @default(false)
+  requiresDocument         Boolean                  @default(false)
+  requiresMeasurement      Boolean                  @default(false)
+  requiresCorrectiveAction Boolean                  @default(false)
+  autoCreateTaskOnFailure  Boolean                  @default(false)
+  taskPriorityOnFailure    String                   @default("HIGH")
+  taskDueDays              Int                       @default(7)
+  repeatFailureThreshold   Int                       @default(3)
+  sortOrder                Int                       @default(0)
+  isActive                 Boolean                  @default(true)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  section                  AuditSection              @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  options                  AuditQuestionOption[]
+  answers                  AuditAnswer[]
+  findings                 AuditFinding[]
+  sourceConditions         AuditQuestionCondition[]  @relation("AuditQuestionConditionSource")
+  targetConditions         AuditQuestionCondition[]  @relation("AuditQuestionConditionTarget")
+
+  @@unique([sectionId, code])
+  @@index([sectionId, isActive, sortOrder])
+  @@index([isCritical])
+}
+
+model AuditQuestionOption {
+  id                String        @id @default(cuid())
+  questionId        String
+  label             String
+  value             String
+  score             Decimal       @default(0) @db.Decimal(8, 2)
+  isFailure         Boolean       @default(false)
+  isCriticalFailure Boolean       @default(false)
+  requiresComment   Boolean       @default(false)
+  requiresEvidence  Boolean       @default(false)
+  sortOrder         Int           @default(0)
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  question          AuditQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([questionId, value])
+  @@index([questionId, isActive, sortOrder])
+}
+
+model AuditQuestionCondition {
+  id               String        @id @default(cuid())
+  sourceQuestionId String
+  operator         String
+  comparisonValue  String?
+  targetQuestionId String
+  action           String
+  createdAt        DateTime      @default(now())
+  sourceQuestion   AuditQuestion @relation("AuditQuestionConditionSource", fields: [sourceQuestionId], references: [id], onDelete: Restrict)
+  targetQuestion   AuditQuestion @relation("AuditQuestionConditionTarget", fields: [targetQuestionId], references: [id], onDelete: Restrict)
+
+  @@index([sourceQuestionId])
+  @@index([targetQuestionId])
+}
+
+model AuditAssignment {
+  id                String        @id @default(cuid())
+  branchId          String
+  templateId        String
+  templateVersion   Int
+  auditType         String
+  status            String        @default("ASSIGNED")
+  scheduledStartAt  DateTime?
+  scheduledEndAt    DateTime?
+  dueAt             DateTime
+  assignedAuditorId String?
+  assignedById      String?
+  reviewerId        String?
+  priority          String        @default("NORMAL")
+  recurrenceRule    String?
+  source            String        @default("MANUAL")
+  relatedAlertId    String?
+  relatedTaskId     String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  branch            Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  template          AuditTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  audit             Audit?
+
+  @@index([branchId, status])
+  @@index([assignedAuditorId, status])
+  @@index([dueAt, status])
+  @@index([templateId, templateVersion])
+}
+
+model Audit {
+  id                   String          @id @default(cuid())
+  assignmentId         String?         @unique
+  branchId             String
+  templateId           String
+  templateVersion      Int
+  auditType            String
+  auditorId            String?
+  reviewerId           String?
+  startedAt            DateTime?
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  completedAt          DateTime?
+  status               String          @default("IN_PROGRESS")
+  totalScore           Decimal         @default(0) @db.Decimal(8, 2)
+  maximumScore         Decimal         @default(0) @db.Decimal(8, 2)
+  percentageScore      Decimal         @default(0) @db.Decimal(5, 2)
+  passingScore         Decimal         @default(80) @db.Decimal(5, 2)
+  result               String          @default("INCOMPLETE")
+  criticalFindingCount Int             @default(0)
+  majorFindingCount    Int             @default(0)
+  minorFindingCount    Int             @default(0)
+  notApplicableCount   Int             @default(0)
+  unansweredCount      Int             @default(0)
+  requiresFollowUp     Boolean         @default(false)
+  followUpDueAt        DateTime?
+  summary              String?
+  auditorNote          String?
+  reviewerNote         String?
+  branchResponse       String?
+  deviceInfo           String?
+  latitude             Float?
+  longitude            Float?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  assignment           AuditAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  branch               Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  template             AuditTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  answers              AuditAnswer[]
+  evidences            AuditEvidence[]
+  findings             AuditFinding[]
+  correctiveActions    CorrectiveAction[]
+
+  @@index([branchId, status])
+  @@index([auditType, createdAt])
+  @@index([templateId, templateVersion])
+  @@index([result])
+}
+
+model AuditAnswer {
+  id                  String         @id @default(cuid())
+  auditId             String
+  questionId          String
+  questionSnapshot    String
+  answerValue         String?
+  selectedOptionIds   String?
+  numericValue        Decimal?       @db.Decimal(12, 4)
+  textValue           String?
+  dateValue           DateTime?
+  measurementValue    Decimal?       @db.Decimal(12, 4)
+  measurementUnit     String?
+  score               Decimal        @default(0) @db.Decimal(8, 2)
+  maximumScore        Decimal        @default(0) @db.Decimal(8, 2)
+  isPassed            Boolean        @default(false)
+  isNotApplicable     Boolean        @default(false)
+  isCriticalFailure   Boolean        @default(false)
+  comment             String?
+  answeredById        String?
+  answeredAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  audit               Audit          @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  question            AuditQuestion  @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  evidences           AuditEvidence[]
+  findings            AuditFinding[]
+
+  @@unique([auditId, questionId])
+  @@index([auditId])
+  @@index([questionId])
+  @@index([isCriticalFailure])
+}
+
+model AuditEvidence {
+  id                 String            @id @default(cuid())
+  auditId            String
+  answerId           String?
+  findingId          String?
+  correctiveActionId String?
+  documentId         String?
+  evidenceType       String
+  caption            String?
+  takenAt            DateTime?
+  latitude           Float?
+  longitude          Float?
+  uploadedById       String?
+  createdAt          DateTime          @default(now())
+  audit              Audit             @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  answer             AuditAnswer?      @relation(fields: [answerId], references: [id], onDelete: SetNull)
+  finding            AuditFinding?     @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  correctiveAction   CorrectiveAction? @relation(fields: [correctiveActionId], references: [id], onDelete: SetNull)
+
+  @@index([auditId])
+  @@index([answerId])
+  @@index([findingId])
+  @@index([correctiveActionId])
+  @@index([documentId])
+}
+
+model AuditFinding {
+  id                String             @id @default(cuid())
+  auditId           String
+  branchId          String
+  answerId          String?
+  sectionId         String?
+  questionId        String?
+  findingNumber     String             @unique
+  title             String
+  description       String
+  category          String
+  severity          String             @default("MINOR")
+  status            String             @default("OPEN")
+  isCritical        Boolean            @default(false)
+  isRepeatFinding   Boolean            @default(false)
+  previousFindingId String?
+  repeatCount       Int                @default(1)
+  rootCause         String?
+  immediateAction   String?
+  assignedUserId    String?
+  dueAt             DateTime?
+  resolvedAt        DateTime?
+  verifiedAt        DateTime?
+  verifiedById      String?
+  resolutionNote    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  audit             Audit              @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  branch            Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  answer            AuditAnswer?       @relation(fields: [answerId], references: [id], onDelete: SetNull)
+  section           AuditSection?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  question          AuditQuestion?     @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  correctiveActions CorrectiveAction[]
+  evidences         AuditEvidence[]
+
+  @@index([branchId, status])
+  @@index([auditId])
+  @@index([severity, status])
+  @@index([questionId, branchId])
+}
+
+model CorrectiveAction {
+  id                      String          @id @default(cuid())
+  branchId                String
+  auditId                 String?
+  findingId               String?
+  title                   String
+  description             String?
+  actionType              String          @default("OTHER")
+  priority                String          @default("NORMAL")
+  status                  String          @default("ASSIGNED")
+  assignedUserId          String?
+  assignedById            String?
+  dueAt                   DateTime
+  requiresPhoto           Boolean         @default(false)
+  requiresDocument        Boolean         @default(false)
+  requiresComment         Boolean         @default(true)
+  requiresManagerApproval Boolean         @default(true)
+  taskId                  String?
+  completedAt             DateTime?
+  submittedAt             DateTime?
+  reviewedAt              DateTime?
+  reviewedById            String?
+  rejectionReason         String?
+  resolutionNote          String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  branch                  Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  audit                   Audit?          @relation(fields: [auditId], references: [id], onDelete: SetNull)
+  finding                 AuditFinding?   @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  evidences               AuditEvidence[]
+
+  @@index([branchId, status])
+  @@index([auditId])
+  @@index([findingId])
+  @@index([taskId])
+  @@index([dueAt, status])
+}
+
+model BranchHealthScoreSnapshot {
+  id                    String   @id @default(cuid())
+  branchId              String
+  score                 Decimal  @db.Decimal(5, 2)
+  previousScore         Decimal? @db.Decimal(5, 2)
+  auditComponent        Decimal  @default(0) @db.Decimal(5, 2)
+  findingComponent      Decimal  @default(0) @db.Decimal(5, 2)
+  taskComponent         Decimal  @default(0) @db.Decimal(5, 2)
+  revenueComponent      Decimal  @default(0) @db.Decimal(5, 2)
+  supplyComponent       Decimal  @default(0) @db.Decimal(5, 2)
+  financeComponent      Decimal  @default(0) @db.Decimal(5, 2)
+  googleComponent       Decimal? @db.Decimal(5, 2)
+  weightsSnapshot       String
+  positiveFactors       String?
+  negativeFactors       String?
+  criticalRisks         String?
+  missingData           String?
+  calculatedAt          DateTime @default(now())
+  createdAt             DateTime @default(now())
+  branch                Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, calculatedAt])
+  @@index([score])
 }
 
 model BranchDevelopmentPlan {
