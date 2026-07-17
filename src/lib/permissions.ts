@@ -163,6 +163,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/academy")) return "academy.view";
   if (path.startsWith("/franchisees")) return "franchisees";
   if (path.startsWith("/branches")) return "branches";
+  if (path.startsWith("/branch-map")) return "branches";
   if (path.startsWith("/branch-revenues")) return "branch_revenue";
   if (path.startsWith("/openings")) return "openings";
   if (path.startsWith("/orders/admin")) return "order_admin";

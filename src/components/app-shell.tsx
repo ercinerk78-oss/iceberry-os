@@ -65,8 +65,8 @@ const navigation = [
   { key: "navigation.integrations", href: "/integrations", icon: PlugZap, iconKey: "Settings" },
   { key: "navigation.finance", href: "/finance", icon: Landmark, iconKey: "LineChart" },
   { key: "navigation.operations", href: "/operations", icon: ShieldCheck, iconKey: "CheckSquare" },
-  { key: "navigation.branchMap", href: "#", icon: MapPinned, iconKey: "MapPinned" },
-  { key: "navigation.reports", href: "#", icon: LineChart, iconKey: "LineChart" },
+  { key: "navigation.branchMap", href: "/branch-map", icon: MapPinned, iconKey: "MapPinned" },
+  { key: "navigation.reports", href: "/reports", icon: LineChart, iconKey: "LineChart" },
   { key: "navigation.settings", href: "/settings", icon: Settings, iconKey: "Settings" },
   { key: "navigation.users", href: "/settings/users", icon: UsersRound, iconKey: "UsersRound" },
 ] as const;
@@ -92,7 +92,6 @@ export async function AppShell({
     (item) => !user || hasPermission(user.role, permissionFor(item.href)),
   );
   const mobileNavigation: MobileNavigationItem[] = visibleNavigation
-    .filter((item) => item.href !== "#")
     .map((item) => ({
       label: t(item.key),
       href: item.href,
@@ -199,7 +198,6 @@ export async function AppShell({
 
             <nav className="relative z-20 mt-4 flex gap-2 overflow-x-auto lg:hidden">
               {visibleNavigation
-                .filter((item) => item.href !== "#")
                 .slice(0, 6)
                 .map((item) => {
                   const active = item.href === activeHref;
@@ -240,6 +238,7 @@ function permissionFor(href: string): Permission {
   if (href.startsWith("/academy")) return "academy.view";
   if (href.startsWith("/franchisees")) return "franchisees";
   if (href.startsWith("/branches")) return "branches";
+  if (href.startsWith("/branch-map")) return "branches";
   if (href.startsWith("/branch-revenues")) return "branch_revenue";
   if (href.startsWith("/openings")) return "openings";
   if (href.startsWith("/orders/admin")) return "order_admin";
