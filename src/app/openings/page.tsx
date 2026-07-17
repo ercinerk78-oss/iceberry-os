@@ -15,6 +15,15 @@ export const dynamic = "force-dynamic";
 type Params = Record<string, string | string[] | undefined>;
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] as string : "");
 
+const emptyOpeningsData = {
+  items: [],
+  statusCounts: [],
+  riskCounts: [],
+  cities: [],
+  legacyCount: 0,
+  setupError: null as string | null,
+};
+
 export default async function Openings({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const q = get(params, "q");
@@ -41,23 +50,7 @@ export default async function Openings({ searchParams }: { searchParams: Promise
   if (alert === "late") where.AND = [{ targetOpeningDate: { lt: now } }, { status: { notIn: ["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"] } }];
   if (alert === "soon") where.targetOpeningDate = { gte: now, lte: soon };
 
-  const [items, statusCounts, riskCounts, cities, legacyCount] = await Promise.all([
-    prisma.openingProject.findMany({
-      where,
-      include: {
-        branch: { select: { branchName: true, city: true, status: true } },
-        stages: { orderBy: { sortOrder: "asc" } },
-        milestones: true,
-        risks: { where: { status: { in: ["OPEN", "WATCHING"] } } },
-        _count: { select: { tasks: true, documents: true, budgetItems: true } },
-      },
-      orderBy: { targetOpeningDate: "asc" },
-    }),
-    prisma.openingProject.groupBy({ by: ["status"], where: { archivedAt: null }, _count: { _all: true } }),
-    prisma.openingProject.groupBy({ by: ["riskLevel"], where: { archivedAt: null }, _count: { _all: true } }),
-    prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" } }),
-    prisma.branchOpening.count({ where: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
-  ]);
+  const { items, statusCounts, riskCounts, cities, legacyCount, setupError } = await loadOpeningsData(where);
 
   const activeCount = statusCounts.filter((item) => !["COMPLETED", "CANCELLED"].includes(item.status)).reduce((sum, item) => sum + item._count._all, 0);
   const readyCount = statusCounts.find((item) => item.status === "READY_FOR_OPENING")?._count._all ?? 0;
@@ -67,6 +60,12 @@ export default async function Openings({ searchParams }: { searchParams: Promise
   return (
     <AppShell activeHref="/openings" eyebrow="Şube kurulum projeleri" title="Açılış Yönetimi" action={<Button asChild><Link href="/openings/new"><Plus className="size-4" />Yeni Açılış Projesi</Link></Button>}>
       <div className="space-y-5">
+        {setupError ? (
+          <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-none">
+            Açılış Yönetimi veri tabanı hazırlığı tamamlanmamış görünüyor. Production migration koruması eklendi; deploy sonrası ekran otomatik çalışır hale gelecektir.
+          </Card>
+        ) : null}
+
         <section className="grid gap-3 md:grid-cols-4">
           <Kpi title="Aktif Açılış Projesi" value={activeCount} icon={<CalendarDays className="size-5" />} />
           <Kpi title="Açılışa Hazır" value={readyCount} icon={<CheckCircle2 className="size-5" />} />
@@ -128,6 +127,33 @@ export default async function Openings({ searchParams }: { searchParams: Promise
       </div>
     </AppShell>
   );
+}
+
+async function loadOpeningsData(where: Prisma.OpeningProjectWhereInput) {
+  try {
+    const [items, statusCounts, riskCounts, cities, legacyCount] = await Promise.all([
+      prisma.openingProject.findMany({
+        where,
+        include: {
+          branch: { select: { branchName: true, city: true, status: true } },
+          stages: { orderBy: { sortOrder: "asc" } },
+          milestones: true,
+          risks: { where: { status: { in: ["OPEN", "WATCHING"] } } },
+          _count: { select: { tasks: true, documents: true, budgetItems: true } },
+        },
+        orderBy: { targetOpeningDate: "asc" },
+      }),
+      prisma.openingProject.groupBy({ by: ["status"], where: { archivedAt: null }, _count: { _all: true } }),
+      prisma.openingProject.groupBy({ by: ["riskLevel"], where: { archivedAt: null }, _count: { _all: true } }),
+      prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" } }),
+      prisma.branchOpening.count({ where: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
+    ]);
+
+    return { items, statusCounts, riskCounts, cities, legacyCount, setupError: null };
+  } catch (error) {
+    console.error("[openings] page data load failed", error);
+    return { ...emptyOpeningsData, setupError: "OPENINGS_DATA_LOAD_FAILED" };
+  }
 }
 
 function Kpi({ title, value, icon, danger = false }: { title: string; value: number; icon: React.ReactNode; danger?: boolean }) {

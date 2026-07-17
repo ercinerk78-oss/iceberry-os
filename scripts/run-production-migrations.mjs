@@ -20,6 +20,7 @@ const idempotentSqlFiles = [
   "prisma/migrations/20260717182000_candidate_locations/migration.sql",
   "prisma/migrations/20260717203000_candidate_locations_guard/migration.sql",
   "prisma/migrations/20260717192000_opening_project_engine/migration.sql",
+  "prisma/migrations/20260717204500_opening_project_engine_guard/migration.sql",
 ];
 
 if (!shouldRun) {
