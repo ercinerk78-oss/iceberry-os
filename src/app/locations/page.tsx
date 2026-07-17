@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
+import type { CandidateLocation, CandidateLocationDocument, Prisma } from "@prisma/client";
 import { FileText, Grid2X2, ListFilter, MapPinned, Plus, Search } from "lucide-react";
 
 import { archiveLocation } from "@/app/locations/actions";
@@ -25,11 +25,29 @@ import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type Params = Record<string, string | string[] | undefined>;
+type LocationRow = CandidateLocation & {
+  documents: CandidateLocationDocument[];
+  _count: { leadMatches: number };
+};
+
+const emptyData: {
+  locations: LocationRow[];
+  totals: { status: string; _count: { _all: number } }[];
+  cities: { city: string }[];
+  setupError: string | null;
+} = {
+  locations: [],
+  totals: [],
+  cities: [],
+  setupError: null,
+};
 
 const get = (params: Params, key: string) => {
   const value = params[key];
   return Array.isArray(value) ? value[0] || "" : value || "";
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function LocationsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const user = await requireUser();
@@ -83,29 +101,8 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
   if (matched === "yes") where.leadMatches = { some: {} };
   if (matched === "no") where.leadMatches = { none: {} };
 
-  const [locations, totals, cities] = await Promise.all([
-    prisma.candidateLocation.findMany({
-      where,
-      include: {
-        documents: { where: { archivedAt: null }, orderBy: { createdAt: "desc" } },
-        _count: { select: { leadMatches: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-    }),
-    prisma.candidateLocation.groupBy({
-      by: ["status"],
-      where: { archivedAt: null },
-      _count: { _all: true },
-    }),
-    prisma.candidateLocation.findMany({
-      where: { archivedAt: null },
-      distinct: ["city"],
-      select: { city: true },
-      orderBy: { city: "asc" },
-    }),
-  ]);
-
+  const data = await loadLocationsData(where);
+  const { locations, totals, cities, setupError } = data;
   const countFor = (key: string) => totals.find((item) => item.status === key)?._count._all ?? 0;
   const totalCount = totals.reduce((sum, item) => sum + item._count._all, 0);
   const reportReadyCount = locations.filter((location) => hasReport(location.documents)).length;
@@ -113,6 +110,12 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
   return (
     <AppShell activeHref="/locations" eyebrow="Lead eşleştirme havuzu" title="Aday Lokasyonlar">
       <div className="space-y-5">
+        {setupError ? (
+          <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-none">
+            Aday Lokasyonlar veri tabanı hazırlığı tamamlanmamış görünüyor. Production migration koruması eklendi; deploy sonrası bu ekran otomatik çalışır hale gelecektir.
+          </Card>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <Kpi title="Toplam Aday Lokasyon" value={totalCount} href="/locations" />
           <Kpi title="Raporu Hazır Lokasyon" value={reportReadyCount} href="/locations?report=ready" />
@@ -241,6 +244,38 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
       </div>
     </AppShell>
   );
+}
+
+async function loadLocationsData(where: Prisma.CandidateLocationWhereInput) {
+  try {
+    const [locations, totals, cities] = await Promise.all([
+      prisma.candidateLocation.findMany({
+        where,
+        include: {
+          documents: { where: { archivedAt: null }, orderBy: { createdAt: "desc" } },
+          _count: { select: { leadMatches: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+      }),
+      prisma.candidateLocation.groupBy({
+        by: ["status"],
+        where: { archivedAt: null },
+        _count: { _all: true },
+      }),
+      prisma.candidateLocation.findMany({
+        where: { archivedAt: null },
+        distinct: ["city"],
+        select: { city: true },
+        orderBy: { city: "asc" },
+      }),
+    ]);
+
+    return { locations, totals, cities, setupError: null };
+  } catch (error) {
+    console.error("[locations] page data load failed", error);
+    return { ...emptyData, setupError: "LOCATIONS_DATA_LOAD_FAILED" };
+  }
 }
 
 function Kpi({ title, value, href }: { title: string; value: number; href: string }) {
