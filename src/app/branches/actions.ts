@@ -65,8 +65,6 @@ const number = (value?: string) => (value ? Number(value) : null);
 function toData(data: ReturnType<typeof branchSchema.parse>, userId?: string) {
   return {
     franchiseeId: empty(data.franchiseeId),
-    candidateId: empty(data.candidateId),
-    sourceLeadId: empty(data.sourceLeadId),
     branchName: data.branchName,
     branchCode: data.branchCode,
     legalName: empty(data.legalName),

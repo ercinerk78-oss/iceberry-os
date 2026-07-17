@@ -29,8 +29,17 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 type Params = Record<string, string | string[] | undefined>;
+type RevenueBranch = {
+  id: string;
+  branchName: string;
+  branchCode: string | null;
+  city: string;
+  ownershipType: string;
+  concept: string;
+  status: string;
+};
 type RevenueRowData = {
-  branch: Prisma.BranchGetPayload<Record<string, never>>;
+  branch: RevenueBranch;
   current?: BranchRevenueRecordWithUser;
   previous?: BranchRevenueRecordWithUser;
   actual: number;
@@ -71,6 +80,15 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const [branches, currentRecords, previousRecords, yearRecords, cities] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,
+      select: {
+        id: true,
+        branchName: true,
+        branchCode: true,
+        city: true,
+        ownershipType: true,
+        concept: true,
+        status: true,
+      },
       orderBy: { branchName: "asc" },
       take: 200,
     }),

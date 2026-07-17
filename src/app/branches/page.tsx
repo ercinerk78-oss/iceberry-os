@@ -51,7 +51,23 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const [items, cities] = await Promise.all([
     prisma.branch.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        branchName: true,
+        branchCode: true,
+        legalName: true,
+        tradeName: true,
+        city: true,
+        district: true,
+        ownershipType: true,
+        concept: true,
+        status: true,
+        mallName: true,
+        authorizedPersonName: true,
+        managerName: true,
+        openingDate: true,
+        plannedOpeningDate: true,
+        lastAuditScore: true,
         tasks: { select: { id: true, status: true, dueDate: true } },
         audits: { select: { score: true, criticalCount: true, auditDate: true }, orderBy: { auditDate: "desc" }, take: 1 },
       },

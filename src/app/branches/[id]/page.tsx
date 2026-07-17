@@ -44,8 +44,55 @@ export default async function BranchDetail({
   if (!(await canAccessBranch(id))) notFound();
   const branch = await prisma.branch.findUnique({
     where: { id },
-    include: {
-      candidate: { select: { id: true, fullName: true } },
+    select: {
+      id: true,
+      franchiseeId: true,
+      branchName: true,
+      branchCode: true,
+      legalName: true,
+      tradeName: true,
+      ownershipType: true,
+      conceptType: true,
+      city: true,
+      district: true,
+      address: true,
+      country: true,
+      latitude: true,
+      longitude: true,
+      phone: true,
+      email: true,
+      mallName: true,
+      floor: true,
+      unitNumber: true,
+      squareMeters: true,
+      authorizedPersonName: true,
+      authorizedPersonPhone: true,
+      authorizedPersonEmail: true,
+      taxOffice: true,
+      taxNumber: true,
+      billingAddress: true,
+      concept: true,
+      locationType: true,
+      openingDate: true,
+      plannedOpeningDate: true,
+      closingDate: true,
+      contractStartDate: true,
+      contractEndDate: true,
+      leaseStartDate: true,
+      leaseEndDate: true,
+      rentAmount: true,
+      turnoverRentRate: true,
+      depositAmount: true,
+      royaltyRate: true,
+      marketingContributionRate: true,
+      managerName: true,
+      managerPhone: true,
+      managerEmail: true,
+      operationsManager: true,
+      status: true,
+      generalNotes: true,
+      lastAuditScore: true,
+      healthScore: true,
       documents: { orderBy: { uploadedAt: "desc" } },
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
@@ -101,11 +148,6 @@ export default async function BranchDetail({
                 {branch.branchCode ?? "Kod yok"} · {branch.city}
                 {branch.district ? ` / ${branch.district}` : ""} · Planlanan açılış {formatDate(branch.plannedOpeningDate)}
               </p>
-              {branch.candidate ? (
-                <Link href={`/candidates/${branch.candidate.id}`} className="mt-2 inline-block text-sm font-medium underline">
-                  Bağlı franchise adayı: {branch.candidate.fullName}
-                </Link>
-              ) : null}
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <Metric label="Açık Görev" value={openTasks.length} icon={CheckSquare} />
