@@ -23,7 +23,7 @@ import {
   realizationRate,
 } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords, type BranchRevenueRecordWithUser } from "@/lib/branch-revenue-data";
-import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, label } from "@/lib/franchise";
+import { BRANCH_CONCEPTS, BRANCH_STATUSES, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +32,7 @@ type Params = Record<string, string | string[] | undefined>;
 type RevenueBranch = {
   id: string;
   branchName: string;
-  branchCode: string | null;
   city: string;
-  ownershipType: string;
   concept: string;
   status: string;
 };
@@ -59,7 +57,6 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const month = Number(get(params, "month") || now.getMonth() + 1);
   const q = get(params, "q");
   const city = get(params, "city");
-  const ownershipType = get(params, "ownershipType");
   const concept = get(params, "concept");
   const status = get(params, "status");
   const filter = get(params, "filter");
@@ -70,9 +67,8 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const branchWhere: Prisma.BranchWhereInput = {
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),
-    ...(q ? { OR: [{ branchName: { contains: q } }, { branchCode: { contains: q } }, { city: { contains: q } }] } : {}),
+    ...(q ? { OR: [{ branchName: { contains: q } }, { city: { contains: q } }] } : {}),
     ...(city ? { city } : {}),
-    ...(ownershipType ? { ownershipType } : {}),
     ...(concept ? { concept } : {}),
     ...(status ? { status } : {}),
   };
@@ -83,9 +79,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
       select: {
         id: true,
         branchName: true,
-        branchCode: true,
         city: true,
-        ownershipType: true,
         concept: true,
         status: true,
       },
@@ -160,7 +154,6 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
               {Array.from({ length: 12 }, (_, index) => index + 1).map((item) => <option key={item} value={item}>{item}. Ay</option>)}
             </select>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="ownershipType" current={ownershipType} first="Tüm tipler" options={Object.entries(BRANCH_OWNERSHIP_TYPES)} />
             <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
             <Select name="filter" current={filter} first="Performans filtresi" options={[["missing", "Veri girişi eksik"], ["target-met", "Hedefe ulaşan"], ["target-missed", "Hedef altında"], ["increased", "Ciro artan"], ["decreased", "Ciro düşen"]]} />
@@ -214,7 +207,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
           <CardHeader><CardTitle>Manuel Ciro Girişi</CardTitle></CardHeader>
           <CardContent>
             <form action={createBranchRevenue} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Select name="branchId" current="" first="Şube seç" options={branches.map((branch) => [branch.id, `${branch.branchName} · ${branch.branchCode ?? "Kod yok"}`])} />
+              <Select name="branchId" current="" first="Şube seç" options={branches.map((branch) => [branch.id, branch.branchName])} />
               <input name="year" type="number" defaultValue={year} className="h-10 rounded-lg border px-3" />
               <input name="month" type="number" min={1} max={12} defaultValue={month} className="h-10 rounded-lg border px-3" />
               <input name="grossRevenue" required type="number" min={0} step="0.01" placeholder="Gerçekleşen ciro" className="h-10 rounded-lg border px-3" />
@@ -256,7 +249,6 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
         {rows.map((row) => (
           <div key={row.branch.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
             <div className="flex justify-between gap-3"><b>{row.branch.branchName}</b><Badge>{row.current ? REVENUE_STATUS_LABELS[row.current.status as keyof typeof REVENUE_STATUS_LABELS] : "Veri yok"}</Badge></div>
-            <p className="mt-2 text-sm text-[#65705f]">{row.branch.branchCode ?? "Kod yok"} · {row.branch.city}</p>
             <p className="mt-3 text-xl font-semibold">{row.current ? formatMoney(row.actual, row.current.currency) : "—"}</p>
             <p className="text-sm text-[#65705f]">Değişim {formatPercent(row.changeRate)} · Hedef {formatPercent(row.targetRate)}</p>
           </div>
@@ -274,9 +266,7 @@ function RevenueRow({ row }: { row: RevenueRowData }) {
   return (
     <tr>
       <td className="px-4 py-4 font-semibold"><Link href={`/branches/${row.branch.id}?tab=${encodeURIComponent("KPI ve Performans")}`} className="underline">{row.branch.branchName}</Link></td>
-      <td className="px-4 py-4">{row.branch.branchCode ?? "—"}</td>
       <td className="px-4 py-4">{row.branch.city}</td>
-      <td className="px-4 py-4">{label(BRANCH_OWNERSHIP_TYPES, row.branch.ownershipType)}</td>
       <td className="px-4 py-4">{label(BRANCH_CONCEPTS, row.branch.concept)}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.actual, current.currency) : "—"}</td>
       <td className="px-4 py-4">{row.previous ? formatMoney(row.previousActual, row.previous.currency) : "—"}</td>

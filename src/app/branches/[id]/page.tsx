@@ -9,7 +9,7 @@ import { RelatedDocumentsPanel } from "@/components/documents/related-documents-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
@@ -48,51 +48,18 @@ export default async function BranchDetail({
       id: true,
       franchiseeId: true,
       branchName: true,
-      branchCode: true,
-      legalName: true,
-      tradeName: true,
-      ownershipType: true,
-      conceptType: true,
       city: true,
       district: true,
       address: true,
-      country: true,
-      latitude: true,
-      longitude: true,
-      phone: true,
-      email: true,
-      mallName: true,
-      floor: true,
-      unitNumber: true,
-      squareMeters: true,
-      authorizedPersonName: true,
-      authorizedPersonPhone: true,
-      authorizedPersonEmail: true,
-      taxOffice: true,
-      taxNumber: true,
-      billingAddress: true,
       concept: true,
       locationType: true,
       openingDate: true,
       plannedOpeningDate: true,
-      closingDate: true,
-      contractStartDate: true,
-      contractEndDate: true,
-      leaseStartDate: true,
-      leaseEndDate: true,
-      rentAmount: true,
-      turnoverRentRate: true,
-      depositAmount: true,
       royaltyRate: true,
       marketingContributionRate: true,
-      managerName: true,
-      managerPhone: true,
-      managerEmail: true,
       operationsManager: true,
       status: true,
       generalNotes: true,
-      lastAuditScore: true,
-      healthScore: true,
       documents: { orderBy: { uploadedAt: "desc" } },
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
@@ -124,13 +91,8 @@ export default async function BranchDetail({
   const activeDevelopmentPlans = branch.developmentPlans.filter((plan) => !["COMPLETED", "CANCELLED"].includes(plan.status));
   const values = {
     ...branch,
-    contractStartDate: branch.contractStartDate?.toISOString() ?? "",
-    contractEndDate: branch.contractEndDate?.toISOString() ?? "",
-    leaseStartDate: branch.leaseStartDate?.toISOString() ?? "",
-    leaseEndDate: branch.leaseEndDate?.toISOString() ?? "",
     openingDate: branch.openingDate?.toISOString() ?? "",
     plannedOpeningDate: branch.plannedOpeningDate?.toISOString() ?? "",
-    closingDate: branch.closingDate?.toISOString() ?? "",
   };
 
   return (
@@ -141,18 +103,18 @@ export default async function BranchDetail({
             <div>
               <div className="flex flex-wrap gap-2">
                 <Badge>{label(BRANCH_STATUSES, branch.status)}</Badge>
-                <Badge variant="secondary">{label(BRANCH_OWNERSHIP_TYPES, branch.ownershipType)}</Badge>
+                <Badge variant="secondary">Şube</Badge>
                 <Badge variant="secondary">{label(BRANCH_CONCEPTS, branch.concept)}</Badge>
               </div>
               <p className="mt-3 text-sm text-[#65705f]">
-                {branch.branchCode ?? "Kod yok"} · {branch.city}
+                {branch.city}
                 {branch.district ? ` / ${branch.district}` : ""} · Planlanan açılış {formatDate(branch.plannedOpeningDate)}
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <Metric label="Açık Görev" value={openTasks.length} icon={CheckSquare} />
               <Metric label="Geciken Görev" value={overdueTasks.length} icon={CalendarClock} />
-              <Metric label="Son Denetim" value={lastAudit?.score ?? branch.lastAuditScore ?? "—"} icon={ShieldCheck} />
+              <Metric label="Son Denetim" value={lastAudit?.score ?? "—"} icon={ShieldCheck} />
             </div>
           </div>
         </Card>
@@ -177,7 +139,7 @@ export default async function BranchDetail({
             {tab === "Şube Gelişim Planları" ? <DevelopmentPanel plans={branch.developmentPlans} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
-              <RevenuePerformance records={revenueRecords} healthScore={branch.healthScore} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score ?? branch.lastAuditScore} />
+              <RevenuePerformance records={revenueRecords} healthScore={null} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score} />
             ) : null}
             {tab === "Timeline" ? <TimelinePanel events={branch.timeline} /> : null}
             {tab === "Notlar" ? <Empty title="Notlar" text={branch.generalNotes ?? "Bu şube için not bulunmuyor."} /> : null}

@@ -6,8 +6,8 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { branchScopeWhere } from "@/lib/branch-access";
+import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -22,29 +22,15 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const city = value(params, "city");
   const concept = value(params, "concept");
   const status = value(params, "status");
-  const ownershipType = value(params, "ownershipType");
-  const mallName = value(params, "mallName");
   const overdue = value(params, "overdue");
   const critical = value(params, "critical");
   const scope = await branchScopeWhere();
   const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
 
-  if (q) {
-    where.OR = [
-      { branchName: { contains: q } },
-      { branchCode: { contains: q } },
-      { legalName: { contains: q } },
-      { tradeName: { contains: q } },
-      { city: { contains: q } },
-      { district: { contains: q } },
-      { authorizedPersonName: { contains: q } },
-    ];
-  }
+  if (q) where.OR = [{ branchName: { contains: q } }, { city: { contains: q } }, { district: { contains: q } }];
   if (city) where.city = city;
   if (concept) where.concept = concept;
   if (status) where.status = status;
-  if (ownershipType) where.ownershipType = ownershipType;
-  if (mallName) where.mallName = { contains: mallName };
   if (overdue === "yes") where.tasks = { some: { dueDate: { lt: new Date() }, status: { in: ["OPEN", "IN_PROGRESS", "REJECTED"] } } };
   if (critical === "yes") where.audits = { some: { criticalCount: { gt: 0 } } };
 
@@ -54,20 +40,13 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
       select: {
         id: true,
         branchName: true,
-        branchCode: true,
-        legalName: true,
-        tradeName: true,
         city: true,
         district: true,
-        ownershipType: true,
         concept: true,
         status: true,
-        mallName: true,
-        authorizedPersonName: true,
-        managerName: true,
+        operationsManager: true,
         openingDate: true,
         plannedOpeningDate: true,
-        lastAuditScore: true,
         tasks: { select: { id: true, status: true, dueDate: true } },
         audits: { select: { score: true, criticalCount: true, auditDate: true }, orderBy: { auditDate: "desc" }, take: 1 },
       },
@@ -93,19 +72,17 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
     >
       <div className="space-y-4">
         <Card className="p-4 shadow-none">
-          <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-8">
+          <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
             <label className="relative md:col-span-2">
               <Search className="absolute left-3 top-3 size-4" />
-              <input name="q" defaultValue={q} placeholder="Şube, kod, şehir veya yetkili ara" className="h-10 w-full rounded-lg border pl-9 pr-3" />
+              <input name="q" defaultValue={q} placeholder="Şube veya şehir ara" className="h-10 w-full rounded-lg border pl-9 pr-3" />
             </label>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="ownershipType" current={ownershipType} first="Tüm işletme tipleri" options={Object.entries(BRANCH_OWNERSHIP_TYPES)} />
             <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
-            <input name="mallName" defaultValue={mallName} placeholder="AVM" className="h-10 rounded-lg border px-3" />
             <Select name="overdue" current={overdue} first="Geciken görev" options={[["yes", "Var"]]} />
             <Select name="critical" current={critical} first="Kritik bulgu" options={[["yes", "Var"]]} />
-            <div className="flex gap-2 md:col-span-3 xl:col-span-8">
+            <div className="flex gap-2 md:col-span-3 xl:col-span-7">
               <Button>Filtrele</Button>
               <Button asChild type="button" variant="outline">
                 <Link href="/branches">Temizle</Link>
@@ -116,10 +93,10 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
 
         <Card className="overflow-hidden shadow-none">
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[1180px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
                 <tr>
-                  {["Şube", "Kod", "Tip", "Konsept", "Şehir", "AVM", "Durum", "Yetkili", "Açılış", "Denetim", "Açık Görev", "Geciken", "İşlem"].map((header) => (
+                  {["Şube", "Konsept", "Şehir", "Durum", "Sorumlu", "Açılış", "Denetim", "Açık Görev", "Geciken", "İşlem"].map((header) => (
                     <th key={header} className="px-4 py-3">{header}</th>
                   ))}
                 </tr>
@@ -133,15 +110,12 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   return (
                     <tr key={branch.id}>
                       <td className="px-4 py-4 font-semibold">{branch.branchName}</td>
-                      <td className="px-4 py-4">{branch.branchCode ?? "—"}</td>
-                      <td className="px-4 py-4">{label(BRANCH_OWNERSHIP_TYPES, branch.ownershipType)}</td>
                       <td className="px-4 py-4">{label(BRANCH_CONCEPTS, branch.concept)}</td>
                       <td className="px-4 py-4">{branch.city}</td>
-                      <td className="px-4 py-4">{branch.mallName ?? "—"}</td>
                       <td className="px-4 py-4"><Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge></td>
-                      <td className="px-4 py-4">{branch.authorizedPersonName ?? branch.managerName ?? "—"}</td>
+                      <td className="px-4 py-4">{branch.operationsManager ?? "-"}</td>
                       <td className="px-4 py-4">{formatDate(branch.openingDate ?? branch.plannedOpeningDate)}</td>
-                      <td className="px-4 py-4">{lastAudit?.score ?? branch.lastAuditScore ?? "—"}</td>
+                      <td className="px-4 py-4">{lastAudit?.score ?? "-"}</td>
                       <td className="px-4 py-4">{openTasks}</td>
                       <td className="px-4 py-4">{lateTasks}</td>
                       <td className="px-4 py-4">
@@ -152,7 +126,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                     </tr>
                   );
                 })}
-                {!items.length ? <tr><td colSpan={13} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
+                {!items.length ? <tr><td colSpan={10} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -167,12 +141,11 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{branch.branchName}</p>
-                      <p className="mt-1 text-sm text-[#65705f]">{branch.branchCode ?? "Kod yok"} · {branch.city}</p>
+                      <p className="mt-1 text-sm text-[#65705f]">{branch.city}</p>
                     </div>
                     <Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#65705f]">
-                    <span>{label(BRANCH_OWNERSHIP_TYPES, branch.ownershipType)}</span>
                     <span>{label(BRANCH_CONCEPTS, branch.concept)}</span>
                     <span>Açık görev: {openTasks}</span>
                     <span>Geciken: {lateTasks}</span>
