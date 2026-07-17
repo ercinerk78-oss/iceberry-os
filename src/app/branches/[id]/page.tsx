@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
+import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
@@ -48,7 +49,6 @@ export default async function BranchDetail({
       documents: { orderBy: { uploadedAt: "desc" } },
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
-      revenueRecords: { include: { enteredBy: { select: { name: true } } }, orderBy: { periodStart: "desc" }, take: 36 },
       audits: { orderBy: { auditDate: "desc" } },
       developmentPlans: { orderBy: { createdAt: "desc" } },
       operationCalendarItems: { orderBy: { startAt: "asc" } },
@@ -62,6 +62,12 @@ export default async function BranchDetail({
   });
 
   if (!branch) notFound();
+  const revenueRecords = await safeFindBranchRevenueRecords({
+    where: { branchId: id },
+    include: { enteredBy: { select: { name: true } } },
+    orderBy: { periodStart: "desc" },
+    take: 36,
+  });
 
   const activeOpening = branch.openings.find((opening) => !["COMPLETED", "CANCELLED"].includes(opening.status));
   const activeStage = activeOpening?.stages.find((stage) => stage.status === "IN_PROGRESS");
@@ -129,7 +135,7 @@ export default async function BranchDetail({
             {tab === "Şube Gelişim Planları" ? <DevelopmentPanel plans={branch.developmentPlans} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
-              <RevenuePerformance records={branch.revenueRecords} healthScore={branch.healthScore} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score ?? branch.lastAuditScore} />
+              <RevenuePerformance records={revenueRecords} healthScore={branch.healthScore} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score ?? branch.lastAuditScore} />
             ) : null}
             {tab === "Timeline" ? <TimelinePanel events={branch.timeline} /> : null}
             {tab === "Notlar" ? <Empty title="Notlar" text={branch.generalNotes ?? "Bu şube için not bulunmuyor."} /> : null}

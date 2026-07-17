@@ -22,20 +22,17 @@ import {
   previousMonth,
   realizationRate,
 } from "@/lib/branch-revenue";
-import { ensureBranchRevenueSchema } from "@/lib/branch-revenue-schema";
+import { safeFindBranchRevenueRecords, type BranchRevenueRecordWithUser } from "@/lib/branch-revenue-data";
 import { BRANCH_CONCEPTS, BRANCH_OWNERSHIP_TYPES, BRANCH_STATUSES, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 type Params = Record<string, string | string[] | undefined>;
-type RevenueRecordForPage = Prisma.BranchRevenueRecordGetPayload<{
-  include: { enteredBy: { select: { name: true } } };
-}>;
 type RevenueRowData = {
   branch: Prisma.BranchGetPayload<Record<string, never>>;
-  current?: RevenueRecordForPage;
-  previous?: RevenueRecordForPage;
+  current?: BranchRevenueRecordWithUser;
+  previous?: BranchRevenueRecordWithUser;
   actual: number;
   previousActual: number;
   change: number;
@@ -61,7 +58,6 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const { periodStart } = monthPeriod(year, month);
   const prev = previousMonth(year, month);
   const prevPeriod = monthPeriod(prev.year, prev.month);
-  await ensureBranchRevenueSchema();
   const branchWhere: Prisma.BranchWhereInput = {
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),
@@ -75,25 +71,18 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const [branches, currentRecords, previousRecords, yearRecords, cities] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,
-      include: {
-        revenueRecords: {
-          where: { periodType: "MONTHLY", periodStart },
-          include: { enteredBy: { select: { name: true } } },
-          take: 1,
-        },
-      },
       orderBy: { branchName: "asc" },
       take: 200,
     }),
-    prisma.branchRevenueRecord.findMany({
+    safeFindBranchRevenueRecords({
       where: { periodType: "MONTHLY", periodStart, branch: branchWhere },
       include: { enteredBy: { select: { name: true } } },
     }),
-    prisma.branchRevenueRecord.findMany({
+    safeFindBranchRevenueRecords({
       where: { periodType: "MONTHLY", periodStart: prevPeriod.periodStart, branch: branchWhere },
       include: { enteredBy: { select: { name: true } } },
     }),
-    prisma.branchRevenueRecord.findMany({
+    safeFindBranchRevenueRecords({
       where: { periodType: "MONTHLY", year, branch: branchWhere, status: { in: finalStatuses } },
       include: { enteredBy: { select: { name: true } } },
       orderBy: { periodStart: "asc" },
@@ -101,9 +90,10 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
     prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
   ]);
 
+  const currentByBranch = new Map(currentRecords.map((record) => [record.branchId, record]));
   const previousByBranch = new Map(previousRecords.map((record) => [record.branchId, record]));
   const rows = branches.map((branch) => {
-    const current = branch.revenueRecords[0] as RevenueRecordForPage | undefined;
+    const current = currentByBranch.get(branch.id);
     const previous = previousByBranch.get(branch.id);
     const actual = current && finalStatuses.includes(current.status as typeof finalStatuses[number]) ? current.grossRevenue : 0;
     const previousActual = previous && finalStatuses.includes(previous.status as typeof finalStatuses[number]) ? previous.grossRevenue : 0;
@@ -313,7 +303,7 @@ function Select({ name, current, first, options }: { name: string; current: stri
   );
 }
 
-function groupTotal(records: RevenueRecordForPage[]) {
+function groupTotal(records: BranchRevenueRecordWithUser[]) {
   return records.reduce<Record<string, number>>((acc, record) => {
     acc[record.currency] = (acc[record.currency] ?? 0) + record.grossRevenue;
     return acc;
