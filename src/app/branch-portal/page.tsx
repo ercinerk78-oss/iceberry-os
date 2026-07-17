@@ -19,11 +19,27 @@ export default async function BranchPortalPage() {
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const branches = await prisma.branch.findMany({
     where: { archivedAt: null, ...branchWhere },
-    include: {
-      tasks: { include: { evidence: true }, orderBy: { dueDate: "asc" } },
-      audits: { orderBy: { auditDate: "desc" }, take: 1 },
-      developmentPlans: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { dueDate: "asc" }, take: 5 },
-      operationCalendarItems: { where: { startAt: { gte: start } }, orderBy: { startAt: "asc" }, take: 5 },
+    select: {
+      id: true,
+      branchName: true,
+      tasks: {
+        select: {
+          id: true,
+          title: true,
+          branchId: true,
+          dueDate: true,
+          status: true,
+          requiresPhoto: true,
+          requiresVideo: true,
+          requiresFile: true,
+          requiresDescription: true,
+          evidence: { select: { id: true } },
+        },
+        orderBy: { dueDate: "asc" },
+      },
+      audits: { select: { score: true }, orderBy: { auditDate: "desc" }, take: 1 },
+      developmentPlans: { select: { id: true }, where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { dueDate: "asc" }, take: 5 },
+      operationCalendarItems: { select: { id: true, title: true, startAt: true }, where: { startAt: { gte: start } }, orderBy: { startAt: "asc" }, take: 5 },
     },
     orderBy: { branchName: "asc" },
   });
