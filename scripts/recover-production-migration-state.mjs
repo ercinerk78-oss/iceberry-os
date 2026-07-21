@@ -102,7 +102,18 @@ try {
     process.exit(0);
   }
 
-  if (!`${status.stdout ?? ""}\n${status.stderr ?? ""}`.includes(failedMigrationName)) {
+  const statusOutput = `${status.stdout ?? ""}\n${status.stderr ?? ""}`;
+  const hasOnlyPendingMigrations =
+    statusOutput.includes("Following migrations have not yet been applied") &&
+    !statusOutput.includes("failed migrations") &&
+    !statusOutput.includes("failed");
+
+  if (hasOnlyPendingMigrations) {
+    console.log("Prisma migrate status found pending migrations and no failed migration. Continuing with deploy.");
+    process.exit(0);
+  }
+
+  if (!statusOutput.includes(failedMigrationName)) {
     console.error("Prisma migrate status failed, but not for the expected recovery migration. Stopping.");
     process.exit(status.status ?? 1);
   }
