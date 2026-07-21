@@ -440,4 +440,4 @@ VALUES
   ('cat_cleaning', 'Temizlik Ürünleri', 'CLEANING', 'Başlangıç kategori', 100, 100, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   ('cat_equipment', 'Makine ve Ekipman', 'EQUIPMENT', 'Başlangıç kategori', 120, 120, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   ('cat_other', 'Diğer', 'OTHER', 'Başlangıç kategori', 999, 999, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT ("code") DO NOTHING;
+ON CONFLICT DO NOTHING;

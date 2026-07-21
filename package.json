@@ -8,6 +8,7 @@
     "postinstall": "node scripts/prisma-generate-safe.mjs",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:schema:read": "node scripts/read-production-schema.mjs",
     "db:migrate:status": "prisma migrate status",

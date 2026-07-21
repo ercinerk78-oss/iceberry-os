@@ -12,7 +12,19 @@ if (!isVercel || !isProduction) {
 
 if (!hasDirectDatabaseUrl) {
   console.error("Production migration stopped: DIRECT_URL or DATABASE_DIRECT_URL is required.");
-  console.error("Use a direct Postgres connection for migrations. Do not use the pooled runtime DATABASE_URL.");
+  console.error("Use Supabase Direct Connection or Shared Pooler Session Mode for migrations.");
+  process.exit(1);
+}
+
+const migrationUrl = new URL(directDatabaseUrl);
+const migrationHost = migrationUrl.hostname;
+const migrationPort = migrationUrl.port || "5432";
+const isSupabasePooler = migrationHost.endsWith(".pooler.supabase.com");
+const isTransactionPooler = isSupabasePooler && migrationPort === "6543";
+
+if (isTransactionPooler) {
+  console.error("Production migration stopped: Supabase Transaction Pooler is not supported for Prisma migrations.");
+  console.error("Use Supabase Direct Connection, or Shared Pooler Session Mode on port 5432 when IPv4 is required.");
   process.exit(1);
 }
 
@@ -26,7 +38,7 @@ function run(command, args, timeout) {
   });
 }
 
-console.log("Running Prisma production migrations...");
+console.log(`Running Prisma production migrations using ${migrationHost}:${migrationPort}...`);
 const deploy = run("npx", ["prisma", "migrate", "deploy"], 120000);
 if (deploy.status !== 0) {
   console.error("Prisma migrate deploy failed. Stop and inspect the error before retrying.");
