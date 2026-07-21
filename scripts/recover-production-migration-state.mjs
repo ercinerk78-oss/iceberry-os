@@ -20,16 +20,23 @@ function run(command, args, timeout) {
   return result;
 }
 
-async function hasFailedMigration(prisma) {
+async function readMigrationRecords(prisma) {
   const rows = await prisma.$queryRaw`
-    SELECT migration_name, finished_at, rolled_back_at
+    SELECT
+      migration_name,
+      finished_at IS NOT NULL AS finished,
+      rolled_back_at IS NOT NULL AS rolled_back,
+      logs IS NOT NULL AS has_logs
     FROM "_prisma_migrations"
     WHERE migration_name = ${failedMigrationName}
     ORDER BY started_at DESC
-    LIMIT 1
   `;
 
-  return rows.some((row) => row.finished_at === null && row.rolled_back_at === null);
+  return rows;
+}
+
+function hasFailedMigrationRecord(rows) {
+  return rows.some((row) => !row.rolled_back && (!row.finished || row.has_logs));
 }
 
 async function readPartialMigrationMarkers(prisma) {
@@ -97,7 +104,9 @@ const prisma = new PrismaClient();
 try {
   console.log(`Checking production migration status before deploy...`);
   const status = run("npx", ["prisma", "migrate", "status"], 120000);
-  const migrationIsFailed = await hasFailedMigration(prisma);
+  const migrationRecords = await readMigrationRecords(prisma);
+  const migrationIsFailed = hasFailedMigrationRecord(migrationRecords);
+  console.log(`Migration record states: ${JSON.stringify(migrationRecords)}`);
 
   if (status.status === 0 && !migrationIsFailed) {
     process.exit(0);
