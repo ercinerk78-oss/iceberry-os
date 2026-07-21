@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:schema:read": "node scripts/read-production-schema.mjs",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:deploy": "node scripts/run-production-migrations.mjs",
     "db:seed": "prisma db seed"
   },
   "dependencies": {
