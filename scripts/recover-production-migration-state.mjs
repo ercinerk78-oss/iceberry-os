@@ -123,7 +123,7 @@ try {
     process.exit(0);
   }
 
-  if (!statusOutput.includes(failedMigrationName)) {
+  if (!migrationIsFailed && !statusOutput.includes(failedMigrationName)) {
     console.error("Prisma migrate status failed, but not for the expected recovery migration. Stopping.");
     process.exit(status.status ?? 1);
   }
