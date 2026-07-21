@@ -97,8 +97,9 @@ const prisma = new PrismaClient();
 try {
   console.log(`Checking production migration status before deploy...`);
   const status = run("npx", ["prisma", "migrate", "status"], 120000);
+  const migrationIsFailed = await hasFailedMigration(prisma);
 
-  if (status.status === 0) {
+  if (status.status === 0 && !migrationIsFailed) {
     process.exit(0);
   }
 
@@ -108,7 +109,7 @@ try {
     !statusOutput.includes("failed migrations") &&
     !statusOutput.includes("failed");
 
-  if (hasOnlyPendingMigrations) {
+  if (hasOnlyPendingMigrations && !migrationIsFailed) {
     console.log("Prisma migrate status found pending migrations and no failed migration. Continuing with deploy.");
     process.exit(0);
   }
@@ -118,7 +119,6 @@ try {
     process.exit(status.status ?? 1);
   }
 
-  const migrationIsFailed = await hasFailedMigration(prisma);
   if (!migrationIsFailed) {
     console.log("Expected failed migration is not currently marked as failed. Continuing with deploy.");
     process.exit(0);
