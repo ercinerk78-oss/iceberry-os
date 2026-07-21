@@ -38,6 +38,13 @@ function run(command, args, timeout) {
   });
 }
 
+console.log("Preparing production migration state...");
+const recovery = run("node", ["scripts/recover-production-migration-state.mjs"], 120000);
+if (recovery.status !== 0) {
+  console.error("Production migration recovery failed. Stop and inspect the error before retrying.");
+  process.exit(recovery.status ?? 1);
+}
+
 console.log(`Running Prisma production migrations using ${migrationHost}:${migrationPort}...`);
 const deploy = run("npx", ["prisma", "migrate", "deploy"], 120000);
 if (deploy.status !== 0) {
