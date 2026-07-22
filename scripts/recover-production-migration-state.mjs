@@ -116,7 +116,11 @@ try {
 
   const statusOutput = `${status.stdout ?? ""}\n${status.stderr ?? ""}`;
   const hasOnlyPendingMigrations =
-    statusOutput.includes("Following migrations have not yet been applied") &&
+    (
+      statusOutput.includes("Following migrations have not yet been applied") ||
+      statusOutput.includes("Following migration have not yet been applied") ||
+      statusOutput.includes("Following migration has not yet been applied")
+    ) &&
     !statusOutput.includes("failed migrations") &&
     !statusOutput.includes("failed");
 
