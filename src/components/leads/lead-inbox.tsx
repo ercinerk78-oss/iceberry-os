@@ -27,16 +27,16 @@ type LeadInboxProps = {
   initialStatus?: string;
   initialCategory?: string;
   initialFollowUp?: string;
+  referenceNow: number;
 };
 
-export function LeadInbox({ leads, initialStatus, initialCategory, initialFollowUp }: LeadInboxProps) {
+export function LeadInbox({ leads, initialStatus, initialCategory, initialFollowUp, referenceNow }: LeadInboxProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState(initialStatus || ALL);
   const [source, setSource] = useState(ALL);
   const [category, setCategory] = useState(initialCategory || ALL);
   const [followUp, setFollowUp] = useState(initialFollowUp || ALL);
-  const [now] = useState(() => Date.now());
   const filtered = useMemo(() => {
     const statusValues = status === ALL ? [] : statusValuesForFilter(status);
 
@@ -63,11 +63,11 @@ export function LeadInbox({ leads, initialStatus, initialCategory, initialFollow
       const matchesCategory = category === ALL || lead.leadCategory === category;
       const overdue =
         followUp !== "overdue" ||
-        (!!lead.nextFollowUpAt && new Date(lead.nextFollowUpAt).getTime() < now);
+        (!!lead.nextFollowUpAt && new Date(lead.nextFollowUpAt).getTime() < referenceNow);
 
       return matchesQuery && matchesStatus && matchesSource && matchesCategory && overdue;
     });
-  }, [category, followUp, leads, now, q, source, status]);
+  }, [category, followUp, leads, q, referenceNow, source, status]);
 
   return (
     <div className="space-y-4">

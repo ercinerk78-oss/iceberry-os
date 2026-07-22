@@ -9,6 +9,7 @@ type Params = { status?: string; leadCategory?: string; followUp?: string };
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
+  const referenceNow = new Date();
   let records;
 
   try {
@@ -21,7 +22,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             ]
           : undefined,
         leadCategory: params.leadCategory || undefined,
-        nextFollowUpAt: params.followUp === "overdue" ? { lt: new Date() } : undefined,
+        nextFollowUpAt: params.followUp === "overdue" ? { lt: referenceNow } : undefined,
       },
       include: {
         activities: { orderBy: { createdAt: "desc" } },
@@ -61,6 +62,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         initialStatus={params.status}
         initialCategory={params.leadCategory}
         initialFollowUp={params.followUp}
+        referenceNow={referenceNow.getTime()}
       />
     </AppShell>
   );
