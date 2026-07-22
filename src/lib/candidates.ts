@@ -82,5 +82,5 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
 
 export function formatDate(value: string) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(new Date(value));
 }
