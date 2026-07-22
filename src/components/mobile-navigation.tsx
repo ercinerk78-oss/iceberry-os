@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -10,16 +11,20 @@ import {
   CalendarCheck2,
   CalendarRange,
   CheckSquare,
+  ChevronDown,
   Columns3,
   FolderOpen,
   GraduationCap,
+  Landmark,
   LayoutDashboard,
   LineChart,
   MapPinned,
   Menu,
   MessageSquareText,
   Package,
+  PlugZap,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Store,
@@ -30,8 +35,15 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  activeNavigationGroupId,
+  isNavigationItemActive,
+  type NavigationIconKey,
+  type NavigationItem,
+  type VisibleNavigationGroup,
+} from "@/lib/navigation";
 
-const icons = {
+const icons: Record<NavigationIconKey, ComponentType<{ className?: string }>> = {
   Bell,
   Building2,
   CalendarCheck2,
@@ -40,52 +52,49 @@ const icons = {
   Columns3,
   FolderOpen,
   GraduationCap,
+  Landmark,
   LayoutDashboard,
   LineChart,
   MapPinned,
   MessageSquareText,
   Package,
+  PlugZap,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Store,
   Truck,
   UsersRound,
   Warehouse,
-} as const;
+};
 
-export type MobileNavigationItem = {
+export type MobileNavigationItem = NavigationItem & { label: string };
+export type MobileNavigationGroup = Omit<VisibleNavigationGroup, "children"> & {
   label: string;
-  href: string;
-  icon: keyof typeof icons;
+  children: MobileNavigationItem[];
 };
 
 type MobileNavigationProps = {
-  items: MobileNavigationItem[];
+  dashboard: MobileNavigationItem | null;
+  groups: MobileNavigationGroup[];
   activeHref: string;
 };
 
-export function MobileNavigation({ items, activeHref }: MobileNavigationProps) {
+export function MobileNavigation({ dashboard, groups, activeHref }: MobileNavigationProps) {
   const pathname = usePathname();
+  const activeGroup = activeNavigationGroupId(groups, activeHref, pathname);
   const [open, setOpen] = useState(false);
-
-  const isActive = (href: string) =>
-    href === activeHref ||
-    href === pathname ||
-    (href !== "/" && pathname.startsWith(href));
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
 
     const previousOverflow = document.body.style.overflow;
     const previousPaddingRight = document.body.style.paddingRight;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
 
     document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -106,18 +115,12 @@ export function MobileNavigation({ items, activeHref }: MobileNavigationProps) {
         className="fixed left-0 top-0 z-[100] flex h-[100dvh] w-[min(88vw,22rem)] flex-col overflow-y-auto bg-[#17201b] px-4 py-5 text-white shadow-2xl lg:hidden"
       >
         <div className="flex items-center justify-between gap-3">
-          <Link
-            href="/dashboard"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-3"
-          >
+          <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-lg bg-[#a8ff60] text-[#17201b]">
               <Sparkles className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#a8ff60]">
-                Iceberry
-              </p>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#a8ff60]">Iceberry</p>
               <h2 className="text-lg font-semibold">OS Panel</h2>
             </div>
           </Link>
@@ -133,25 +136,47 @@ export function MobileNavigation({ items, activeHref }: MobileNavigationProps) {
           </Button>
         </div>
 
-        <nav className="mt-6 min-h-0 flex-1 space-y-1 pb-4">
-          {items.map((item) => {
-            const Icon = icons[item.icon];
-            const active = isActive(item.href);
+        <nav className="mt-6 min-h-0 flex-1 space-y-2 pb-4">
+          {dashboard ? <DrawerLink item={dashboard} activeHref={activeHref} pathname={pathname} onClose={() => setOpen(false)} level="top" /> : null}
+
+          {groups.map((group) => {
+            const Icon = icons[group.icon];
+            const expanded = openGroup === group.id;
+            const groupHasActive = activeGroup === group.id;
+            const panelId = `mobile-group-${group.id}`;
 
             return (
-              <Link
-                href={item.href}
-                key={item.href}
-                onClick={() => setOpen(false)}
-                className={`relative z-[101] flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition ${
-                  active
-                    ? "bg-white text-[#17201b] shadow-sm"
-                    : "text-white/76 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span>{item.label}</span>
-              </Link>
+              <div key={group.id}>
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  aria-controls={panelId}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a8ff60] ${
+                    expanded || groupHasActive
+                      ? "bg-white/12 text-white"
+                      : "text-white/76 hover:bg-white/10 hover:text-white"
+                  }`}
+                  onClick={() => setOpenGroup((current) => (current === group.id ? null : group.id))}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 text-left">{group.label}</span>
+                  <ChevronDown className={`size-4 shrink-0 transition-transform duration-150 ${expanded ? "rotate-180" : ""}`} />
+                </button>
+                <div
+                  id={panelId}
+                  className={`grid transition-[grid-template-rows,opacity] duration-150 ${
+                    expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    <div className="ml-4 mt-1 space-y-1 border-l border-white/12 pl-2">
+                      {group.children.map((item) => (
+                        <DrawerLink key={item.href} item={item} activeHref={activeHref} pathname={pathname} onClose={() => setOpen(false)} level="child" />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             );
           })}
         </nav>
@@ -174,9 +199,42 @@ export function MobileNavigation({ items, activeHref }: MobileNavigationProps) {
         <Menu className="size-4" />
       </Button>
 
-      {drawer && typeof document !== "undefined"
-        ? createPortal(drawer, document.body)
-        : null}
+      {drawer && typeof document !== "undefined" ? createPortal(drawer, document.body) : null}
     </>
+  );
+}
+
+function DrawerLink({
+  item,
+  activeHref,
+  pathname,
+  onClose,
+  level,
+}: {
+  item: MobileNavigationItem;
+  activeHref: string;
+  pathname: string;
+  onClose: () => void;
+  level: "top" | "child";
+}) {
+  const Icon = icons[item.icon];
+  const active = isNavigationItemActive(item.href, activeHref, pathname);
+
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      onClick={onClose}
+      className={`relative z-[101] flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a8ff60] ${
+        active
+          ? "bg-white text-[#17201b] shadow-sm"
+          : level === "top"
+            ? "text-white/76 hover:bg-white/10 hover:text-white"
+            : "text-white/68 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 truncate">{item.label}</span>
+    </Link>
   );
 }

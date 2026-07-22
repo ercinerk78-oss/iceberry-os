@@ -48,6 +48,17 @@
     "users": "Kullanıcılar",
     "roles": "Roller ve Yetkiler"
   },
+  "navigationGroups": {
+    "franchise": "Franchise",
+    "branch": "Şube",
+    "opening": "Açılış",
+    "warehouseLogistics": "Depo ve Lojistik",
+    "finance": "Finans",
+    "academy": "Akademi",
+    "documents": "Dokümanlar",
+    "reports": "Raporlar",
+    "system": "Sistem"
+  },
   "actions": {
     "save": "Kaydet",
     "cancel": "İptal",

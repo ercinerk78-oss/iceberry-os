@@ -48,6 +48,17 @@
     "users": "Users",
     "roles": "Roles and Permissions"
   },
+  "navigationGroups": {
+    "franchise": "Franchise",
+    "branch": "Branch",
+    "opening": "Opening",
+    "warehouseLogistics": "Warehouse and Logistics",
+    "finance": "Finance",
+    "academy": "Academy",
+    "documents": "Documents",
+    "reports": "Reports",
+    "system": "System"
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",
