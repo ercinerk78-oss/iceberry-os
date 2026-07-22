@@ -347,6 +347,9 @@ model TrainingProgram {
   allowSelfEnrollment      Boolean               @default(false)
   isMandatory              Boolean               @default(false)
   language                 String                @default("tr")
+  instructorName           String?
+  sortOrder                Int                   @default(0)
+  tags                     String?
   coverImageDocumentId     String?
   createdById              String?
   approvedById             String?
@@ -359,12 +362,14 @@ model TrainingProgram {
   modules                  TrainingModule[]
   assignments              TrainingAssignment[]
   learningPathPrograms     LearningPathProgram[]
+  mediaAssets              AcademyMediaAsset[]
   quizzes                  Quiz[]
   certificates             TrainingCertificate[]
 
   @@unique([code, version])
   @@index([categoryId, status])
   @@index([status, isMandatory])
+  @@index([status, sortOrder])
 }
 
 model TrainingModule {
@@ -385,30 +390,62 @@ model TrainingModule {
 }
 
 model TrainingLesson {
-  id                       String             @id @default(cuid())
+  id                       String              @id @default(cuid())
   moduleId                 String
   title                    String
   description              String?
   lessonType               TrainingLessonType
-  sortOrder                Int                @default(0)
-  estimatedDurationMinutes Int                @default(0)
-  isRequired               Boolean            @default(true)
-  minimumWatchPercentage   Int                @default(90)
-  requiresAcknowledgement  Boolean            @default(false)
-  requiresTaskCompletion   Boolean            @default(false)
+  sortOrder                Int                 @default(0)
+  estimatedDurationMinutes Int                 @default(0)
+  isRequired               Boolean             @default(true)
+  minimumWatchPercentage   Int                 @default(90)
+  requiresAcknowledgement  Boolean             @default(false)
+  requiresTaskCompletion   Boolean             @default(false)
   relatedDocumentId        String?
   relatedQuizId            String?
   externalUrl              String?
   videoDocumentId          String?
   thumbnailDocumentId      String?
   contentHtml              String?
-  createdAt                DateTime           @default(now())
-  updatedAt                DateTime           @updatedAt
-  module                   TrainingModule     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  module                   TrainingModule      @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   progress                 LessonProgress[]
+  mediaAssets              AcademyMediaAsset[]
 
   @@index([moduleId, sortOrder])
   @@index([lessonType])
+}
+
+model AcademyMediaAsset {
+  id               String          @id @default(cuid())
+  programId        String
+  lessonId         String?
+  title            String
+  description      String?
+  mediaType        String
+  sourceType       String
+  originalFileName String?
+  fileName         String?
+  filePath         String?
+  fileUrl          String?
+  mimeType         String?
+  fileSize         Int?
+  durationSeconds  Int?
+  sortOrder        Int             @default(0)
+  thumbnailUrl     String?
+  uploadedById     String?
+  archivedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  program          TrainingProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+  lesson           TrainingLesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@index([programId, sortOrder])
+  @@index([lessonId])
+  @@index([mediaType])
+  @@index([sourceType])
+  @@index([archivedAt])
 }
 
 model TrainingAssignment {
