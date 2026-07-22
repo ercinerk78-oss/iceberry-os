@@ -6,7 +6,7 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = "postgresql://placeholder:placeholder@localhost:5432/placeholder";
 }
 
-const result = spawnSync("npx", ["prisma", "generate"], {
+const result = spawnSync("npx", ["prisma", "generate", "--no-hints"], {
   stdio: "inherit",
   shell: process.platform === "win32",
 });
