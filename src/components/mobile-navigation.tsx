@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -81,8 +80,7 @@ type MobileNavigationProps = {
 };
 
 export function MobileNavigation({ dashboard, groups, activeHref }: MobileNavigationProps) {
-  const pathname = usePathname();
-  const activeGroup = activeNavigationGroupId(groups, activeHref, pathname);
+  const activeGroup = activeNavigationGroupId(groups, activeHref);
   const [open, setOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
 
@@ -137,7 +135,7 @@ export function MobileNavigation({ dashboard, groups, activeHref }: MobileNaviga
         </div>
 
         <nav className="mt-6 min-h-0 flex-1 space-y-2 pb-4">
-          {dashboard ? <DrawerLink item={dashboard} activeHref={activeHref} pathname={pathname} onClose={() => setOpen(false)} level="top" /> : null}
+          {dashboard ? <DrawerLink item={dashboard} activeHref={activeHref} onClose={() => setOpen(false)} level="top" /> : null}
 
           {groups.map((group) => {
             const Icon = icons[group.icon];
@@ -171,7 +169,7 @@ export function MobileNavigation({ dashboard, groups, activeHref }: MobileNaviga
                   <div className="overflow-hidden">
                     <div className="ml-4 mt-1 space-y-1 border-l border-white/12 pl-2">
                       {group.children.map((item) => (
-                        <DrawerLink key={item.href} item={item} activeHref={activeHref} pathname={pathname} onClose={() => setOpen(false)} level="child" />
+                        <DrawerLink key={item.href} item={item} activeHref={activeHref} onClose={() => setOpen(false)} level="child" />
                       ))}
                     </div>
                   </div>
@@ -207,18 +205,16 @@ export function MobileNavigation({ dashboard, groups, activeHref }: MobileNaviga
 function DrawerLink({
   item,
   activeHref,
-  pathname,
   onClose,
   level,
 }: {
   item: MobileNavigationItem;
   activeHref: string;
-  pathname: string;
   onClose: () => void;
   level: "top" | "child";
 }) {
   const Icon = icons[item.icon];
-  const active = isNavigationItemActive(item.href, activeHref, pathname);
+  const active = isNavigationItemActive(item.href, activeHref);
 
   return (
     <Link

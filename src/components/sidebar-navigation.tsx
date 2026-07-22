@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { useState } from "react";
 import {
@@ -78,13 +77,12 @@ export function SidebarNavigation({
   groups: SidebarNavigationGroup[];
   activeHref: string;
 }) {
-  const pathname = usePathname();
-  const activeGroup = activeNavigationGroupId(groups, activeHref, pathname);
+  const activeGroup = activeNavigationGroupId(groups, activeHref);
   const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
 
   return (
     <nav className="mt-8 space-y-2 overflow-y-auto pr-1">
-      {dashboard ? <LeafLink item={dashboard} activeHref={activeHref} pathname={pathname} level="top" /> : null}
+      {dashboard ? <LeafLink item={dashboard} activeHref={activeHref} level="top" /> : null}
       <div className="space-y-1 pt-1">
         {groups.map((group) => {
           const Icon = icons[group.icon];
@@ -119,7 +117,7 @@ export function SidebarNavigation({
                 <div className="overflow-hidden">
                   <div className="ml-4 mt-1 space-y-1 border-l border-white/12 pl-2">
                     {group.children.map((item) => (
-                      <LeafLink key={item.href} item={item} activeHref={activeHref} pathname={pathname} level="child" />
+                      <LeafLink key={item.href} item={item} activeHref={activeHref} level="child" />
                     ))}
                   </div>
                 </div>
@@ -135,16 +133,14 @@ export function SidebarNavigation({
 function LeafLink({
   item,
   activeHref,
-  pathname,
   level,
 }: {
   item: SidebarNavigationItem;
   activeHref: string;
-  pathname: string;
   level: "top" | "child";
 }) {
   const Icon = icons[item.icon];
-  const active = isNavigationItemActive(item.href, activeHref, pathname);
+  const active = isNavigationItemActive(item.href, activeHref);
 
   return (
     <Link
