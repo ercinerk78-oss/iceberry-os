@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 
+process.env.PRISMA_HIDE_UPDATE_MESSAGE = "true";
+
 const failedMigrationName = "20260717132000_sprint3_supply_chain_core";
 
 function run(command, args, timeout) {

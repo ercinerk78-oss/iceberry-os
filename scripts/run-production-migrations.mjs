@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+process.env.PRISMA_HIDE_UPDATE_MESSAGE = "true";
+
 const directDatabaseUrl = process.env.DIRECT_URL || process.env.DATABASE_DIRECT_URL || "";
 const hasDirectDatabaseUrl = directDatabaseUrl.startsWith("postgres");
 const isVercel = process.env.VERCEL === "1";

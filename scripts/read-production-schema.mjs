@@ -1,6 +1,8 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
+process.env.PRISMA_HIDE_UPDATE_MESSAGE = "true";
+
 const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_DIRECT_URL || process.env.DATABASE_URL || "";
 
 if (!databaseUrl.startsWith("postgres")) {
