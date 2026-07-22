@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 type Params = Record<string, string | string[] | undefined>;
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] as string : "");
+const OPENING_PROJECT_LIST_LIMIT = 100;
+const CITY_FILTER_LIMIT = 100;
 
 const emptyOpeningsData = {
   items: [],
@@ -142,10 +144,11 @@ async function loadOpeningsData(where: Prisma.OpeningProjectWhereInput) {
           _count: { select: { tasks: true, documents: true, budgetItems: true } },
         },
         orderBy: { targetOpeningDate: "asc" },
+        take: OPENING_PROJECT_LIST_LIMIT,
       }),
       prisma.openingProject.groupBy({ by: ["status"], where: { archivedAt: null }, _count: { _all: true } }),
       prisma.openingProject.groupBy({ by: ["riskLevel"], where: { archivedAt: null }, _count: { _all: true } }),
-      prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" } }),
+      prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" }, take: CITY_FILTER_LIMIT }),
       prisma.branchOpening.count({ where: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
     ]);
 
