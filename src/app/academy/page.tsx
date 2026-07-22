@@ -5,7 +5,6 @@ import { AppShell } from "@/components/app-shell";
 import { AcademyLmsClient } from "@/components/academy/academy-lms-client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AcademyService } from "@/lib/academy-service";
 import { requireUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -19,10 +18,6 @@ export default async function AcademyPage({ searchParams }: { searchParams: Sear
   const canManage = hasPermission(user.role, "academy.manage");
   const canAssign = hasPermission(user.role, "academy.assign");
   const filters = normalizeFilters(await searchParams);
-
-  if (canManage) {
-    await safe(AcademyService.ensureDefaults(user.id));
-  }
 
   const data = await loadAcademyData(user.id, filters);
 
@@ -88,7 +83,7 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
         : {}),
     };
 
-    const [programs, categories, users, branches, allProgramCount, publishedProgramCount, mediaCount, videoDuration, progressRows] = await Promise.all([
+    const [programs, categories, users, branches, allProgramCount, publishedProgramCount, mediaCount, videoDuration] = await Promise.all([
       prisma.trainingProgram.findMany({
         where,
         include: {
@@ -122,16 +117,19 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       prisma.trainingProgram.count({ where: { archivedAt: null, status: "PUBLISHED" } }),
       prisma.academyMediaAsset.count({ where: { archivedAt: null } }),
       prisma.academyMediaAsset.aggregate({ where: { archivedAt: null, mediaType: { in: ["VIDEO", "YOUTUBE", "VIMEO"] } }, _sum: { durationSeconds: true } }),
-      prisma.lessonProgress.findMany({
-        where: { lesson: { module: { program: { archivedAt: null } } } },
-        select: {
-          userId: true,
-          status: true,
-          progressPercentage: true,
-          lesson: { select: { module: { select: { programId: true } } } },
-        },
-      }),
     ]);
+    const programIds = programs.map((program) => program.id);
+    const progressRows = programIds.length
+      ? await prisma.lessonProgress.findMany({
+          where: { lesson: { module: { programId: { in: programIds } } } },
+          select: {
+            userId: true,
+            status: true,
+            progressPercentage: true,
+            lesson: { select: { module: { select: { programId: true } } } },
+          },
+        })
+      : [];
 
     const progressByProgram = new Map<string, { total: number; completed: Set<string>; inProgress: Set<string>; progressSum: number; views: number }>();
     for (const row of progressRows) {
@@ -222,14 +220,5 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       branches: [],
       metrics: { totalPrograms: 0, publishedPrograms: 0, totalMedia: 0, totalVideoDurationMinutes: 0, completionRate: 0, activeLearners: 0 },
     };
-  }
-}
-
-async function safe<T>(promise: Promise<T>) {
-  try {
-    return await promise;
-  } catch (error) {
-    console.error("[academy] safe operation failed", error);
-    return null;
   }
 }
