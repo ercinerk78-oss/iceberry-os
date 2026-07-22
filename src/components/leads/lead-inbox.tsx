@@ -43,7 +43,19 @@ export function LeadInbox({ leads, initialStatus, initialCategory, initialFollow
     return leads.filter((lead) => {
       const matchesQuery =
         !q ||
-        `${lead.fullName} ${lead.phone} ${lead.email} ${lead.city}`
+        [
+          lead.fullName,
+          lead.phone,
+          lead.email,
+          lead.city,
+          lead.requestedConcept,
+          lead.description,
+          lead.investmentBudget,
+          ...lead.concepts.map((concept) => concept.name),
+          ...lead.activities.map((activity) => activity.description),
+        ]
+          .filter(Boolean)
+          .join(" ")
           .toLocaleLowerCase("tr")
           .includes(q.toLocaleLowerCase("tr"));
       const matchesStatus = status === ALL || statusValues.includes(lead.status);
@@ -78,7 +90,7 @@ export function LeadInbox({ leads, initialStatus, initialCategory, initialFollow
             <input
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              placeholder="İsim, telefon veya şehir ara"
+              placeholder="İsim, telefon, konsept veya not ara"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </label>
@@ -147,7 +159,9 @@ export function LeadInbox({ leads, initialStatus, initialCategory, initialFollow
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge variant="secondary">{lead.source}</Badge>
-              <Badge variant="secondary">{lead.requestedConcept}</Badge>
+              {(lead.concepts.length ? lead.concepts : [{ id: lead.requestedConcept, name: lead.requestedConcept, code: lead.requestedConcept }]).map((concept) => (
+                <Badge key={concept.id || concept.name} variant="secondary">{concept.name}</Badge>
+              ))}
               {lead.leadCategory ? <Badge variant="secondary">{leadCategoryLabel(lead.leadCategory)}</Badge> : null}
             </div>
             <p className="mt-4 text-xs text-[#65705f]">Lead tarihi: {formatDate(lead.leadDate)}</p>

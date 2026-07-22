@@ -39,6 +39,26 @@ export type CandidateDocumentView = {
   updatedAt: string;
 };
 
+export type CandidateConceptView = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type CandidateTagView = {
+  id: string;
+  name: string;
+};
+
+export type CandidateTimelineEventView = {
+  id: string;
+  eventType: string;
+  title: string;
+  description: string;
+  actorName: string;
+  eventDate: string;
+};
+
 export type Candidate = {
   id: string;
   fullName: string;
@@ -54,13 +74,18 @@ export type Candidate = {
   source: string;
   status: string;
   temperature: string;
+  qualificationScore: number | null;
   generalNotes: string;
   nextFollowUpAt: string;
   lastContactAt: string;
   lostReason: string;
   createdAt: string;
+  updatedAt: string;
   assignedUserId: string;
   interactions: CandidateInteractionView[];
   tasks: CandidateTaskView[];
   documents: CandidateDocumentView[];
+  concepts: CandidateConceptView[];
+  tags: CandidateTagView[];
+  timelineEvents: CandidateTimelineEventView[];
 };

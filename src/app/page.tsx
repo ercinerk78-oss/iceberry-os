@@ -54,6 +54,7 @@ export default async function Home() {
     closeFollowUpLeads,
     longTermLeads,
     unproductiveLeads,
+    invalidFormLeads,
     overdueLeadFollowUps,
     overdueLeadTasks,
     totalLeads,
@@ -66,6 +67,12 @@ export default async function Home() {
     readyLocationReports,
     waitingInvestorLocations,
     negotiatingLocations,
+    score1To3,
+    score4To6,
+    score7To8,
+    score9To10,
+    unscoredCandidates,
+    conceptDistribution,
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
@@ -76,6 +83,7 @@ export default async function Home() {
     safe(prisma.lead.count({ where: { leadCategory: "CLOSE_FOLLOW_UP" } }), 0),
     safe(prisma.lead.count({ where: { leadCategory: "LONG_TERM" } }), 0),
     safe(prisma.lead.count({ where: { leadCategory: "UNPRODUCTIVE" } }), 0),
+    safe(prisma.lead.count({ where: { leadCategory: "INVALID_FORM" } }), 0),
     safe(prisma.lead.count({
       where: {
         nextFollowUpAt: { lt: startOfDay },
@@ -99,13 +107,24 @@ export default async function Home() {
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "WAITING_FOR_INVESTOR" } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "IN_NEGOTIATION" } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 1, lte: 3 } } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 4, lte: 6 } } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 7, lte: 8 } } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 9, lte: 10 } } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: null } }), 0),
+    safe(prisma.concept.findMany({
+      select: { id: true, name: true, _count: { select: { candidateConcepts: true } } },
+      orderBy: { candidateConcepts: { _count: "desc" } },
+      take: 6,
+    }), []),
   ]);
   const number = new Intl.NumberFormat("tr-TR");
   const overdueFollowUps = overdueLeadFollowUps + overdueLeadTasks;
-  const conversionRate = totalLeads ? Math.round((appointmentCount / totalLeads) * 100) : 0;
+  const validLeads = Math.max(totalLeads - invalidFormLeads, 0);
+  const conversionRate = validLeads ? Math.round((appointmentCount / validLeads) * 100) : 0;
   const attendanceRate = appointmentCount ? Math.round((attendedAppointments / appointmentCount) * 100) : 0;
-  const positiveRate = totalLeads ? Math.round((positiveLeads / totalLeads) * 100) : 0;
-  const unproductiveRate = totalLeads ? Math.round((unproductiveLeads / totalLeads) * 100) : 0;
+  const positiveRate = validLeads ? Math.round((positiveLeads / validLeads) * 100) : 0;
+  const unproductiveRate = validLeads ? Math.round((unproductiveLeads / validLeads) * 100) : 0;
   const metrics = [
     { title: t("dashboard.activeBranches"), value: activeBranches, href: "/branches?status=ACTIVE", change: t("dashboard.active"), description: t("dashboard.activeBranchesDesc"), icon: Store, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
     { title: t("dashboard.totalBranches"), value: totalBranches, href: "/branches", change: t("dashboard.live"), description: t("dashboard.totalBranchesDesc"), icon: Store, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
@@ -116,10 +135,13 @@ export default async function Home() {
     { title: t("dashboard.closeFollowUpLeads"), value: closeFollowUpLeads, href: "/leads?leadCategory=CLOSE_FOLLOW_UP", change: t("dashboard.followUp"), description: t("dashboard.closeFollowUpDesc"), icon: TimerReset, tone: "bg-violet-50 text-violet-700 ring-violet-200" },
     { title: t("dashboard.longTermLeads"), value: longTermLeads, href: "/leads?leadCategory=LONG_TERM", change: t("dashboard.longTerm"), description: t("dashboard.longTermDesc"), icon: Clock3, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
     { title: t("dashboard.unproductiveLeads"), value: unproductiveLeads, href: "/leads?leadCategory=UNPRODUCTIVE", change: `% ${unproductiveRate}`, description: t("dashboard.unproductiveDesc"), icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
+    { title: "Hatalı Form", value: invalidFormLeads, href: "/leads?leadCategory=INVALID_FORM", change: "Hariç", description: "Rapor oranlarından hariç tutulan geçersiz başvurular.", icon: XCircle, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
     { title: t("dashboard.overdueFollowUps"), value: overdueFollowUps, href: "/tasks?filter=overdue", change: t("dashboard.delay"), description: t("dashboard.overdueDesc"), icon: CalendarClock, tone: "bg-orange-50 text-orange-700 ring-orange-200" },
   ];
   const reporting = [
     [t("dashboard.incomingLeadCount"), totalLeads],
+    ["Geçerli Lead Sayısı", validLeads],
+    ["Hatalı Form / Geçersiz", invalidFormLeads],
     [t("dashboard.calledLeadCount"), calledLeads],
     [t("dashboard.unreachableLeadCount"), unreachableLeads],
     [t("dashboard.appointmentCount"), appointmentCount],
@@ -133,6 +155,13 @@ export default async function Home() {
     ["Raporu Hazır", readyLocationReports, "/locations?report=ready"],
     ["Yatırımcı Bekleyen", waitingInvestorLocations, "/locations?status=WAITING_FOR_INVESTOR"],
     ["Görüşme Aşamasında", negotiatingLocations, "/locations?status=IN_NEGOTIATION"],
+  ] as const;
+  const scoreDistribution = [
+    ["1-3", score1To3],
+    ["4-6", score4To6],
+    ["7-8", score7To8],
+    ["9-10", score9To10],
+    ["Puansız", unscoredCandidates],
   ] as const;
 
   return (
@@ -215,6 +244,37 @@ export default async function Home() {
             ))}
           </CardContent>
         </Card>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>Qualification Score Dağılımı</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-5">
+              {scoreDistribution.map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+                  <p className="text-sm text-[#65705f]">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{number.format(value)}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>Konsept Bazlı Aday Dağılımı</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {conceptDistribution.map((concept) => (
+                <div key={concept.id} className="flex items-center justify-between rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+                  <span className="text-sm font-medium">{concept.name}</span>
+                  <Badge>{number.format(concept._count.candidateConcepts)}</Badge>
+                </div>
+              ))}
+              {!conceptDistribution.length ? <p className="py-8 text-center text-sm text-[#65705f]">Konsept dağılımı için henüz veri yok.</p> : null}
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </AppShell>
   );

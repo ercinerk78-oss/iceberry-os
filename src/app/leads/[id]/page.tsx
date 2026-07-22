@@ -18,6 +18,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       where: { id },
       include: {
         activities: { orderBy: { createdAt: "desc" } },
+        concepts: { include: { concept: true } },
         appointments: { orderBy: { appointmentDate: "desc" } },
         tasks: { orderBy: { dueDate: "asc" } },
         candidateLocations: {
@@ -58,6 +59,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         status: true,
         leadDate: true,
         convertedCandidateId: true,
+        invalidReason: true,
+        invalidReasonDetail: true,
+        investmentBudget: true,
+        description: true,
         activities: { orderBy: { createdAt: "desc" } },
       },
     });

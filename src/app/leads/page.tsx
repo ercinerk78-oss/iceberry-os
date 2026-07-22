@@ -23,7 +23,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         leadCategory: params.leadCategory || undefined,
         nextFollowUpAt: params.followUp === "overdue" ? { lt: new Date() } : undefined,
       },
-      include: { activities: { orderBy: { createdAt: "desc" } } },
+      include: {
+        activities: { orderBy: { createdAt: "desc" } },
+        concepts: { include: { concept: true } },
+      },
       orderBy: { leadDate: "desc" },
     });
   } catch (error) {
@@ -41,6 +44,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         status: true,
         leadDate: true,
         convertedCandidateId: true,
+        invalidReason: true,
+        invalidReasonDetail: true,
+        investmentBudget: true,
+        description: true,
         activities: { orderBy: { createdAt: "desc" } },
       },
       orderBy: { leadDate: "desc" },

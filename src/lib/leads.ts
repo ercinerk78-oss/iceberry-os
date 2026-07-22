@@ -42,6 +42,7 @@ export const LEAD_CATEGORIES = [
   "CLOSE_FOLLOW_UP",
   "LONG_TERM",
   "UNPRODUCTIVE",
+  "INVALID_FORM",
 ] as const;
 
 export const LEAD_CATEGORY_LABELS: Record<(typeof LEAD_CATEGORIES)[number], string> = {
@@ -49,6 +50,27 @@ export const LEAD_CATEGORY_LABELS: Record<(typeof LEAD_CATEGORIES)[number], stri
   CLOSE_FOLLOW_UP: "Yakın Takip Lead",
   LONG_TERM: "Uzun Vade Lead",
   UNPRODUCTIVE: "Verimsiz Lead",
+  INVALID_FORM: "Hatalı Form",
+};
+
+export const INVALID_LEAD_REASONS = [
+  "WRONG_PHONE",
+  "MISSING_INFO",
+  "FAKE_APPLICATION",
+  "DUPLICATE_APPLICATION",
+  "TEST_APPLICATION",
+  "IRRELEVANT_APPLICATION",
+  "OTHER",
+] as const;
+
+export const INVALID_LEAD_REASON_LABELS: Record<(typeof INVALID_LEAD_REASONS)[number], string> = {
+  WRONG_PHONE: "Yanlış Telefon",
+  MISSING_INFO: "Eksik Bilgi",
+  FAKE_APPLICATION: "Sahte Başvuru",
+  DUPLICATE_APPLICATION: "Mükerrer Başvuru",
+  TEST_APPLICATION: "Test Başvurusu",
+  IRRELEVANT_APPLICATION: "Alakasız Başvuru",
+  OTHER: "Diğer",
 };
 
 export const LEAD_ACTIVITY_TYPES = [
@@ -74,14 +96,22 @@ export type LeadView = {
   status: string;
   processStatus: string;
   leadCategory: string;
+  invalidReason: string;
+  invalidReasonDetail: string;
   nextFollowUpAt: string;
   assignedUserId: string;
   lastContactAt: string;
   investmentBudget: string;
   interestedLocation: string;
+  description: string;
+  sourceData: string;
+  sourceFieldValues: string;
+  manualOverrideFields: string[];
+  lastSyncedAt: string;
   leadDate: string;
   convertedCandidateId: string;
   activities: { id: string; type: string; description: string; createdAt: string }[];
+  concepts: { id: string; name: string; code: string }[];
   appointments?: {
     id: string;
     appointmentDate: string;
@@ -170,14 +200,22 @@ type LeadRecord = {
   status: string;
   processStatus?: string | null;
   leadCategory?: string | null;
+  invalidReason?: string | null;
+  invalidReasonDetail?: string | null;
   nextFollowUpAt?: Date | null;
   assignedUserId?: string | null;
   lastContactAt?: Date | null;
   investmentBudget?: string | null;
   interestedLocation?: string | null;
+  description?: string | null;
+  sourceData?: string | null;
+  sourceFieldValues?: string | null;
+  manualOverrideFields?: string | null;
+  lastSyncedAt?: Date | null;
   leadDate: Date;
   convertedCandidateId: string | null;
   activities: { id: string; type: string; description: string; createdAt: Date }[];
+  concepts?: { concept: { id: string; name: string; code: string } }[];
   appointments?: {
     id: string;
     appointmentDate: Date;
@@ -235,17 +273,25 @@ export function toLead(lead: LeadRecord): LeadView {
     email: lead.email ?? "",
     processStatus: lead.processStatus || canonicalLeadStatus(lead.status) || lead.status,
     leadCategory: lead.leadCategory ?? "",
+    invalidReason: lead.invalidReason ?? "",
+    invalidReasonDetail: lead.invalidReasonDetail ?? "",
     nextFollowUpAt: lead.nextFollowUpAt?.toISOString() ?? "",
     assignedUserId: lead.assignedUserId ?? "",
     lastContactAt: lead.lastContactAt?.toISOString() ?? "",
     investmentBudget: lead.investmentBudget ?? "",
     interestedLocation: lead.interestedLocation ?? "",
+    description: lead.description ?? "",
+    sourceData: lead.sourceData ?? "",
+    sourceFieldValues: lead.sourceFieldValues ?? "",
+    manualOverrideFields: parseOverrideFields(lead.manualOverrideFields),
+    lastSyncedAt: lead.lastSyncedAt?.toISOString() ?? "",
     convertedCandidateId: lead.convertedCandidateId ?? "",
     leadDate: lead.leadDate.toISOString(),
     activities: lead.activities.map((activity) => ({
       ...activity,
       createdAt: activity.createdAt.toISOString(),
     })),
+    concepts: lead.concepts?.map((item) => item.concept) ?? [{ id: "", name: lead.requestedConcept, code: lead.requestedConcept }].filter((item) => item.name),
     appointments: lead.appointments?.map((appointment) => ({
       ...appointment,
       appointmentDate: appointment.appointmentDate.toISOString(),
@@ -287,4 +333,14 @@ export function toLead(lead: LeadRecord): LeadView {
       },
     })),
   };
+}
+
+function parseOverrideFields(value?: string | null) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
 }
