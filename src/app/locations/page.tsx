@@ -23,6 +23,7 @@ import {
 } from "@/lib/locations";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 
 type Params = Record<string, string | string[] | undefined>;
 type LocationRow = CandidateLocation & {
@@ -78,17 +79,17 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
   else if (archive !== "all") where.archivedAt = null;
   if (q) {
     where.OR = [
-      { name: { contains: q } },
-      { mallName: { contains: q } },
-      { city: { contains: q } },
-      { district: { contains: q } },
-      { fullAddress: { contains: q } },
-      { currentBusinessName: { contains: q } },
-      { contactName: { contains: q } },
+      { name: containsInsensitive(q) },
+      { mallName: containsInsensitive(q) },
+      { city: containsInsensitive(q) },
+      { district: containsInsensitive(q) },
+      { fullAddress: containsInsensitive(q) },
+      { currentBusinessName: containsInsensitive(q) },
+      { contactName: containsInsensitive(q) },
     ];
   }
-  if (city) where.city = { contains: city };
-  if (district) where.district = { contains: district };
+  if (city) where.city = containsInsensitive(city);
+  if (district) where.district = containsInsensitive(district);
   if (locationType) where.locationType = locationType as Prisma.EnumLocationTypeFilter["equals"];
   if (status) where.status = status as Prisma.EnumLocationStatusFilter["equals"];
   if (concept) where.conceptSuitability = concept as Prisma.EnumConceptSuitabilityFilter["equals"];

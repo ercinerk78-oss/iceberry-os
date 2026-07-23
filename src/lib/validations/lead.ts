@@ -45,4 +45,8 @@ export type LeadActionState = {
   message: string;
   errors?: Record<string, string[]>;
   candidateId?: string;
+  leadId?: string;
+  appointmentId?: string;
+  redirectHref?: string;
+  linkLabel?: string;
 };

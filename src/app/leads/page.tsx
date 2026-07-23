@@ -2,14 +2,17 @@ import { AppShell } from "@/components/app-shell";
 import { LeadInbox } from "@/components/leads/lead-inbox";
 import { statusValuesForFilter, toLead } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive, phoneDigits } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
-type Params = { status?: string; leadCategory?: string; followUp?: string };
+type Params = { status?: string; leadCategory?: string; followUp?: string; q?: string };
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const referenceNow = new Date();
+  const q = params.q?.trim();
+  const digits = phoneDigits(q);
   let records;
 
   try {
@@ -23,6 +26,25 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           : undefined,
         leadCategory: params.leadCategory || undefined,
         nextFollowUpAt: params.followUp === "overdue" ? { lt: referenceNow } : undefined,
+        AND: q
+          ? [
+              {
+                OR: [
+                  { fullName: containsInsensitive(q) },
+                  { phone: containsInsensitive(q) },
+                  ...(digits ? [{ normalizedPhone: containsInsensitive(digits) }, { phone: containsInsensitive(digits) }] : []),
+                  { email: containsInsensitive(q) },
+                  { normalizedEmail: containsInsensitive(q) },
+                  { city: containsInsensitive(q) },
+                  { requestedConcept: containsInsensitive(q) },
+                  { investmentBudget: containsInsensitive(q) },
+                  { description: containsInsensitive(q) },
+                  { activities: { some: { description: containsInsensitive(q) } } },
+                  { concepts: { some: { concept: { name: containsInsensitive(q) } } } },
+                ],
+              },
+            ]
+          : undefined,
       },
       include: {
         activities: { orderBy: { createdAt: "desc" } },
@@ -33,7 +55,20 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   } catch (error) {
     console.error("Lead advanced filters fallback", error);
     records = await prisma.lead.findMany({
-      where: { status: params.status ? { in: statusValuesForFilter(params.status) } : undefined },
+      where: {
+        status: params.status ? { in: statusValuesForFilter(params.status) } : undefined,
+        OR: q
+          ? [
+              { fullName: containsInsensitive(q) },
+              { phone: containsInsensitive(q) },
+              ...(digits ? [{ normalizedPhone: containsInsensitive(digits) }, { phone: containsInsensitive(digits) }] : []),
+              { email: containsInsensitive(q) },
+              { city: containsInsensitive(q) },
+              { requestedConcept: containsInsensitive(q) },
+              { description: containsInsensitive(q) },
+            ]
+          : undefined,
+      },
       select: {
         id: true,
         fullName: true,
@@ -63,6 +98,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         initialCategory={params.leadCategory}
         initialFollowUp={params.followUp}
         referenceNow={referenceNow.getTime()}
+        initialQuery={q ?? ""}
       />
     </AppShell>
   );

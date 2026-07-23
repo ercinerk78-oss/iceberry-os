@@ -85,6 +85,17 @@ export const navigationGroups: NavigationGroup[] = [
     children: [item("openings", "navigation.openings", "/openings", "CalendarRange")],
   },
   {
+    id: "procurement",
+    key: "navigationGroups.procurement",
+    icon: "ShoppingCart",
+    children: [
+      item("procurement", "navigation.procurement", "/procurement", "ShoppingCart"),
+      item("purchaseOrders", "navigation.purchaseOrders", "/procurement/orders", "Package"),
+      item("purchaseSuppliers", "navigation.purchaseSuppliers", "/procurement/suppliers", "Store"),
+      item("purchaseReports", "navigation.purchaseReports", "/procurement/reports", "LineChart"),
+    ],
+  },
+  {
     id: "warehouseLogistics",
     key: "navigationGroups.warehouseLogistics",
     icon: "Warehouse",
@@ -144,7 +155,7 @@ export const navigationGroups: NavigationGroup[] = [
 
 export function isNavigationItemActive(href: string, activeHref: string, pathname?: string | null) {
   const current = pathname || activeHref;
-  const exactOnlyParents = new Set(["/orders", "/settings", "/warehouse"]);
+  const exactOnlyParents = new Set(["/orders", "/procurement", "/settings", "/warehouse"]);
   if (exactOnlyParents.has(href)) return current === href || activeHref === href;
 
   return current === href || activeHref === href || activeHref.startsWith(`${href}/`);

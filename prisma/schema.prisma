@@ -196,6 +196,7 @@ model Branch {
   timeline                  BranchTimelineEvent[]
   externalMappings          ExternalBranchMapping[]
   deliveryIssues            DeliveryIssue[]
+  shipmentBackorders        ShipmentBackorder[]
   supplyAlerts              SupplyComplianceAlert[]
   financialProfile          BranchFinancialProfile?
   ledgerAccounts            BranchLedgerAccount[]
@@ -2381,6 +2382,9 @@ model Product {
   stocks                  WarehouseStock[]
   movements               StockMovement[]
   orderItems              FranchiseOrderItem[]
+  supplierProducts        SupplierProduct[]
+  purchaseRequestItems    PurchaseRequestItem[]
+  purchaseOrderItems      PurchaseOrderItem[]
   externalMappings        ExternalProductMapping[]
   mappingQueueSuggestions ProductMappingQueue[]    @relation("SuggestedProduct")
   mappingQueueMatches     ProductMappingQueue[]    @relation("MatchedProduct")
@@ -2388,6 +2392,7 @@ model Product {
   goodsReceiptItems       GoodsReceiptItem[]
   pickingItems            PickingListItem[]
   shipmentItems           ShipmentItem[]
+  shipmentBackorders      ShipmentBackorder[]
   returnItems             ReturnItem[]
   inventoryLosses         InventoryLoss[]
   stockCountItems         StockCountItem[]
@@ -2424,6 +2429,8 @@ model Warehouse {
   stocks            WarehouseStock[]
   movements         StockMovement[]
   orders            FranchiseOrder[]
+  purchaseRequests  PurchaseRequest[]
+  purchaseOrders    PurchaseOrder[]
   shipments         Shipment[]
   lots              InventoryLot[]
   goodsReceipts     GoodsReceipt[]
@@ -2546,6 +2553,7 @@ model FranchiseOrder {
   pickingLists          PickingList[]
   returnRequests        ReturnRequest[]
   deliveryIssues        DeliveryIssue[]
+  backorders            ShipmentBackorder[]
   supplyAlerts          SupplyComplianceAlert[]
 
   @@unique([source, externalOrderId])
@@ -2590,6 +2598,7 @@ model FranchiseOrderItem {
   pickingItems      PickingListItem[]
   shipmentItems     ShipmentItem[]
   returnItems       ReturnItem[]
+  shipmentBackorders ShipmentBackorder[]
 
   @@index([orderId])
   @@index([productId])
@@ -2631,6 +2640,7 @@ model Shipment {
   warehouse             Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   items                 ShipmentItem[]
   deliveryIssues        DeliveryIssue[]
+  backorders            ShipmentBackorder[]
 
   @@index([warehouseId, status])
   @@index([status, shippedAt])
@@ -2651,11 +2661,175 @@ model Supplier {
   updatedAt       DateTime                 @updatedAt
   archivedAt      DateTime?
   productMappings ExternalProductMapping[]
+  supplierProducts SupplierProduct[]
+  purchaseRequests PurchaseRequest[]
+  purchaseOrders   PurchaseOrder[]
   goodsReceipts   GoodsReceipt[]
   lots            InventoryLot[]
 
   @@index([name])
   @@index([status])
+}
+
+model SupplierProduct {
+  id                   String    @id @default(cuid())
+  supplierId           String
+  productId            String
+  supplierSku          String?
+  supplierProductName  String?
+  currency             String    @default("TRY")
+  unitPrice            Decimal?  @db.Decimal(18, 2)
+  minimumOrderQuantity Float     @default(1)
+  orderIncrement       Float     @default(1)
+  leadTimeDays         Int?
+  paymentTermDays      Int?
+  isPreferred          Boolean   @default(false)
+  isActive             Boolean   @default(true)
+  lastQuotedAt         DateTime?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  supplier             Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  product              Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([supplierId, productId])
+  @@index([productId, isActive])
+  @@index([supplierId, isPreferred])
+}
+
+model PurchaseRequest {
+  id                    String                @id @default(cuid())
+  requestNumber         String                @unique
+  title                 String
+  warehouseId           String
+  supplierId            String?
+  status                String                @default("DRAFT")
+  priority              String                @default("NORMAL")
+  requestedById         String?
+  neededByDate          DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  notes                 String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  warehouse             Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  supplier              Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseOrder         PurchaseOrder?        @relation("PurchaseOrderSource")
+  items                 PurchaseRequestItem[]
+  approvals             PurchaseApproval[]
+
+  @@index([warehouseId, status])
+  @@index([supplierId, status])
+  @@index([status, createdAt])
+  @@index([neededByDate, status])
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  productId         String
+  productName       String
+  sku               String
+  unit              String
+  requestedQuantity Float
+  approvedQuantity  Float?
+  estimatedUnitCost Decimal?        @db.Decimal(18, 2)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Restrict)
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseRequestId])
+  @@index([productId])
+}
+
+model PurchaseOrder {
+  id                    String              @id @default(cuid())
+  orderNumber           String              @unique
+  supplierId            String
+  warehouseId           String
+  sourceRequestId       String?             @unique
+  status                String              @default("DRAFT")
+  approvalStatus        String              @default("PENDING")
+  orderDate             DateTime            @default(now())
+  expectedDeliveryDate  DateTime?
+  sentAt                DateTime?
+  closedAt              DateTime?
+  cancelledAt           DateTime?
+  subtotal              Decimal             @default(0) @db.Decimal(18, 2)
+  discountTotal         Decimal             @default(0) @db.Decimal(18, 2)
+  vatTotal              Decimal             @default(0) @db.Decimal(18, 2)
+  grandTotal            Decimal             @default(0) @db.Decimal(18, 2)
+  currency              String              @default("TRY")
+  paymentStatus         String              @default("UNPAID")
+  paymentTermDays       Int?
+  externalReference     String?
+  invoiceStatus         String              @default("NOT_RECEIVED")
+  notes                 String?
+  createdById           String?
+  approvedById          String?
+  approvedAt            DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  supplier              Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse             Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  sourceRequest         PurchaseRequest?    @relation("PurchaseOrderSource", fields: [sourceRequestId], references: [id], onDelete: SetNull)
+  items                 PurchaseOrderItem[]
+  approvals             PurchaseApproval[]
+  goodsReceipts         GoodsReceipt[]
+  externalInvoices      ExternalInvoice[]
+  reconciliationRecords ReconciliationRecord[]
+
+  @@index([supplierId, status])
+  @@index([warehouseId, status])
+  @@index([status, orderDate])
+  @@index([expectedDeliveryDate, status])
+}
+
+model PurchaseOrderItem {
+  id                String        @id @default(cuid())
+  purchaseOrderId   String
+  productId         String
+  productName       String
+  sku               String
+  unit              String
+  orderedQuantity   Float
+  receivedQuantity  Float         @default(0)
+  remainingQuantity Float         @default(0)
+  unitPrice         Decimal       @default(0) @db.Decimal(18, 2)
+  vatRate           Decimal       @default(20) @db.Decimal(8, 4)
+  discountRate      Decimal       @default(0) @db.Decimal(8, 4)
+  lineSubtotal      Decimal       @default(0) @db.Decimal(18, 2)
+  lineDiscount      Decimal       @default(0) @db.Decimal(18, 2)
+  lineVat           Decimal       @default(0) @db.Decimal(18, 2)
+  lineTotal         Decimal       @default(0) @db.Decimal(18, 2)
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  product           Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model PurchaseApproval {
+  id                String           @id @default(cuid())
+  purchaseRequestId String?
+  purchaseOrderId   String?
+  action            String
+  status            String           @default("APPROVED")
+  comment           String?
+  actedById         String?
+  actedAt           DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  purchaseOrder     PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseRequestId, actedAt])
+  @@index([purchaseOrderId, actedAt])
+  @@index([actedById, actedAt])
 }
 
 model ExternalProductMapping {
@@ -2759,6 +2933,7 @@ model GoodsReceipt {
   id                 String             @id @default(cuid())
   warehouseId        String
   supplierId         String?
+  purchaseOrderId    String?
   sourceSystem       String             @default("MANUAL")
   externalDocumentId String?
   invoiceNumber      String?
@@ -2777,9 +2952,11 @@ model GoodsReceipt {
   updatedAt          DateTime           @updatedAt
   warehouse          Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   supplier           Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseOrder      PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   items              GoodsReceiptItem[]
 
   @@index([warehouseId, status])
+  @@index([purchaseOrderId])
   @@index([sourceSystem, externalDocumentId])
   @@index([invoiceNumber])
 }
@@ -2878,6 +3055,42 @@ model ShipmentItem {
   @@index([shipmentId])
   @@index([orderItemId])
   @@index([lotId])
+}
+
+model ShipmentBackorder {
+  id                      String              @id @default(cuid())
+  franchiseOrderId        String
+  franchiseOrderItemId    String              @unique
+  shipmentId              String?
+  branchId                String?
+  productId               String
+  orderedQuantity         Float
+  shippedQuantity         Float               @default(0)
+  outstandingQuantity     Float
+  fulfilledQuantity       Float               @default(0)
+  unit                    String
+  status                  String              @default("OPEN")
+  reason                  String              @default("STOCK_SHORTAGE")
+  note                    String?
+  expectedFulfillmentDate DateTime?
+  fulfilledAt             DateTime?
+  createdById             String?
+  completedById           String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  order                   FranchiseOrder      @relation(fields: [franchiseOrderId], references: [id], onDelete: Restrict)
+  orderItem               FranchiseOrderItem  @relation(fields: [franchiseOrderItemId], references: [id], onDelete: Restrict)
+  shipment                Shipment?           @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  branch                  Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product                 Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy               User?               @relation("ShipmentBackorderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedBy             User?               @relation("ShipmentBackorderCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([franchiseOrderId, status])
+  @@index([branchId, status])
+  @@index([productId, status])
+  @@index([shipmentId])
+  @@index([status, expectedFulfillmentDate])
 }
 
 model DeliveryIssue {
@@ -3384,6 +3597,8 @@ model User {
   branchTimeline         BranchTimelineEvent[]
   enteredRevenueRecords  BranchRevenueRecord[] @relation("RevenueEnteredBy")
   approvedRevenueRecords BranchRevenueRecord[] @relation("RevenueApprovedBy")
+  createdShipmentBackorders ShipmentBackorder[] @relation("ShipmentBackorderCreatedBy")
+  completedShipmentBackorders ShipmentBackorder[] @relation("ShipmentBackorderCompletedBy")
 
   @@index([role, isActive])
   @@index([archivedAt])
@@ -3530,6 +3745,7 @@ model ExternalInvoice {
   externalOrderId   String?
   orderId           String?
   goodsReceiptId    String?
+  purchaseOrderId   String?
   customerName      String?
   supplierName      String?
   invoiceDate       DateTime?
@@ -3542,11 +3758,13 @@ model ExternalInvoice {
   matchedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@unique([provider, externalInvoiceId])
   @@index([invoiceType, status])
   @@index([orderId])
   @@index([goodsReceiptId])
+  @@index([purchaseOrderId])
   @@index([externalOrderId])
 }
 
@@ -3556,6 +3774,7 @@ model ReconciliationRecord {
   orderId            String?
   shipmentId         String?
   goodsReceiptId     String?
+  purchaseOrderId    String?
   externalInvoiceId  String?
   provider           String?
   status             String
@@ -3572,10 +3791,12 @@ model ReconciliationRecord {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   closedAt           DateTime?
+  purchaseOrder      PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@index([reconciliationType, status])
   @@index([orderId])
   @@index([goodsReceiptId])
+  @@index([purchaseOrderId])
   @@index([externalInvoiceId])
   @@index([assignedUserId, status])
 }

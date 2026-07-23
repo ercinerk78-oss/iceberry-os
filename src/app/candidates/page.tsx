@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { CandidateList } from "@/components/candidates/candidate-list";
 import { toCandidate } from "@/lib/candidates";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive, phoneDigits } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ type Params = { q?: string };
 export default async function CandidatesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const q = params.q?.trim();
+  const digits = phoneDigits(q);
 
   const [records, concepts, tags] = await Promise.all([
     prisma.franchiseCandidate.findMany({
@@ -20,16 +22,27 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         archivedAt: null,
         OR: q
           ? [
-              { fullName: { contains: q } },
-              { phone: { contains: q } },
-              { email: { contains: q } },
-              { city: { contains: q } },
-              { investmentBudget: { contains: q } },
-              { interestedConcept: { contains: q } },
-              { generalNotes: { contains: q } },
-              { interactions: { some: { OR: [{ title: { contains: q } }, { description: { contains: q } }, { nextAction: { contains: q } }] } } },
-              { concepts: { some: { concept: { name: { contains: q } } } } },
-              { tags: { some: { tag: { name: { contains: q } } } } },
+              { fullName: containsInsensitive(q) },
+              { phone: containsInsensitive(q) },
+              ...(digits ? [{ phone: containsInsensitive(digits) }] : []),
+              { email: containsInsensitive(q) },
+              { city: containsInsensitive(q) },
+              { investmentBudget: containsInsensitive(q) },
+              { interestedConcept: containsInsensitive(q) },
+              { generalNotes: containsInsensitive(q) },
+              {
+                interactions: {
+                  some: {
+                    OR: [
+                      { title: containsInsensitive(q) },
+                      { description: containsInsensitive(q) },
+                      { nextAction: containsInsensitive(q) },
+                    ],
+                  },
+                },
+              },
+              { concepts: { some: { concept: { name: containsInsensitive(q) } } } },
+              { tags: { some: { tag: { name: containsInsensitive(q) } } } },
             ]
           : undefined,
       },

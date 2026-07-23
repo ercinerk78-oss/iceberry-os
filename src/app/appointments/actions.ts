@@ -13,6 +13,9 @@ import {
 import { requirePermission, requireUser } from "@/lib/auth";
 import { LEAD_CATEGORIES, leadCategoryLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { parseMultiValue, replaceLeadConcepts } from "@/lib/qualification";
+import { normalizeEmail, normalizePhone } from "@/lib/search";
+import { leadSchema, type LeadActionState } from "@/lib/validations/lead";
 
 const createAppointmentSchema = z.object({
   leadId: z.string().min(1),
@@ -40,6 +43,24 @@ const rescheduleSchema = z.object({
   appointmentDate: z.string().min(1),
   appointmentTime: z.string().min(1),
   rescheduleReason: z.string().trim().optional(),
+});
+
+const manualLeadAppointmentSchema = leadSchema.extend({
+  leadCategory: z.enum(LEAD_CATEGORIES).optional().or(z.literal("")),
+  leadStatus: z.string().optional(),
+  appointmentDate: z.string().optional(),
+  appointmentTime: z.string().optional(),
+  endTime: z.string().optional(),
+  appointmentType: z.enum(APPOINTMENT_TYPES).optional().or(z.literal("")),
+  assignedUserId: z.string().optional(),
+  title: z.string().trim().optional(),
+  location: z.string().trim().optional(),
+  meetingLink: z.string().trim().optional(),
+  appointmentNotes: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if ((data.appointmentDate || data.appointmentTime || data.appointmentType) && (!data.appointmentDate || !data.appointmentTime || !data.appointmentType)) {
+    ctx.addIssue({ code: "custom", path: ["appointmentDate"], message: "Randevu oluşturmak için tarih, saat ve görüşme tipi birlikte girilmelidir." });
+  }
 });
 
 export type AppointmentActionState = {
@@ -159,6 +180,137 @@ export async function createLeadAppointment(
 
 export async function createLeadAppointmentForm(formData: FormData) {
   await createLeadAppointment({ success: false, message: "" }, formData);
+}
+
+export async function createManualLeadFromAppointments(_: LeadActionState, formData: FormData): Promise<LeadActionState> {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = manualLeadAppointmentSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: "Lütfen manuel lead bilgilerini kontrol edin.", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  const data = parsed.data;
+  const normalizedPhone = normalizePhone(data.phone);
+  const normalizedEmail = normalizeEmail(data.email);
+  const duplicate = await prisma.lead.findFirst({
+    where: {
+      OR: [
+        ...(normalizedPhone ? [{ normalizedPhone }] : []),
+        ...(normalizedEmail ? [{ normalizedEmail }] : []),
+        { phone: data.phone },
+        ...(data.email ? [{ email: { equals: data.email, mode: "insensitive" as const } }] : []),
+      ],
+    },
+    select: { id: true, fullName: true },
+  });
+
+  if (duplicate) {
+    return {
+      success: false,
+      message: `${duplicate.fullName} adında mevcut bir lead bulundu. Yeni lead oluşturulmadı; mevcut kayıt üzerinden yeni randevu oluşturabilirsiniz.`,
+      leadId: duplicate.id,
+      redirectHref: `/leads/${duplicate.id}`,
+      linkLabel: "Mevcut kaydı aç",
+    };
+  }
+
+  const concepts = parseMultiValue(formData.getAll("concepts"));
+  const selectedConcepts = concepts.length ? concepts : [data.requestedConcept];
+  const hasAppointment = Boolean(data.appointmentDate && data.appointmentTime && data.appointmentType);
+  const startDateTime = hasAppointment ? combineAppointmentDate(data.appointmentDate!, data.appointmentTime!) : null;
+  const endDateTime = hasAppointment && data.endTime ? combineAppointmentDate(data.appointmentDate!, data.endTime) : null;
+  const assignedUserId = data.assignedUserId || user.name;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const lead = await tx.lead.create({
+        data: {
+          fullName: data.fullName,
+          phone: data.phone,
+          email: data.email || null,
+          normalizedPhone: normalizedPhone || null,
+          normalizedEmail: normalizedEmail || null,
+          city: data.city,
+          source: "Manuel",
+          requestedConcept: selectedConcepts[0] || data.requestedConcept,
+          investmentBudget: data.investmentBudget || null,
+          description: data.description || null,
+          leadCategory: data.leadCategory || null,
+          status: hasAppointment ? "WAITING_FOR_APPOINTMENT" : data.leadStatus || "NEW",
+          processStatus: hasAppointment ? "WAITING_FOR_APPOINTMENT" : data.leadStatus || "NEW",
+          nextFollowUpAt: startDateTime,
+          assignedUserId,
+          manualOverrideFields: JSON.stringify(["fullName", "phone", "email", "city", "investmentBudget", "requestedConcept", "description"]),
+          activities: {
+            create: {
+              type: "CREATE",
+              description: `${user.name} randevular ekranından manuel lead oluşturdu.`,
+            },
+          },
+        },
+      });
+      await replaceLeadConcepts(tx, lead.id, selectedConcepts);
+
+      if (!hasAppointment || !startDateTime || !data.appointmentType) return { leadId: lead.id, appointmentId: null };
+
+      const title = data.title || `${data.fullName} ile franchise görüşmesi`;
+      const appointment = await tx.leadAppointment.create({
+        data: {
+          leadId: lead.id,
+          appointmentDate: startDateTime,
+          appointmentTime: data.appointmentTime!,
+          appointmentType: data.appointmentType,
+          type: data.appointmentType,
+          startDateTime,
+          endDateTime,
+          assignedUserId,
+          createdByUserId: user.id,
+          createdById: user.id,
+          status: "SCHEDULED",
+          title,
+          description: data.appointmentNotes || data.description || null,
+          location: data.location || null,
+          meetingLink: data.meetingLink || null,
+          notes: data.appointmentNotes || null,
+        },
+      });
+      await tx.leadTask.create({
+        data: {
+          leadId: lead.id,
+          title,
+          description: `Manuel giriş randevusu. Görüşme tipi: ${appointmentTypeLabel(data.appointmentType)}.`,
+          dueDate: startDateTime,
+          priority: "Yüksek",
+          status: "Açık",
+          assignedUserId,
+        },
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId: lead.id,
+          type: "APPOINTMENT_CREATED",
+          description: `${user.name}, manuel lead ile birlikte ${formattedDate(startDateTime)} için randevu oluşturdu.`,
+        },
+      });
+
+      return { leadId: lead.id, appointmentId: appointment.id };
+    });
+
+    refresh(result.leadId);
+    return {
+      success: true,
+      message: result.appointmentId ? "Manuel lead ve randevu birlikte oluşturuldu." : "Manuel lead oluşturuldu.",
+      leadId: result.leadId,
+      appointmentId: result.appointmentId ?? undefined,
+      redirectHref: result.appointmentId ? `/appointments?lead=${result.leadId}` : `/leads/${result.leadId}`,
+      linkLabel: result.appointmentId ? "Randevuları aç" : "Lead kaydını aç",
+    };
+  } catch (error) {
+    console.error("Manual lead appointment create failed", error);
+    return { success: false, message: "Manuel lead kaydedilemedi." };
+  }
 }
 
 export async function completeLeadAppointment(

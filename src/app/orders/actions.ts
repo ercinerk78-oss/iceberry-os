@@ -65,7 +65,12 @@ export async function orderCommand(id: string, command: string, formData?: FormD
   else if (command === "ready") await changeOrderStatus(id, "READY");
   else if (command === "reject") await releaseOrder(id, "REJECTED");
   else if (command === "cancel") await releaseOrder(id, "CANCELLED");
-  else if (command === "ship") await shipOrder(id, String(formData?.get("carrierName") || ""), String(formData?.get("trackingNumber") || ""));
+  else if (command === "ship") await shipOrder(id, String(formData?.get("carrierName") || ""), String(formData?.get("trackingNumber") || ""), {
+    reason: String(formData?.get("backorderReason") || "STOCK_SHORTAGE"),
+    note: String(formData?.get("backorderNote") || ""),
+    expectedFulfillmentDate: formData?.get("expectedFulfillmentDate") ? new Date(String(formData.get("expectedFulfillmentDate"))) : null,
+    createdById: user.id,
+  });
   await audit(command === "approve" ? "ORDER_APPROVED" : command === "invoice" ? "INVOICE_CREATED" : command === "ship" ? "ORDER_SHIPPED" : "ORDER_UPDATED", "FranchiseOrder", id, `Sipariş işlemi: ${command}`, user.id);
   refresh();
 }

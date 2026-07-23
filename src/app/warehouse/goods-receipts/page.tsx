@@ -10,7 +10,12 @@ export const dynamic = "force-dynamic";
 export default async function GoodsReceiptsPage() {
   const rows = await emptyOnMissingSchema(
     prisma.goodsReceipt.findMany({
-      include: { warehouse: { select: { name: true } }, supplier: { select: { name: true } }, items: { select: { id: true } } },
+      include: {
+        warehouse: { select: { name: true } },
+        supplier: { select: { name: true } },
+        purchaseOrder: { select: { orderNumber: true } },
+        items: { select: { id: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
@@ -39,7 +44,9 @@ export default async function GoodsReceiptsPage() {
                     {row.discrepancyStatus !== "NONE" ? <Badge variant="outline">{row.discrepancyStatus}</Badge> : null}
                   </div>
                   <p className="mt-2 font-semibold">{row.invoiceNumber ?? row.externalDocumentId ?? row.id}</p>
-                  <p className="text-sm text-[#65705f]">{row.warehouse.name} · {row.supplier?.name ?? "Tedarikçi yok"} · Kalem: {row.items.length}</p>
+                  <p className="text-sm text-[#65705f]">
+                    {row.warehouse.name} · {row.supplier?.name ?? "Tedarikçi yok"} · {row.purchaseOrder?.orderNumber ?? "PO bağlantısı yok"} · Kalem: {row.items.length}
+                  </p>
                 </div>
                 <p className="text-sm text-[#65705f]">{dateTime(row.createdAt)}</p>
               </CardContent>

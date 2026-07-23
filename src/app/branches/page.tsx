@@ -10,6 +10,7 @@ import { branchScopeWhere } from "@/lib/branch-access";
 import { branchConceptColor, branchConceptLabel } from "@/lib/branch-concepts";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
   const andFilters: Prisma.BranchWhereInput[] = [];
 
-  if (q) andFilters.push({ OR: [{ branchName: { contains: q } }, { city: { contains: q } }, { district: { contains: q } }] });
+  if (q) andFilters.push({ OR: [{ branchName: containsInsensitive(q) }, { city: containsInsensitive(q) }, { district: containsInsensitive(q) }] });
   if (city) where.city = city;
   if (concept) andFilters.push({ OR: [{ conceptId: concept }, { concept }] });
   if (status) where.status = status;

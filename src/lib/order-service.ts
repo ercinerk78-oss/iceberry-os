@@ -1,5 +1,6 @@
 import { ORDER_FINANCIAL_STATUSES } from "@/lib/integrations/constants";
 import { ParasutInvoiceService } from "@/lib/integrations/parasut/invoice-service";
+import { upsertShipmentBackorder } from "@/lib/backorders";
 import { prisma } from "@/lib/prisma";
 import { reserveStock, releaseReservation, shipReservedStock } from "@/lib/stock-service";
 import { orderNumber } from "@/lib/warehouse";
@@ -14,7 +15,7 @@ export async function createOrder(input: Input) {
     const products = await tx.product.findMany({
       where: { id: { in: data.items.map((item) => item.productId) }, isActive: true, archivedAt: null },
     });
-    if (products.length !== data.items.length) throw new Error("Sepette artık satışta olmayan ürün var.");
+    if (products.length !== data.items.length) throw new Error("Sepette artÄ±k satÄ±ÅŸta olmayan Ã¼rÃ¼n var.");
 
     const stocks = await tx.warehouseStock.findMany({
       where: { warehouseId: data.warehouseId, productId: { in: products.map((product) => product.id) } },
@@ -22,13 +23,13 @@ export async function createOrder(input: Input) {
     for (const item of data.items) {
       const stock = stocks.find((row) => row.productId === item.productId);
       if (!stock || stock.availableQuantity < item.quantity) {
-        throw new Error(`${products.find((product) => product.id === item.productId)?.name} için yeterli kullanılabilir stok yok.`);
+        throw new Error(`${products.find((product) => product.id === item.productId)?.name} iÃ§in yeterli kullanÄ±labilir stok yok.`);
       }
     }
 
     const lines = data.items.map((item) => {
       const product = products.find((row) => row.id === item.productId);
-      if (!product) throw new Error("Ürün bulunamadı.");
+      if (!product) throw new Error("ÃœrÃ¼n bulunamadÄ±.");
       const lineSubtotal = product.salePrice * item.quantity;
       const lineVat = (lineSubtotal * product.vatRate) / 100;
 
@@ -66,7 +67,7 @@ export async function createOrder(input: Input) {
         notes: data.notes,
         createdBy: "Iceberry OS",
         items: { create: lines },
-        activities: { create: { type: "ORDER_CREATED", description: "Sipariş incelemeye gönderildi.", createdBy: "Iceberry OS" } },
+        activities: { create: { type: "ORDER_CREATED", description: "SipariÅŸ incelemeye gÃ¶nderildi.", createdBy: "Iceberry OS" } },
       },
     });
   });
@@ -75,7 +76,7 @@ export async function createOrder(input: Input) {
 export async function approveOrder(id: string) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
-    if (!order) throw new Error("Sipariş bulunamadı.");
+    if (!order) throw new Error("SipariÅŸ bulunamadÄ±.");
     if (order.status !== "SUBMITTED") return order;
 
     for (const item of order.items) {
@@ -85,7 +86,7 @@ export async function approveOrder(id: string) {
         quantity: item.quantity,
         referenceType: "ORDER",
         referenceId: id,
-        description: `${order.orderNumber} için rezerve edildi.`,
+        description: `${order.orderNumber} iÃ§in rezerve edildi.`,
       });
       await tx.franchiseOrderItem.update({
         where: { id: item.id },
@@ -100,7 +101,7 @@ export async function approveOrder(id: string) {
         approvedAt: new Date(),
         reservedAt: new Date(),
         approvedBy: "Iceberry OS",
-        activities: { create: { type: "ORDER_RESERVED", description: "Sipariş onaylandı ve stok rezerve edildi." } },
+        activities: { create: { type: "ORDER_RESERVED", description: "SipariÅŸ onaylandÄ± ve stok rezerve edildi." } },
       },
     });
   });
@@ -114,14 +115,14 @@ export async function createInvoice(id: string) {
 export async function changeOrderStatus(id: string, status: string) {
   return prisma.franchiseOrder.update({
     where: { id },
-    data: { status, activities: { create: { type: "STATUS_CHANGED", description: `Sipariş durumu ${status} olarak güncellendi.` } } },
+    data: { status, activities: { create: { type: "STATUS_CHANGED", description: `SipariÅŸ durumu ${status} olarak gÃ¼ncellendi.` } } },
   });
 }
 
 export async function releaseOrder(id: string, status: "REJECTED" | "CANCELLED") {
   return prisma.$transaction(async (tx) => {
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
-    if (!order) throw new Error("Sipariş bulunamadı.");
+    if (!order) throw new Error("SipariÅŸ bulunamadÄ±.");
     if (["REJECTED", "CANCELLED", "SHIPPED", "DELIVERED"].includes(order.status)) return order;
 
     if (["APPROVED", "STOCK_RESERVED", "WAREHOUSE_QUEUE", "PREPARING", "READY"].includes(order.status)) {
@@ -132,7 +133,7 @@ export async function releaseOrder(id: string, status: "REJECTED" | "CANCELLED")
           quantity: item.reservedQuantity || item.quantity,
           referenceType: "ORDER",
           referenceId: id,
-          description: "Sipariş kapatıldığı için rezervasyon iade edildi.",
+          description: "SipariÅŸ kapatÄ±ldÄ±ÄŸÄ± iÃ§in rezervasyon iade edildi.",
         });
         await tx.franchiseOrderItem.update({ where: { id: item.id }, data: { reservedQuantity: 0 } });
       }
@@ -143,7 +144,7 @@ export async function releaseOrder(id: string, status: "REJECTED" | "CANCELLED")
       data: {
         status,
         [status === "REJECTED" ? "rejectedAt" : "cancelledAt"]: new Date(),
-        activities: { create: { type: "STATUS_CHANGED", description: status === "REJECTED" ? "Sipariş reddedildi." : "Sipariş iptal edildi." } },
+        activities: { create: { type: "STATUS_CHANGED", description: status === "REJECTED" ? "SipariÅŸ reddedildi." : "SipariÅŸ iptal edildi." } },
       },
     });
   });
@@ -160,21 +161,26 @@ export async function prepareOrder(id: string, items: { id: string; preparedQuan
 
     return tx.franchiseOrder.update({
       where: { id },
-      data: { status: "PREPARING", pickingStartedAt: new Date(), activities: { create: { type: "ORDER_PICKING_STARTED", description: "Depo hazırlık miktarları güncellendi." } } },
+      data: { status: "PREPARING", pickingStartedAt: new Date(), activities: { create: { type: "ORDER_PICKING_STARTED", description: "Depo hazÄ±rlÄ±k miktarlarÄ± gÃ¼ncellendi." } } },
     });
   });
 }
 
-export async function shipOrder(id: string, carrierName?: string, trackingNumber?: string) {
+export async function shipOrder(
+  id: string,
+  carrierName?: string,
+  trackingNumber?: string,
+  options?: { reason?: string; note?: string; expectedFulfillmentDate?: Date | null; createdById?: string },
+) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true, shipment: true } });
-    if (!order) throw new Error("Sipariş bulunamadı.");
+    if (!order) throw new Error("SipariÅŸ bulunamadÄ±.");
     if (order.status === "SHIPPED") return order;
-    if (order.invoiceStatus !== "CREATED") throw new Error("Fatura oluşmadan sevkiyat yapılamaz.");
+    if (order.invoiceStatus !== "CREATED") throw new Error("Fatura oluÅŸmadan sevkiyat yapÄ±lamaz.");
 
     for (const item of order.items) {
-      if (item.preparedQuantity + item.missingQuantity < item.quantity) throw new Error("Tüm kalemler kontrol edilmeden sevkiyat yapılamaz.");
-      if (item.missingQuantity > 0) throw new Error("Eksik ürün bulunan sipariş sevk edilemez.");
+      if (item.preparedQuantity + item.missingQuantity < item.quantity) throw new Error("TÃ¼m kalemler kontrol edilmeden sevkiyat yapÄ±lamaz.");
+      if ((item.preparedQuantity || item.quantity) > item.quantity) throw new Error("Sevk miktarı sipariş miktarını aşamaz.");
       const shipQuantity = item.preparedQuantity || item.quantity;
       await shipReservedStock(tx, {
         warehouseId: order.warehouseId,
@@ -182,7 +188,7 @@ export async function shipOrder(id: string, carrierName?: string, trackingNumber
         quantity: shipQuantity,
         referenceType: "SHIPMENT",
         referenceId: id,
-        description: `${order.orderNumber} sevkiyatı.`,
+        description: `${order.orderNumber} sevkiyatÄ±.`,
       });
       await tx.franchiseOrderItem.update({ where: { id: item.id }, data: { shippedQuantity: shipQuantity, reservedQuantity: 0 } });
     }
@@ -200,11 +206,35 @@ export async function shipOrder(id: string, carrierName?: string, trackingNumber
       } else {
         await tx.shipmentItem.create({ data: { shipmentId: shipment.id, orderItemId: item.id, productId: item.productId, packedQuantity: shipQuantity, shippedQuantity: shipQuantity } });
       }
+      await upsertShipmentBackorder(tx, {
+        orderId: order.id,
+        orderItemId: item.id,
+        shipmentId: shipment.id,
+        branchId: order.branchId,
+        productId: item.productId,
+        orderedQuantity: item.quantity,
+        shippedQuantity: shipQuantity,
+        unit: item.unit,
+        reason: options?.reason,
+        note: options?.note,
+        expectedFulfillmentDate: options?.expectedFulfillmentDate ?? null,
+        createdById: options?.createdById,
+      });
     }
 
+    const hasBackorder = order.items.some((item) => (item.preparedQuantity || item.quantity) < item.quantity);
     return tx.franchiseOrder.update({
       where: { id },
-      data: { status: "SHIPPED", shippedAt: new Date(), activities: { create: { type: "SHIPMENT_DISPATCHED", description: "Sipariş sevk edildi ve stoktan düşüldü." } } },
+      data: {
+        status: hasBackorder ? "BACKORDER_PENDING" : "SHIPPED",
+        shippedAt: new Date(),
+        activities: {
+          create: {
+            type: hasBackorder ? "SHIPMENT_PARTIAL_WITH_BACKORDER" : "SHIPMENT_DISPATCHED",
+            description: hasBackorder ? "Sipariş kısmi sevk edildi; eksik ürünler borçlu ürün olarak açıldı." : "SipariÅŸ sevk edildi ve stoktan dÃ¼ÅŸÃ¼ldÃ¼.",
+          },
+        },
+      },
     });
   });
 }

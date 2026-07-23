@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { leadCategoryLabel, leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import { parseMultiValue, replaceCandidateConcepts, replaceLeadConcepts } from "@/lib/qualification";
+import { normalizeEmail, normalizePhone } from "@/lib/search";
 import {
   leadActivitySchema,
   leadCategoryChangeSchema,
@@ -34,6 +35,29 @@ export async function createLead(_: LeadActionState, formData: FormData): Promis
     const data = parsed.data;
     const concepts = parseMultiValue(formData.getAll("concepts"));
     const selectedConcepts = concepts.length ? concepts : [data.requestedConcept];
+    const normalizedPhone = normalizePhone(data.phone);
+    const normalizedEmail = normalizeEmail(data.email);
+    const duplicate = await prisma.lead.findFirst({
+      where: {
+        OR: [
+          ...(normalizedPhone ? [{ normalizedPhone }] : []),
+          ...(normalizedEmail ? [{ normalizedEmail }] : []),
+          { phone: data.phone },
+          ...(data.email ? [{ email: { equals: data.email, mode: "insensitive" as const } }] : []),
+        ],
+      },
+      select: { id: true, fullName: true },
+    });
+
+    if (duplicate) {
+      return {
+        success: false,
+        message: `${duplicate.fullName} adında mevcut bir lead bulundu. Varsayılan olarak ikinci lead oluşturulmadı.`,
+        leadId: duplicate.id,
+        redirectHref: `/leads/${duplicate.id}`,
+        linkLabel: "Mevcut kaydı aç",
+      };
+    }
 
     await prisma.$transaction(async (tx) => {
       const lead = await tx.lead.create({
@@ -41,6 +65,8 @@ export async function createLead(_: LeadActionState, formData: FormData): Promis
           ...data,
           requestedConcept: selectedConcepts[0] || data.requestedConcept,
           email: data.email || null,
+          normalizedPhone: normalizedPhone || null,
+          normalizedEmail: normalizedEmail || null,
           investmentBudget: stringOrNull(data.investmentBudget),
           description: stringOrNull(data.description),
           status: "NEW",
@@ -84,6 +110,8 @@ export async function updateLead(leadId: string, _: LeadActionState, formData: F
           ...data,
           requestedConcept: selectedConcepts[0] || data.requestedConcept,
           email: data.email || null,
+          normalizedPhone: normalizePhone(data.phone) || null,
+          normalizedEmail: normalizeEmail(data.email) || null,
           investmentBudget: stringOrNull(data.investmentBudget),
           description: stringOrNull(data.description),
           manualOverrideFields: JSON.stringify(manualFields),

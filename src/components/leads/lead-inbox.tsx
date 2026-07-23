@@ -27,12 +27,13 @@ type LeadInboxProps = {
   initialStatus?: string;
   initialCategory?: string;
   initialFollowUp?: string;
+  initialQuery?: string;
   referenceNow: number;
 };
 
-export function LeadInbox({ leads, initialStatus, initialCategory, initialFollowUp, referenceNow }: LeadInboxProps) {
+export function LeadInbox({ leads, initialStatus, initialCategory, initialFollowUp, initialQuery = "", referenceNow }: LeadInboxProps) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [status, setStatus] = useState(initialStatus || ALL);
   const [source, setSource] = useState(ALL);
   const [category, setCategory] = useState(initialCategory || ALL);

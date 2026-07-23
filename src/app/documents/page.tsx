@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DOCUMENT_TYPES, documentTypeLabel, formatFileSize } from "@/lib/documents";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +38,10 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
 
   if (q) {
     where.OR = [
-      { originalFileName: { contains: q } },
-      { candidate: { fullName: { contains: q } } },
-      { branch: { branchName: { contains: q } } },
-      { locationId: { contains: q } },
+      { originalFileName: containsInsensitive(q) },
+      { candidate: { fullName: containsInsensitive(q) } },
+      { branch: { branchName: containsInsensitive(q) } },
+      { locationId: containsInsensitive(q) },
     ];
   }
   if (type) where.documentType = type;

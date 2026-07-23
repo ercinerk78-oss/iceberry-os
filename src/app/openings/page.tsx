@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dateTR, openingProjectStatusLabels, openingRiskLevelLabels } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +40,11 @@ export default async function Openings({ searchParams }: { searchParams: Promise
   const where: Prisma.OpeningProjectWhereInput = { archivedAt: null };
   if (q) {
     where.OR = [
-      { projectNumber: { contains: q } },
-      { name: { contains: q } },
-      { branch: { branchName: { contains: q } } },
-      { city: { contains: q } },
-      { investorName: { contains: q } },
+      { projectNumber: containsInsensitive(q) },
+      { name: containsInsensitive(q) },
+      { branch: { branchName: containsInsensitive(q) } },
+      { city: containsInsensitive(q) },
+      { investorName: containsInsensitive(q) },
     ];
   }
   if (status) where.status = status as Prisma.EnumOpeningProjectStatusFilter["equals"];

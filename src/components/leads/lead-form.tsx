@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 import { createLead, updateLead } from "@/app/leads/actions";
 import { Button } from "@/components/ui/button";
@@ -74,7 +75,16 @@ export function LeadForm({ lead, action, onSuccess, onCancel }: LeadFormProps) {
         <textarea name="description" defaultValue={lead?.description} rows={4} className="rounded-lg border bg-[#f8faf6] p-3 text-sm" />
       </label>
 
-      {state.message ? <p className={`md:col-span-2 rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
+      {state.message ? (
+        <p className={`md:col-span-2 rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+          {state.message}
+          {state.redirectHref ? (
+            <Link href={state.redirectHref} className="ml-2 font-semibold underline">
+              {state.linkLabel ?? "Kaydı aç"}
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
       <div className="flex justify-end gap-2 border-t pt-4 md:col-span-2">
         <Button type="button" variant="outline" onClick={onCancel}>Vazgeç</Button>
         <Button type="submit" disabled={pending} className="bg-[#17201b] text-white">{pending ? "Kaydediliyor..." : lead ? "Lead'i Güncelle" : "Lead'i Kaydet"}</Button>

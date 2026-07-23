@@ -9,6 +9,7 @@ import {
   rescheduleLeadAppointment,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
+import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,7 @@ import {
 import { formatDate } from "@/lib/candidates";
 import { LEAD_CATEGORY_LABELS, leadCategoryLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive, phoneDigits } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,8 @@ type Params = {
   status?: string;
   leadCategory?: string;
   city?: string;
+  q?: string;
+  lead?: string;
 };
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -39,6 +43,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const where: Prisma.LeadAppointmentWhereInput = {};
+  const q = params.q?.trim();
+  const digits = phoneDigits(q);
 
   if (params.date && params.date !== "today") {
     const start = new Date(`${params.date}T00:00:00`);
@@ -51,12 +57,27 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   if (params.appointmentType) where.appointmentType = params.appointmentType;
   if (params.status) where.status = params.status;
   if (params.leadCategory) where.lead = { leadCategory: params.leadCategory };
-  if (params.city) where.lead = { ...(where.lead as Prisma.LeadWhereInput), city: params.city };
+  if (params.city) where.lead = { ...(where.lead as Prisma.LeadWhereInput), city: containsInsensitive(params.city) };
+  if (params.lead) where.leadId = params.lead;
+  if (q) {
+    where.AND = [
+      {
+        OR: [
+          { title: containsInsensitive(q) },
+          { notes: containsInsensitive(q) },
+          { location: containsInsensitive(q) },
+          { lead: { fullName: containsInsensitive(q) } },
+          { lead: { city: containsInsensitive(q) } },
+          ...(digits ? [{ lead: { phone: containsInsensitive(digits) } }] : []),
+        ],
+      },
+    ];
+  }
 
   const [appointments, leads, users, cities] = await Promise.all([
     prisma.leadAppointment.findMany({
       where,
-      include: { lead: { select: { id: true, fullName: true, city: true, leadCategory: true } } },
+      include: { lead: { select: { id: true, fullName: true, city: true, phone: true, leadCategory: true } } },
       orderBy: { appointmentDate: "asc" },
     }).catch((error) => {
       console.error("Appointments table fallback", error);
@@ -121,7 +142,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   ];
 
   return (
-    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular">
+    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular" action={<ManualLeadEntry users={users} />}>
       <div className="space-y-5">
         <Card className="shadow-none">
           <CardHeader>
@@ -132,6 +153,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </CardHeader>
           <CardContent>
             <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <input name="q" defaultValue={q} placeholder="Ad, telefon, şehir veya not ara" className="h-10 rounded-lg border px-3 text-sm md:col-span-2" />
               <input name="date" defaultValue={params.date === "today" ? "" : params.date} type="date" className="h-10 rounded-lg border px-3 text-sm" />
               <Select name="assignedUserId" current={params.assignedUserId} first="Tüm sorumlular" options={users.map((user) => [user.name, user.name])} />
               <Select name="appointmentType" current={params.appointmentType} first="Tüm tipler" options={Object.entries(APPOINTMENT_TYPE_LABELS)} />

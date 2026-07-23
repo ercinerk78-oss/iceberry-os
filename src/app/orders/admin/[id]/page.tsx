@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { backorderReasonLabel, backorderStatusLabel } from "@/lib/backorders";
 import { prisma } from "@/lib/prisma";
 import { dateTime, money, ORDER_STATUSES, warehouseLabel } from "@/lib/warehouse";
 
@@ -40,6 +41,10 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
         select: { id: true, description: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       },
+      backorders: {
+        include: { product: { select: { name: true, sku: true } }, shipment: { select: { shipmentNumber: true } } },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
@@ -61,6 +66,27 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
                 </p>
               </div>
               <p className="text-2xl font-semibold">{money(order.grandTotal, order.currency)}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle>Eksik Sevk / Borçlu Ürünler</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {order.backorders.map((item) => (
+                <div key={item.id} className="rounded-lg border p-3">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <b>{item.product.name}</b>
+                    <Badge>{backorderStatusLabel(item.status)}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-[#65705f]">
+                    {item.shipment?.shipmentNumber ?? "Sevkiyat yok"} · Sipariş {item.orderedQuantity} {item.unit} · Sevk {item.shippedQuantity} {item.unit} · Kalan {item.outstandingQuantity} {item.unit}
+                  </p>
+                  <p className="mt-1 text-xs text-[#65705f]">{backorderReasonLabel(item.reason)}{item.note ? ` · ${item.note}` : ""}</p>
+                </div>
+              ))}
+              {!order.backorders.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Bu siparişte eksik sevk kaydı yok.</p> : null}
             </CardContent>
           </Card>
 
