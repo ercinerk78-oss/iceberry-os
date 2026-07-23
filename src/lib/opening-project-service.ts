@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
-const activeProjectStatuses: OpeningProjectStatus[] = [
+export const activeProjectStatuses: OpeningProjectStatus[] = [
   "DRAFT",
   "PLANNING",
   "IN_PROGRESS",
@@ -99,7 +99,22 @@ export class OpeningProjectService {
     description?: string | null;
     createdById?: string | null;
   }) {
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction((tx) => OpeningProjectService.createFromBranchInTransaction(tx, input));
+  }
+
+  static async createFromBranchInTransaction(tx: Tx, input: {
+    branchId: string;
+    templateId?: string | null;
+    targetOpeningDate: Date;
+    plannedStartDate?: Date | null;
+    projectManagerId?: string | null;
+    operationManagerId?: string | null;
+    architecturalLeadId?: string | null;
+    openingCoordinatorId?: string | null;
+    plannedBudget?: Prisma.Decimal | number | string | null;
+    description?: string | null;
+    createdById?: string | null;
+  }) {
       const branch = await tx.branch.findFirst({
         where: { id: input.branchId, archivedAt: null },
         include: {
@@ -245,7 +260,6 @@ export class OpeningProjectService {
 
       await OpeningProjectService.seedReadinessChecks(tx, project.id);
       return OpeningProjectService.recalculateProject(project.id, tx);
-    });
   }
 
   static async seedReadinessChecks(tx: Tx, projectId: string) {

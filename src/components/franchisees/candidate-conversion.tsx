@@ -20,12 +20,20 @@ type Candidate = {
   interestedConcept: string;
 };
 
+type UserOption = { id: string; name: string; role: string };
+type ExistingBranch = { id: string; branchName: string } | null;
+type ExistingOpeningProject = { id: string; projectNumber: string; name: string } | null;
+
 export function CandidateConversion({
   candidate,
   branch,
+  openingProject,
+  users,
 }: {
   candidate: Candidate;
-  branch: { id: string; branchName: string } | null;
+  branch: ExistingBranch;
+  openingProject: ExistingOpeningProject;
+  users: UserOption[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -35,11 +43,21 @@ export function CandidateConversion({
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold text-emerald-900">Şube kaydı oluşturuldu</p>
-            <p className="text-sm text-emerald-700">{branch.branchName}</p>
+            <p className="text-sm text-emerald-700">
+              {branch.branchName}
+              {openingProject ? ` · ${openingProject.projectNumber}` : " · Açılış projesi bulunamadı"}
+            </p>
           </div>
-          <Button asChild variant="outline">
-            <Link href={`/branches/${branch.id}`}>Şube kaydını aç</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href={`/branches/${branch.id}`}>Şube kaydını aç</Link>
+            </Button>
+            {openingProject ? (
+              <Button asChild>
+                <Link href={`/openings/${openingProject.id}`}>Açılış projesini aç</Link>
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
     );
@@ -71,14 +89,38 @@ export function CandidateConversion({
                   concept: conceptValue(candidate.interestedConcept),
                   city: candidate.city,
                   district: candidate.district,
+                  plannedOpeningDate: defaultTargetDate(),
                   status: "CONTRACTED",
                 }}
                 conceptOptions={DEFAULT_BRANCH_CONCEPTS.map((concept) => ({ ...concept, isActive: true }))}
+                extraFields={<ConversionOpeningFields users={users} />}
               />
             </div>
           </div>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function ConversionOpeningFields({ users }: { users: UserOption[] }) {
+  return (
+    <>
+      <label className="grid gap-2 text-sm font-medium">
+        <span>Hedef Açılış Tarihi</span>
+        <input name="targetOpeningDate" type="date" required defaultValue={defaultTargetDate()} className="h-10 rounded-lg border bg-[#f8faf6] px-3" />
+      </label>
+      <label className="grid gap-2 text-sm font-medium">
+        <span>Açılış Sorumlusu</span>
+        <select name="openingCoordinatorId" className="h-10 rounded-lg border bg-[#f8faf6] px-3">
+          <option value="">Atanmadı</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.name} · {user.role}
+            </option>
+          ))}
+        </select>
+      </label>
     </>
   );
 }
@@ -90,4 +132,10 @@ function conceptValue(value: string) {
 function conceptIdValue(value: string) {
   const code = conceptValue(value);
   return DEFAULT_BRANCH_CONCEPTS.find((concept) => concept.code === code)?.id ?? "branch_concept_corner";
+}
+
+function defaultTargetDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 90);
+  return date.toISOString().slice(0, 10);
 }

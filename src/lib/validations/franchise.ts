@@ -47,4 +47,4 @@ export const branchSchema = z.object({
   generalNotes: optional,
 });
 
-export type FormState = { success: boolean; message: string; id?: string };
+export type FormState = { success: boolean; message: string; id?: string; redirectHref?: string; linkLabel?: string };

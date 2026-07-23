@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import type { BranchConceptOption } from "@/lib/branch-concepts";
@@ -17,14 +19,23 @@ export function BranchForm({
   values = {},
   conceptOptions,
   cancelHref,
+  extraFields,
 }: {
   action: (state: FormState, data: FormData) => Promise<FormState>;
   values?: Values;
   conceptOptions: BranchConceptOption[];
   cancelHref?: string;
+  extraFields?: ReactNode;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, initial);
   const currentConceptId = String(values.conceptId ?? "");
+
+  useEffect(() => {
+    if (state.success && state.redirectHref) {
+      router.push(state.redirectHref);
+    }
+  }, [router, state.redirectHref, state.success]);
 
   return (
     <form action={formAction} className="grid gap-4 md:grid-cols-2">
@@ -46,6 +57,7 @@ export function BranchForm({
       <Field name="marketingContributionRate" label="Pazarlama Katkı Oranı (%)" type="number" value={values.marketingContributionRate} />
       <Field name="operationsManager" label="Operasyon Sorumlusu" value={values.operationsManager} />
       <Area name="generalNotes" label="Genel Notlar" value={values.generalNotes} />
+      {extraFields}
 
       <input type="hidden" name="franchiseeId" value={String(values.franchiseeId ?? "")} />
       <input type="hidden" name="concept" value={String(values.concept ?? "")} />
@@ -54,8 +66,8 @@ export function BranchForm({
         <p className={`rounded-lg p-3 text-sm md:col-span-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
           {state.message}
           {state.success && state.id ? (
-            <Link className="ml-2 font-semibold underline" href={`/branches/${state.id}`}>
-              Şube kaydını aç
+            <Link className="ml-2 font-semibold underline" href={state.redirectHref ?? `/branches/${state.id}`}>
+              {state.linkLabel ?? "Şube kaydını aç"}
             </Link>
           ) : null}
         </p>
