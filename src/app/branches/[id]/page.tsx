@@ -9,7 +9,8 @@ import { RelatedDocumentsPanel } from "@/components/documents/related-documents-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { branchConceptLabel } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
@@ -47,11 +48,13 @@ export default async function BranchDetail({
     select: {
       id: true,
       franchiseeId: true,
+      conceptId: true,
       branchName: true,
       city: true,
       district: true,
       address: true,
       concept: true,
+      conceptRelation: true,
       locationType: true,
       openingDate: true,
       plannedOpeningDate: true,
@@ -76,12 +79,18 @@ export default async function BranchDetail({
   });
 
   if (!branch) notFound();
-  const revenueRecords = await safeFindBranchRevenueRecords({
-    where: { branchId: id },
-    include: { enteredBy: { select: { name: true } } },
-    orderBy: { periodStart: "desc" },
-    take: 36,
-  });
+  const [revenueRecords, conceptOptions] = await Promise.all([
+    safeFindBranchRevenueRecords({
+      where: { branchId: id },
+      include: { enteredBy: { select: { name: true } } },
+      orderBy: { periodStart: "desc" },
+      take: 36,
+    }),
+    prisma.branchConcept.findMany({
+      where: { OR: [{ isActive: true }, ...(branch.conceptId ? [{ id: branch.conceptId }] : [])] },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   const activeOpening = branch.openings.find((opening) => !["COMPLETED", "CANCELLED"].includes(opening.status));
   const activeStage = activeOpening?.stages.find((stage) => stage.status === "IN_PROGRESS");
@@ -104,7 +113,7 @@ export default async function BranchDetail({
               <div className="flex flex-wrap gap-2">
                 <Badge>{label(BRANCH_STATUSES, branch.status)}</Badge>
                 <Badge variant="secondary">Şube</Badge>
-                <Badge variant="secondary">{label(BRANCH_CONCEPTS, branch.concept)}</Badge>
+                <Badge variant="secondary">{branchConceptLabel(branch.conceptRelation, branch.concept)}</Badge>
               </div>
               <p className="mt-3 text-sm text-[#65705f]">
                 {branch.city}
@@ -130,7 +139,7 @@ export default async function BranchDetail({
             </nav>
           </CardHeader>
           <CardContent className="p-5">
-            {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} /> : null}
+            {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} conceptOptions={conceptOptions} /> : null}
             {tab === "Açılış Süreci" ? <OpeningPanel activeOpening={activeOpening} activeStageTitle={activeStage?.title} /> : null}
             {tab === "Kullanıcılar" ? <UsersPanel users={branch.users} /> : null}
             {tab === "Görevler" ? <TasksPanel tasks={branch.tasks} /> : null}

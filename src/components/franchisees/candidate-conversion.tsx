@@ -8,6 +8,7 @@ import { convertCandidateToBranch } from "@/app/branches/actions";
 import { BranchForm } from "@/components/branches/branch-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DEFAULT_BRANCH_CONCEPTS, legacyBranchConceptCode } from "@/lib/branch-concepts";
 
 type Candidate = {
   id: string;
@@ -66,11 +67,13 @@ export function CandidateConversion({
                 action={convertCandidateToBranch.bind(null, candidate.id)}
                 values={{
                   branchName: `${candidate.fullName} Şubesi`,
+                  conceptId: conceptIdValue(candidate.interestedConcept),
                   concept: conceptValue(candidate.interestedConcept),
                   city: candidate.city,
                   district: candidate.district,
                   status: "CONTRACTED",
                 }}
+                conceptOptions={DEFAULT_BRANCH_CONCEPTS.map((concept) => ({ ...concept, isActive: true }))}
               />
             </div>
           </div>
@@ -81,9 +84,10 @@ export function CandidateConversion({
 }
 
 function conceptValue(value: string) {
-  if (value === "Self" || value === "Self Cafe") return "SELF_CAFE";
-  if (value === "Cafe") return "CAFE";
-  if (value === "Hotel Kiosk") return "HOTEL_KIOSK";
+  return legacyBranchConceptCode(value) ?? "CORNER";
+}
 
-  return "CORNER";
+function conceptIdValue(value: string) {
+  const code = conceptValue(value);
+  return DEFAULT_BRANCH_CONCEPTS.find((concept) => concept.code === code)?.id ?? "branch_concept_corner";
 }

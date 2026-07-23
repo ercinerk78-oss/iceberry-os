@@ -147,6 +147,7 @@ export function hasPermission(role: string, permission: Permission) {
 export function routePermission(path: string): Permission | null {
   if (path === "/" || path.startsWith("/dashboard")) return "dashboard";
   if (path.startsWith("/api/documents")) return "documents";
+  if (path.startsWith("/settings/branch-concepts")) return "settings";
   if (path.startsWith("/settings/users")) return "users";
   if (path.startsWith("/integrations")) return "integrations";
   if (path.startsWith("/finance")) return "finance";

@@ -13,6 +13,7 @@ const fields = [
   "city",
   "district",
   "address",
+  "conceptId",
   "concept",
   "locationType",
   "openingDate",
@@ -30,14 +31,29 @@ const empty = (value?: string) => value || null;
 const date = (value?: string) => (value ? new Date(value) : null);
 const number = (value?: string) => (value ? Number(value) : null);
 
-function toData(data: ReturnType<typeof branchSchema.parse>) {
+async function conceptForWrite(conceptId: string, options?: { currentConceptId?: string | null; allowInactive?: boolean }) {
+  const concept = await prisma.branchConcept.findUnique({
+    where: { id: conceptId },
+    select: { id: true, code: true, name: true, isActive: true },
+  });
+
+  if (!concept) throw new Error("Seçilen konsept bulunamadı.");
+  const keepsCurrentInactive = options?.allowInactive && options.currentConceptId === concept.id;
+  if (!concept.isActive && !keepsCurrentInactive) throw new Error("Pasif konsept yeni şube kaydında kullanılamaz.");
+
+  return concept;
+}
+
+async function toData(data: ReturnType<typeof branchSchema.parse>, concept: Awaited<ReturnType<typeof conceptForWrite>>) {
   return {
     franchiseeId: empty(data.franchiseeId),
     branchName: data.branchName,
     city: data.city,
     district: empty(data.district),
     address: empty(data.address),
-    concept: data.concept,
+    conceptId: concept.id,
+    concept: concept.code,
+    conceptType: concept.code,
     locationType: data.locationType,
     openingDate: date(data.openingDate),
     plannedOpeningDate: date(data.plannedOpeningDate),
@@ -51,10 +67,12 @@ function toData(data: ReturnType<typeof branchSchema.parse>) {
 
 function refresh(id?: string) {
   revalidatePath("/branches");
-  revalidatePath("/branch-portal");
+  revalidatePath("/branch-map");
+  revalidatePath("/branch-revenues");
   revalidatePath("/documents");
   revalidatePath("/");
   revalidatePath("/dashboard");
+  revalidatePath("/reports");
   if (id) revalidatePath(`/branches/${id}`);
 }
 
@@ -67,6 +85,7 @@ function friendlyError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.includes("Unknown argument")) {
     return "Production veritabanı şeması bu alanı henüz desteklemiyor.";
   }
+  if (error instanceof Error) return error.message;
   return fallback;
 }
 
@@ -94,7 +113,8 @@ export async function createBranch(_: FormState, formData: FormData): Promise<Fo
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Formu kontrol edin." };
 
   try {
-    const branch = await prisma.branch.create({ data: toData(parsed.data) });
+    const concept = await conceptForWrite(parsed.data.conceptId);
+    const branch = await prisma.branch.create({ data: await toData(parsed.data, concept) });
     await createTimelineEvent({
       branchId: branch.id,
       userId: user.id,
@@ -119,8 +139,9 @@ export async function updateBranch(id: string, _: FormState, formData: FormData)
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Formu kontrol edin." };
 
   try {
-    const previous = await prisma.branch.findUnique({ where: { id }, select: { status: true, branchName: true } });
-    const branch = await prisma.branch.update({ where: { id }, data: toData(parsed.data) });
+    const previous = await prisma.branch.findUnique({ where: { id }, select: { status: true, branchName: true, conceptId: true } });
+    const concept = await conceptForWrite(parsed.data.conceptId, { currentConceptId: previous?.conceptId, allowInactive: true });
+    const branch = await prisma.branch.update({ where: { id }, data: await toData(parsed.data, concept) });
     await createTimelineEvent({
       branchId: id,
       userId: user.id,

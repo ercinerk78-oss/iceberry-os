@@ -129,6 +129,7 @@ model Branch {
   tradeName                 String?
   ownershipType             String                          @default("FRANCHISE")
   conceptType               String?
+  conceptId                 String?
   city                      String
   district                  String?
   address                   String?
@@ -176,6 +177,7 @@ model Branch {
   archivedAt                DateTime?
   franchisee                Franchisee?                     @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
   candidate                 FranchiseCandidate?             @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  conceptRelation           BranchConcept?                  @relation(fields: [conceptId], references: [id], onDelete: Restrict)
   documents                 Document[]
   openings                  BranchOpening[]
   openingProjects           OpeningProject[]
@@ -209,8 +211,31 @@ model Branch {
   @@index([branchCode])
   @@index([ownershipType])
   @@index([conceptType])
+  @@index([conceptId])
   @@index([city])
   @@index([status, plannedOpeningDate])
+}
+
+model BranchConcept {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String   @unique
+  slug              String   @unique
+  description       String?
+  icon              String   @default("Store")
+  color             String   @default("#2f5f20")
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  minimumInvestment Float?
+  maximumInvestment Float?
+  averageAreaSqm    Float?
+  averagePersonnel  Int?
+  royaltyModel      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  branches          Branch[]
+
+  @@index([isActive, sortOrder])
 }
 
 model BranchUser {

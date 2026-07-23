@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { branchScopeWhere } from "@/lib/branch-access";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { branchConceptColor, branchConceptLabel } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -26,15 +27,17 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const critical = value(params, "critical");
   const scope = await branchScopeWhere();
   const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
+  const andFilters: Prisma.BranchWhereInput[] = [];
 
-  if (q) where.OR = [{ branchName: { contains: q } }, { city: { contains: q } }, { district: { contains: q } }];
+  if (q) andFilters.push({ OR: [{ branchName: { contains: q } }, { city: { contains: q } }, { district: { contains: q } }] });
   if (city) where.city = city;
-  if (concept) where.concept = concept;
+  if (concept) andFilters.push({ OR: [{ conceptId: concept }, { concept }] });
   if (status) where.status = status;
   if (overdue === "yes") where.tasks = { some: { dueDate: { lt: new Date() }, status: { in: ["OPEN", "IN_PROGRESS", "REJECTED"] } } };
   if (critical === "yes") where.audits = { some: { criticalCount: { gt: 0 } } };
+  if (andFilters.length) where.AND = andFilters;
 
-  const [items, cities] = await Promise.all([
+  const [items, cities, concepts] = await Promise.all([
     prisma.branch.findMany({
       where,
       select: {
@@ -42,7 +45,9 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
         branchName: true,
         city: true,
         district: true,
+        conceptId: true,
         concept: true,
+        conceptRelation: true,
         status: true,
         operationsManager: true,
         openingDate: true,
@@ -54,6 +59,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
       take: 100,
     }),
     prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   return (
@@ -78,7 +84,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
               <input name="q" defaultValue={q} placeholder="Şube veya şehir ara" className="h-10 w-full rounded-lg border pl-9 pr-3" />
             </label>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
+            <Select name="concept" current={concept} first="Tüm konseptler" options={concepts.map((item) => [item.id, item.name])} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
             <Select name="overdue" current={overdue} first="Geciken görev" options={[["yes", "Var"]]} />
             <Select name="critical" current={critical} first="Kritik bulgu" options={[["yes", "Var"]]} />
@@ -110,7 +116,11 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   return (
                     <tr key={branch.id}>
                       <td className="px-4 py-4 font-semibold">{branch.branchName}</td>
-                      <td className="px-4 py-4">{label(BRANCH_CONCEPTS, branch.concept)}</td>
+                      <td className="px-4 py-4">
+                        <Badge variant="secondary" style={{ borderColor: branchConceptColor(branch.conceptRelation, branch.concept), color: branchConceptColor(branch.conceptRelation, branch.concept) }}>
+                          {branchConceptLabel(branch.conceptRelation, branch.concept)}
+                        </Badge>
+                      </td>
                       <td className="px-4 py-4">{branch.city}</td>
                       <td className="px-4 py-4"><Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge></td>
                       <td className="px-4 py-4">{branch.operationsManager ?? "-"}</td>
@@ -146,7 +156,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                     <Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#65705f]">
-                    <span>{label(BRANCH_CONCEPTS, branch.concept)}</span>
+                    <span>{branchConceptLabel(branch.conceptRelation, branch.concept)}</span>
                     <span>Açık görev: {openTasks}</span>
                     <span>Geciken: {lateTasks}</span>
                   </div>

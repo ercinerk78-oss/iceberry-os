@@ -54,6 +54,11 @@ export default async function FranchiseeDetail({
     contractEndDate: record.contractEndDate?.toISOString() ?? "",
   };
   const update = updateFranchisee.bind(null, id);
+  const conceptOptions = await prisma.branchConcept.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  const defaultConcept = conceptOptions.find((concept) => concept.code === "CORNER") ?? conceptOptions[0];
 
   return (
     <AppShell activeHref="/branches" eyebrow="Şube bağlantısı" title={record.companyName}>
@@ -140,10 +145,12 @@ export default async function FranchiseeDetail({
                       city: record.city,
                       district: record.district ?? "",
                       address: record.address ?? "",
-                      concept: "CORNER",
+                      conceptId: defaultConcept?.id ?? "",
+                      concept: defaultConcept?.code ?? "CORNER",
                       locationType: "OTHER",
                       status: "CONTRACTED",
                     }}
+                    conceptOptions={conceptOptions}
                   />
                 </div>
               </div>

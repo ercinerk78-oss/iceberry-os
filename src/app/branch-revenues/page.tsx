@@ -23,7 +23,8 @@ import {
   realizationRate,
 } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords, type BranchRevenueRecordWithUser } from "@/lib/branch-revenue-data";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, label } from "@/lib/franchise";
+import { branchConceptLabel } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ type RevenueBranch = {
   branchName: string;
   city: string;
   concept: string;
+  conceptRelation?: { name: string } | null;
   status: string;
 };
 type RevenueRowData = {
@@ -64,16 +66,18 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const { periodStart } = monthPeriod(year, month);
   const prev = previousMonth(year, month);
   const prevPeriod = monthPeriod(prev.year, prev.month);
+  const branchAnd: Prisma.BranchWhereInput[] = [];
+  if (q) branchAnd.push({ OR: [{ branchName: { contains: q } }, { city: { contains: q } }] });
+  if (concept) branchAnd.push({ OR: [{ conceptId: concept }, { concept }] });
   const branchWhere: Prisma.BranchWhereInput = {
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),
-    ...(q ? { OR: [{ branchName: { contains: q } }, { city: { contains: q } }] } : {}),
     ...(city ? { city } : {}),
-    ...(concept ? { concept } : {}),
     ...(status ? { status } : {}),
+    ...(branchAnd.length ? { AND: branchAnd } : {}),
   };
 
-  const [branches, currentRecords, previousRecords, yearRecords, cities] = await Promise.all([
+  const [branches, currentRecords, previousRecords, yearRecords, cities, concepts] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,
       select: {
@@ -81,6 +85,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
         branchName: true,
         city: true,
         concept: true,
+        conceptRelation: { select: { name: true } },
         status: true,
       },
       orderBy: { branchName: "asc" },
@@ -100,6 +105,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
       orderBy: { periodStart: "asc" },
     }),
     prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   const currentByBranch = new Map(currentRecords.map((record) => [record.branchId, record]));
@@ -154,7 +160,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
               {Array.from({ length: 12 }, (_, index) => index + 1).map((item) => <option key={item} value={item}>{item}. Ay</option>)}
             </select>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
+            <Select name="concept" current={concept} first="Tüm konseptler" options={concepts.map((item) => [item.id, item.name])} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
             <Select name="filter" current={filter} first="Performans filtresi" options={[["missing", "Veri girişi eksik"], ["target-met", "Hedefe ulaşan"], ["target-missed", "Hedef altında"], ["increased", "Ciro artan"], ["decreased", "Ciro düşen"]]} />
             <div className="flex gap-2 md:col-span-3 xl:col-span-8">
@@ -267,7 +273,7 @@ function RevenueRow({ row }: { row: RevenueRowData }) {
     <tr>
       <td className="px-4 py-4 font-semibold"><Link href={`/branches/${row.branch.id}?tab=${encodeURIComponent("KPI ve Performans")}`} className="underline">{row.branch.branchName}</Link></td>
       <td className="px-4 py-4">{row.branch.city}</td>
-      <td className="px-4 py-4">{label(BRANCH_CONCEPTS, row.branch.concept)}</td>
+      <td className="px-4 py-4">{branchConceptLabel(row.branch.conceptRelation, row.branch.concept)}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.actual, current.currency) : "—"}</td>
       <td className="px-4 py-4">{row.previous ? formatMoney(row.previousActual, row.previous.currency) : "—"}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.change, current.currency) : "—"}</td>

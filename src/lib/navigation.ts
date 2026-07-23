@@ -15,6 +15,7 @@ export type NavigationIconKey =
   | "MapPinned"
   | "MessageSquareText"
   | "Package"
+  | "Palette"
   | "PlugZap"
   | "Settings"
   | "ShoppingCart"
@@ -135,6 +136,7 @@ export const navigationGroups: NavigationGroup[] = [
     icon: "Settings",
     children: [
       item("settings", "navigation.settings", "/settings", "Settings"),
+      item("branchConcepts", "navigation.branchConcepts", "/settings/branch-concepts", "Palette"),
       item("users", "navigation.users", "/settings/users", "UsersRound"),
     ],
   },

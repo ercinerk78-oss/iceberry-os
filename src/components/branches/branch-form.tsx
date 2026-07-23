@@ -4,7 +4,8 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
+import type { BranchConceptOption } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
 import type { FormState } from "@/lib/validations/franchise";
 
 type Values = Record<string, unknown>;
@@ -14,19 +15,22 @@ const initial: FormState = { success: false, message: "" };
 export function BranchForm({
   action,
   values = {},
+  conceptOptions,
   cancelHref,
 }: {
   action: (state: FormState, data: FormData) => Promise<FormState>;
   values?: Values;
+  conceptOptions: BranchConceptOption[];
   cancelHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
+  const currentConceptId = String(values.conceptId ?? "");
 
   return (
     <form action={formAction} className="grid gap-4 md:grid-cols-2">
       <Section title="Temel Bilgiler" />
       <Field name="branchName" label="Şube Adı" value={values.branchName} required />
-      <Select name="concept" label="Konsept" value={String(values.concept ?? "CORNER")} options={BRANCH_CONCEPTS} />
+      <ConceptSelect value={currentConceptId} options={conceptOptions} />
       <Select name="locationType" label="Lokasyon Tipi" value={String(values.locationType ?? "STREET")} options={LOCATION_TYPES} />
       <Select name="status" label="Durum" value={String(values.status ?? "PLANNED")} options={BRANCH_STATUSES} />
 
@@ -44,6 +48,7 @@ export function BranchForm({
       <Area name="generalNotes" label="Genel Notlar" value={values.generalNotes} />
 
       <input type="hidden" name="franchiseeId" value={String(values.franchiseeId ?? "")} />
+      <input type="hidden" name="concept" value={String(values.concept ?? "")} />
 
       {state.message ? (
         <p className={`rounded-lg p-3 text-sm md:col-span-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
@@ -61,7 +66,7 @@ export function BranchForm({
             <Link href={cancelHref}>Vazgeç</Link>
           </Button>
         ) : null}
-        <Button disabled={pending} className="bg-[#17201b] text-white">
+        <Button disabled={pending || conceptOptions.length === 0} className="bg-[#17201b] text-white">
           {pending ? "Kaydediliyor..." : "Kaydet"}
         </Button>
       </div>
@@ -107,6 +112,24 @@ function Area({ name, label, value }: { name: string; label: string; value?: unk
     <label className="grid gap-2 text-sm font-medium md:col-span-2">
       <span>{label}</span>
       <textarea name={name} defaultValue={String(value ?? "")} rows={3} className="rounded-lg border bg-[#f8faf6] p-3" />
+    </label>
+  );
+}
+
+function ConceptSelect({ value, options }: { value: string; options: BranchConceptOption[] }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium">
+      <span>Konsept</span>
+      <select required name="conceptId" defaultValue={value} className="h-10 rounded-lg border bg-[#f8faf6] px-3">
+        <option value="">Konsept seçin</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+            {option.isActive === false ? " (Pasif)" : ""}
+          </option>
+        ))}
+      </select>
+      {!options.length ? <span className="text-xs text-rose-700">Aktif şube konsepti bulunamadı.</span> : null}
     </label>
   );
 }

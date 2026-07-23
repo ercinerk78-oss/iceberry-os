@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-import {
-  BRANCH_CONCEPTS,
-  BRANCH_STATUSES,
-  FRANCHISEE_STATUSES,
-  LOCATION_TYPES,
-} from "@/lib/franchise";
+import { BRANCH_STATUSES, FRANCHISEE_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
 
 const optional = z.string().trim().optional().or(z.literal(""));
 const date = optional.refine((value) => !value || !Number.isNaN(Date.parse(value)), "Geçerli bir tarih girin.");
@@ -40,7 +35,8 @@ export const branchSchema = z.object({
   city: z.string().trim().min(2, "Şehir zorunludur."),
   district: optional,
   address: optional,
-  concept: z.enum(Object.keys(BRANCH_CONCEPTS) as [keyof typeof BRANCH_CONCEPTS, ...(keyof typeof BRANCH_CONCEPTS)[]]),
+  conceptId: z.string().trim().min(1, "Konsept seçin."),
+  concept: optional,
   locationType: z.enum(Object.keys(LOCATION_TYPES) as [keyof typeof LOCATION_TYPES, ...(keyof typeof LOCATION_TYPES)[]]),
   openingDate: date,
   plannedOpeningDate: date,

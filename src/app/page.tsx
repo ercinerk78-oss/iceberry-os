@@ -73,6 +73,7 @@ export default async function Home() {
     score9To10,
     unscoredCandidates,
     conceptDistribution,
+    branchConceptDistribution,
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
@@ -116,6 +117,15 @@ export default async function Home() {
       select: { id: true, name: true, _count: { select: { candidateConcepts: true } } },
       orderBy: { candidateConcepts: { _count: "desc" } },
       take: 6,
+    }), []),
+    safe(prisma.branchConcept.findMany({
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        branches: { where: { archivedAt: null }, select: { status: true } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }), []),
   ]);
   const number = new Intl.NumberFormat("tr-TR");
@@ -242,6 +252,30 @@ export default async function Home() {
                 <p className="mt-2 text-2xl font-semibold">{number.format(value)}</p>
               </Link>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle>Konsept Bazlı Şube Dağılımı</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {branchConceptDistribution.map((concept) => {
+              const active = concept.branches.filter((branch) => branch.status === "ACTIVE").length;
+              const opening = concept.branches.filter((branch) => ["PLANNED", "IN_SETUP", "READY_TO_OPEN", "CONTRACTED"].includes(branch.status)).length;
+
+              return (
+                <Link key={concept.id} href={`/branches?concept=${concept.id}`} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4 hover:border-[#17201b]">
+                  <div className="flex items-center gap-2">
+                    <span className="size-3 rounded-full" style={{ backgroundColor: concept.color }} />
+                    <p className="font-semibold">{concept.name}</p>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">{number.format(concept.branches.length)}</p>
+                  <p className="mt-1 text-sm text-[#65705f]">Aktif: {number.format(active)} · Açılış: {number.format(opening)}</p>
+                </Link>
+              );
+            })}
+            {!branchConceptDistribution.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f] xl:col-span-4">Şube konsepti dağılımı için henüz veri yok.</p> : null}
           </CardContent>
         </Card>
 
