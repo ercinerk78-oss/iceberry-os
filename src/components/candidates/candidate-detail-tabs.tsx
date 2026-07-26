@@ -3,23 +3,33 @@
 import type React from "react";
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { CheckSquare, Clock3, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
+import type { MatchStatus } from "@prisma/client";
+import { CheckSquare, Clock3, MapPinned, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
 
 import { archiveCandidateWithReason, createInteraction, updateCandidate } from "@/app/candidates/actions";
+import { unlinkCandidateLocationMatch } from "@/app/locations/actions";
 import { CandidateForm } from "@/components/candidates/candidate-form";
+import { CandidateLocationLinkForm, CandidateMatchUpdateForm } from "@/components/locations/location-forms";
 import { CandidateTaskPanel } from "@/components/tasks/candidate-task-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatDate } from "@/lib/candidates";
+import { hasReport, locationStatusLabel, matchStatusLabel, money, numberTR } from "@/lib/locations";
 import type { ActionState } from "@/lib/validations/candidate";
 import type { Candidate } from "@/types/candidate";
 
 const initial: ActionState = { success: false, message: "" };
 const interactionTypes = ["Telefon", "WhatsApp", "E-posta", "Online toplantı", "Yüz yüze toplantı", "Lokasyon ziyareti", "Diğer"];
 
-export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
-  const [tab, setTab] = useState<"general" | "notes" | "tasks" | "timeline">("general");
+export function CandidateDetailTabs({
+  candidate,
+  availableLocations = [],
+}: {
+  candidate: Candidate;
+  availableLocations?: { id: string; name: string; city: string; district: string | null }[];
+}) {
+  const [tab, setTab] = useState<"general" | "notes" | "locations" | "tasks" | "timeline">("general");
   const [edit, setEdit] = useState(false);
   const [note, setNote] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -33,6 +43,7 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
             <div className="flex flex-wrap gap-2">
               <TabButton active={tab === "general"} onClick={() => setTab("general")} icon={<UserRound className="size-4" />}>Genel Bilgiler</TabButton>
               <TabButton active={tab === "notes"} onClick={() => setTab("notes")} icon={<MessageSquareText className="size-4" />}>Görüşme Notları</TabButton>
+              <TabButton active={tab === "locations"} onClick={() => setTab("locations")} icon={<MapPinned className="size-4" />}>Aday Lokasyonlar</TabButton>
               <TabButton active={tab === "tasks"} onClick={() => setTab("tasks")} icon={<CheckSquare className="size-4" />}>Görevler</TabButton>
               <TabButton active={tab === "timeline"} onClick={() => setTab("timeline")} icon={<Clock3 className="size-4" />}>Zaman Çizelgesi</TabButton>
             </div>
@@ -45,6 +56,7 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
         <CardContent className="p-5">
           {tab === "general" ? <General candidate={candidate} /> : null}
           {tab === "notes" ? <Interactions candidate={candidate} onAdd={() => setNote(true)} /> : null}
+          {tab === "locations" ? <CandidateLocations candidate={candidate} availableLocations={availableLocations} /> : null}
           {tab === "tasks" ? <CandidateTaskPanel candidateId={candidate.id} tasks={candidate.tasks} /> : null}
           {tab === "timeline" ? <TimelineEvents candidate={candidate} /> : null}
         </CardContent>
@@ -65,6 +77,44 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
         </Modal>
       ) : null}
     </>
+  );
+}
+
+function CandidateLocations({ candidate, availableLocations }: { candidate: Candidate; availableLocations: { id: string; name: string; city: string; district: string | null }[] }) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[340px_1fr]">
+      <CandidateLocationLinkForm candidateId={candidate.id} candidates={[{ id: candidate.id, fullName: candidate.fullName, city: candidate.city, phone: candidate.phone }]} locations={availableLocations} />
+      <div className="space-y-3">
+        {candidate.locationMatches.map((match) => {
+          const report = match.location.documents.find((document) => ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"].includes(document.documentType));
+
+          return (
+            <article key={match.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <Link href={`/locations/${match.location.id}`} className="font-semibold hover:underline">{match.location.name}</Link>
+                  <p className="mt-1 text-sm text-[#65705f]">{match.location.city}{match.location.district ? ` / ${match.location.district}` : ""} · {numberTR(match.location.areaM2, " m²")} · {money(match.location.monthlyRent)} kira · {money(match.location.transferFee)} devir</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge>{matchStatusLabel(match.matchStatus)}</Badge>
+                    <Badge variant="secondary">{locationStatusLabel(match.location.status)}</Badge>
+                    <Badge className={hasReport(match.location.documents) ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{hasReport(match.location.documents) ? "Rapor Hazır" : "Rapor Bekleniyor"}</Badge>
+                    {match.nextFollowUpAt ? <Badge variant="secondary">Takip: {formatDate(match.nextFollowUpAt)}</Badge> : null}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {report ? <Button asChild size="sm" variant="outline"><a href={`/api/locations/documents/${report.fileName}`} target="_blank">Raporu Aç</a></Button> : null}
+                  <form action={unlinkCandidateLocationMatch.bind(null, match.id)}><Button size="sm" variant="outline">Bağlantıyı Kaldır</Button></form>
+                </div>
+              </div>
+              <div className="mt-4">
+                <CandidateMatchUpdateForm match={{ id: match.id, matchStatus: match.matchStatus as MatchStatus, nextFollowUpAt: match.nextFollowUpAt ? new Date(match.nextFollowUpAt) : null, notes: match.notes }} />
+              </div>
+            </article>
+          );
+        })}
+        {!candidate.locationMatches.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Bu adaya henüz aday lokasyon bağlanmadı.</p> : null}
+      </div>
+    </div>
   );
 }
 

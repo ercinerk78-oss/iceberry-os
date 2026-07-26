@@ -159,6 +159,39 @@ export async function addLeadActivity(leadId: string, _: LeadActionState, formDa
   }
 }
 
+export async function archiveLeadWithReason(leadId: string, _: LeadActionState, formData: FormData): Promise<LeadActionState> {
+  const user = await requireUser();
+  const reason = String(formData.get("reason") || "").trim();
+  if (reason.length < 5) return { success: false, message: "Silme nedeni en az 5 karakter olmalıdır." };
+
+  try {
+    await prisma.$transaction([
+      prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          status: "CLOSED",
+          processStatus: "CLOSED",
+          leadCategory: "UNPRODUCTIVE",
+          invalidReasonDetail: reason,
+        },
+      }),
+      prisma.leadActivity.create({
+        data: {
+          leadId,
+          type: "LEAD_ARCHIVED",
+          description: `${user.name} lead kaydını sildi/arşivledi. Neden: ${reason}`,
+        },
+      }),
+    ]);
+    refresh(leadId);
+
+    return { success: true, message: "Kayıt aday listesinden kaldırıldı." };
+  } catch (error) {
+    console.error("[leads] archive failed", error);
+    return { success: false, message: "Kayıt silinemedi. Lütfen tekrar deneyin." };
+  }
+}
+
 export async function changeLeadStatus(leadId: string, status: string) {
   const user = await requireUser();
   const parsed = leadStatusSchema.safeParse(status);
@@ -238,7 +271,13 @@ export async function convertLead(leadId: string) {
   const user = await requireUser();
 
   try {
-    const lead = await prisma.lead.findUnique({ where: { id: leadId }, include: { concepts: { include: { concept: true } } } });
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      include: {
+        concepts: { include: { concept: true } },
+        candidateLocations: true,
+      },
+    });
     if (!lead) return { success: false, message: "Lead bulunamadı." };
     if (lead.convertedCandidateId) {
       return { success: true, message: "Lead daha önce adaya dönüştürülmüş.", candidateId: lead.convertedCandidateId };
@@ -273,6 +312,20 @@ export async function convertLead(leadId: string) {
         },
       });
       await replaceCandidateConcepts(tx, created.id, selectedConcepts);
+      if (lead.candidateLocations.length) {
+        await tx.candidateLocationMatch.createMany({
+          data: lead.candidateLocations.map((match) => ({
+            candidateId: created.id,
+            locationId: match.locationId,
+            matchStatus: match.matchStatus,
+            assignedByUserId: match.assignedByUserId,
+            presentedAt: match.presentedAt,
+            nextFollowUpAt: match.nextFollowUpAt,
+            notes: match.notes,
+          })),
+          skipDuplicates: true,
+        });
+      }
       await tx.lead.update({
         where: { id: leadId },
         data: {

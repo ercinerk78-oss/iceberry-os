@@ -5,9 +5,9 @@ import type React from "react";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MatchStatus } from "@prisma/client";
-import { ArrowRight, CalendarClock, CheckCircle2, Clock3, Pencil, Phone, Send, X } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, Clock3, Pencil, Phone, Send, Trash2, X } from "lucide-react";
 
-import { addLeadActivity } from "@/app/leads/actions";
+import { addLeadActivity, archiveLeadWithReason } from "@/app/leads/actions";
 import { changeLeadCategoryForm, changeLeadStatusForm, convertLeadForm } from "@/app/leads/form-actions";
 import { unlinkLocationMatch } from "@/app/locations/actions";
 import { LeadForm } from "@/components/leads/lead-form";
@@ -38,6 +38,7 @@ export function LeadDetail({ lead, availableLocations = [] }: { lead: LeadView; 
   const router = useRouter();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Genel Bilgiler");
   const [edit, setEdit] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [categoryValue, setCategoryValue] = useState(lead.leadCategory || "POSITIVE");
   const [state, activityAction, activityPending] = useActionState(addLeadActivity.bind(null, lead.id), initial);
   const [statusState, statusAction, statusPending] = useActionState(changeLeadStatusForm.bind(null, lead.id), initial);
@@ -68,6 +69,10 @@ export function LeadDetail({ lead, availableLocations = [] }: { lead: LeadView; 
             <Button type="button" variant="outline" onClick={() => setEdit(true)}>
               <Pencil className="size-4" />
               Düzenle
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setArchiveOpen(true)} className="text-rose-700">
+              <Trash2 className="size-4" />
+              Adayı Sil
             </Button>
             {lead.convertedCandidateId ? (
               <Link href={`/candidates/${lead.convertedCandidateId}`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-100 px-3 text-sm font-medium text-emerald-700">
@@ -141,7 +146,33 @@ export function LeadDetail({ lead, availableLocations = [] }: { lead: LeadView; 
           <LeadForm lead={lead} onCancel={() => setEdit(false)} onSuccess={() => setEdit(false)} />
         </Modal>
       ) : null}
+      {archiveOpen ? (
+        <Modal title="Adayı Sil" onClose={() => setArchiveOpen(false)}>
+          <ArchiveLeadForm lead={lead} onClose={() => setArchiveOpen(false)} />
+        </Modal>
+      ) : null}
     </div>
+  );
+}
+
+function ArchiveLeadForm({ lead, onClose }: { lead: LeadView; onClose: () => void }) {
+  const [state, action, pending] = useActionState(archiveLeadWithReason.bind(null, lead.id), initial);
+
+  return (
+    <form action={action} className="grid gap-4 p-5">
+      <p className="text-sm leading-6 text-[#65705f]">
+        {lead.fullName} varsayılan aday listesinden kaldırılacak. Kayıt fiziksel olarak silinmez, kapalı/arşiv durumuna alınır.
+      </p>
+      <label className="grid gap-2">
+        <span className="text-sm font-medium">Silme nedeni</span>
+        <textarea name="reason" required minLength={5} rows={4} placeholder="Neden silindiğini yazın" className="rounded-lg border bg-[#f8faf6] p-3" />
+      </label>
+      {state.message ? <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>Vazgeç</Button>
+        <Button disabled={pending || state.success} variant="destructive">{pending ? "İşleniyor..." : state.success ? "Silindi" : "Adayı Sil"}</Button>
+      </div>
+    </form>
   );
 }
 

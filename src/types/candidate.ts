@@ -59,6 +59,24 @@ export type CandidateTimelineEventView = {
   eventDate: string;
 };
 
+export type CandidateLocationMatchView = {
+  id: string;
+  matchStatus: string;
+  nextFollowUpAt: string;
+  notes: string;
+  location: {
+    id: string;
+    name: string;
+    city: string;
+    district: string;
+    areaM2: number | null;
+    monthlyRent: string;
+    transferFee: string;
+    status: string;
+    documents: { id: string; fileName: string; documentType: string; archivedAt: string }[];
+  };
+};
+
 export type Candidate = {
   id: string;
   fullName: string;
@@ -87,5 +105,6 @@ export type Candidate = {
   documents: CandidateDocumentView[];
   concepts: CandidateConceptView[];
   tags: CandidateTagView[];
+  locationMatches: CandidateLocationMatchView[];
   timelineEvents: CandidateTimelineEventView[];
 };

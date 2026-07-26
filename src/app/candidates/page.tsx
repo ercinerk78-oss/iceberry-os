@@ -51,6 +51,15 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         ]
       : [{ convertedCandidateId: null }],
     AND: [
+      ...(!params.status
+        ? [
+            {
+              NOT: {
+                OR: [{ processStatus: "CLOSED" }, { status: "CLOSED" }, { status: "Kapatıldı" }],
+              },
+            },
+          ]
+        : []),
       ...(params.status
         ? [
             {
@@ -103,6 +112,28 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         documents: { orderBy: { createdAt: "desc" }, take: RELATED_ITEM_LIMIT },
         concepts: { include: { concept: true } },
         tags: { include: { tag: true } },
+        locationMatches: {
+          include: {
+            location: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                district: true,
+                areaM2: true,
+                monthlyRent: true,
+                transferFee: true,
+                status: true,
+                documents: {
+                  where: { archivedAt: null },
+                  select: { id: true, fileName: true, documentType: true, archivedAt: true },
+                },
+              },
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+          take: RELATED_ITEM_LIMIT,
+        },
         timelineEvents: { orderBy: { eventDate: "desc" }, take: RELATED_ITEM_LIMIT },
       },
       orderBy: { createdAt: "desc" },

@@ -17,6 +17,23 @@ type CandidateWithRelations = FranchiseCandidate & {
   documents: Document[];
   concepts?: (CandidateConcept & { concept: Concept })[];
   tags?: (CandidateTagLink & { tag: CandidateTag })[];
+  locationMatches?: {
+    id: string;
+    matchStatus: string;
+    nextFollowUpAt: Date | null;
+    notes: string | null;
+    location: {
+      id: string;
+      name: string;
+      city: string;
+      district: string | null;
+      areaM2: number | null;
+      monthlyRent: unknown;
+      transferFee: unknown;
+      status: string;
+      documents: { id: string; fileName: string; documentType: string; archivedAt: Date | null }[];
+    };
+  }[];
   timelineEvents?: CandidateTimelineEvent[];
 };
 
@@ -68,6 +85,21 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
     tags: candidate.tags?.map((item) => ({
       id: item.tag.id,
       name: item.tag.name,
+    })) ?? [],
+    locationMatches: candidate.locationMatches?.map((match) => ({
+      ...match,
+      nextFollowUpAt: date(match.nextFollowUpAt),
+      notes: match.notes ?? "",
+      location: {
+        ...match.location,
+        district: match.location.district ?? "",
+        monthlyRent: match.location.monthlyRent?.toString?.() ?? "",
+        transferFee: match.location.transferFee?.toString?.() ?? "",
+        documents: match.location.documents.map((document) => ({
+          ...document,
+          archivedAt: date(document.archivedAt),
+        })),
+      },
     })) ?? [],
     timelineEvents: candidate.timelineEvents?.map((event) => ({
       id: event.id,

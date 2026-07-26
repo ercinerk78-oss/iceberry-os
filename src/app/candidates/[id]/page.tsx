@@ -43,20 +43,49 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
       documents: { orderBy: { createdAt: "desc" } },
       concepts: { include: { concept: true } },
       tags: { include: { tag: true } },
+      locationMatches: {
+        include: {
+          location: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              district: true,
+              areaM2: true,
+              monthlyRent: true,
+              transferFee: true,
+              status: true,
+              documents: {
+                where: { archivedAt: null },
+                select: { id: true, fileName: true, documentType: true, archivedAt: true },
+              },
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+      },
       timelineEvents: { orderBy: { eventDate: "desc" } },
     },
   });
   if (!record) notFound();
 
-  const users = await prisma.user.findMany({
-    where: {
-      isActive: true,
-      archivedAt: null,
-      role: { in: ["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR", "ARCHITECTURAL_LEAD"] },
-    },
-    select: { id: true, name: true, role: true },
-    orderBy: { name: "asc" },
-  });
+  const [users, availableLocations] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        isActive: true,
+        archivedAt: null,
+        role: { in: ["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR", "ARCHITECTURAL_LEAD"] },
+      },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.candidateLocation.findMany({
+      where: { archivedAt: null },
+      select: { id: true, name: true, city: true, district: true },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
+  ]);
   const candidate = toCandidate(record);
   const openingProject = record.branch?.openingProjects[0] ?? record.openingProjects[0] ?? null;
 
@@ -90,7 +119,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
           openingProject={openingProject}
           users={users}
         />
-        <CandidateDetailTabs candidate={candidate} />
+        <CandidateDetailTabs candidate={candidate} availableLocations={availableLocations} />
         <CandidateDocumentTabs candidate={candidate} />
       </div>
     </AppShell>
