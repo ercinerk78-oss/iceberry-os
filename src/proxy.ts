@@ -156,11 +156,26 @@ function loginRedirect(request: NextRequest) {
   return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, request.url));
 }
 
+function legacyLeadRedirect(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  if (path !== "/leads" && !path.startsWith("/leads/")) return null;
+
+  const url = request.nextUrl.clone();
+  const leadId = path === "/leads" ? "" : path.replace(/^\/leads\//, "").split("/")[0];
+  url.pathname = "/candidates";
+  if (leadId) url.searchParams.set("leadId", leadId);
+
+  return NextResponse.redirect(url);
+}
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path.startsWith("/_next") || path === "/favicon.ico" || publicWebhookPrefixes.some((prefix) => path.startsWith(prefix))) {
     return NextResponse.next();
   }
+
+  const leadRedirect = legacyLeadRedirect(request);
+  if (leadRedirect) return leadRedirect;
 
   let session = null;
   try {
