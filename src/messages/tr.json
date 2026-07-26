@@ -114,10 +114,9 @@
     "CLOSED": "Kapatıldı"
   },
   "leadCategory": {
-    "POSITIVE": "Olumlu Lead",
-    "CLOSE_FOLLOW_UP": "Yakın Takip Lead",
     "LONG_TERM": "Uzun Vade Lead",
     "UNPRODUCTIVE": "Verimsiz Lead",
+    "INVALID_FORM": "Hatalı Form",
     "NONE": "Kategori yok"
   },
   "appointmentStatus": {
@@ -141,8 +140,6 @@
     "newLeads": "Yeni Lead",
     "waitingAppointmentLeads": "Randevu Bekleyen Lead",
     "todayAppointments": "Bugünkü Randevular",
-    "positiveLeads": "Olumlu Lead",
-    "closeFollowUpLeads": "Yakın Takip Lead",
     "longTermLeads": "Uzun Vade Lead",
     "unproductiveLeads": "Verimsiz Lead",
     "overdueFollowUps": "Geciken Takipler",
@@ -158,8 +155,6 @@
     "newLeadsDesc": "Henüz işleme alınmamış leadler",
     "waitingAppointmentDesc": "Randevu departmanı takibindeki leadler",
     "todayAppointmentsDesc": "Bugün planlanan görüşmeler",
-    "positiveLeadsDesc": "Olumlu değerlendirilen leadler",
-    "closeFollowUpDesc": "Kısa vadede izlenecek leadler",
     "longTermDesc": "Daha ileri tarihe planlanan leadler",
     "unproductiveDesc": "Düşük verimli başvurular",
     "overdueDesc": "Takip tarihi geçen lead ve görevler",
@@ -171,7 +166,6 @@
     "appointmentCount": "Alınan randevu sayısı",
     "appointmentConversionRate": "Randevuya dönüşüm oranı",
     "attendanceRate": "Görüşmeye katılım oranı",
-    "positiveLeadRate": "Olumlu lead oranı",
     "unproductiveLeadRate": "Verimsiz lead oranı",
     "unassigned": "Atanmadı",
     "noAppointmentData": "Henüz randevu verisi yok."

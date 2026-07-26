@@ -34,12 +34,18 @@ const initial: LeadActionState = { success: false, message: "" };
 const baseTabs = ["Genel Bilgiler", "Arama Geçmişi", "Randevular", "Görevler", "Zaman Çizelgesi", "Notlar"] as const;
 const tabs = [...baseTabs.slice(0, 2), "Aday Lokasyonlar", ...baseTabs.slice(2)] as const;
 
+const DEFAULT_LEAD_CATEGORY = "LONG_TERM";
+
+function editableLeadCategory(category?: string | null) {
+  return LEAD_CATEGORIES.includes(category as (typeof LEAD_CATEGORIES)[number]) ? category! : DEFAULT_LEAD_CATEGORY;
+}
+
 export function LeadDetail({ lead, availableLocations = [] }: { lead: LeadView; availableLocations?: { id: string; name: string; city: string; district: string | null }[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Genel Bilgiler");
   const [edit, setEdit] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [categoryValue, setCategoryValue] = useState(lead.leadCategory || "POSITIVE");
+  const [categoryValue, setCategoryValue] = useState(editableLeadCategory(lead.leadCategory));
   const [state, activityAction, activityPending] = useActionState(addLeadActivity.bind(null, lead.id), initial);
   const [statusState, statusAction, statusPending] = useActionState(changeLeadStatusForm.bind(null, lead.id), initial);
   const [categoryState, categoryAction, categoryPending] = useActionState(changeLeadCategoryForm.bind(null, lead.id), initial);

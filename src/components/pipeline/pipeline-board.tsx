@@ -95,7 +95,7 @@ export function PipelineBoard({ candidates: initialCandidates, leads: initialLea
       const week = next && next >= now && next.getTime() <= now.getTime() + 7 * 86400000;
       const isHot = item.type === "candidate"
         ? ["Sıcak", "Çok Sıcak"].includes(item.candidate.temperature) || (item.candidate.qualificationScore ?? 0) >= 8
-        : ["POSITIVE", "CLOSE_FOLLOW_UP"].includes(item.lead.leadCategory);
+        : false;
       const text = [
         record.fullName,
         record.phone,

@@ -2,14 +2,12 @@ import Link from "next/link";
 import {
   CalendarCheck2,
   CalendarClock,
-  CheckCircle2,
   Clock3,
   LineChart,
   MapPinned,
   MessageSquareText,
   Store,
   Target,
-  TimerReset,
   XCircle,
 } from "lucide-react";
 
@@ -51,8 +49,6 @@ export default async function Home() {
     newLeads,
     waitingAppointmentLeads,
     todayAppointments,
-    positiveLeads,
-    closeFollowUpLeads,
     longTermLeads,
     unproductiveLeads,
     invalidFormLeads,
@@ -81,8 +77,6 @@ export default async function Home() {
     safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["NEW"], ["NEW", "Yeni"])) }), 0),
     safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["WAITING_FOR_APPOINTMENT"])) }), 0),
     safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "POSITIVE" }) }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "CLOSE_FOLLOW_UP" }) }), 0),
     safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "LONG_TERM" }) }), 0),
     safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "UNPRODUCTIVE" }) }), 0),
     safe(prisma.lead.count({ where: unconvertedLeadWhere({ leadCategory: "INVALID_FORM" }) }), 0),
@@ -131,7 +125,6 @@ export default async function Home() {
   const validLeads = Math.max(totalLeads - invalidFormLeads, 0);
   const conversionRate = validLeads ? Math.round((appointmentCount / validLeads) * 100) : 0;
   const attendanceRate = appointmentCount ? Math.round((attendedAppointments / appointmentCount) * 100) : 0;
-  const positiveRate = validLeads ? Math.round((positiveLeads / validLeads) * 100) : 0;
   const unproductiveRate = validLeads ? Math.round((unproductiveLeads / validLeads) * 100) : 0;
   const metrics = [
     { title: t("dashboard.activeBranches"), value: activeBranches, href: "/branches?status=ACTIVE", change: t("dashboard.active"), description: t("dashboard.activeBranchesDesc"), icon: Store, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
@@ -139,8 +132,6 @@ export default async function Home() {
     { title: t("dashboard.newLeads"), value: newLeads, href: "/candidates?status=NEW", change: t("leadStatus.NEW"), description: t("dashboard.newLeadsDesc"), icon: MessageSquareText, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
     { title: t("dashboard.waitingAppointmentLeads"), value: waitingAppointmentLeads, href: "/candidates?status=WAITING_FOR_APPOINTMENT", change: t("dashboard.appointment"), description: t("dashboard.waitingAppointmentDesc"), icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
     { title: t("dashboard.todayAppointments"), value: todayAppointments, href: "/appointments?date=today", change: t("dashboard.today"), description: t("dashboard.todayAppointmentsDesc"), icon: CalendarCheck2, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    { title: t("dashboard.positiveLeads"), value: positiveLeads, href: "/candidates?leadCategory=POSITIVE", change: `% ${positiveRate}`, description: t("dashboard.positiveLeadsDesc"), icon: CheckCircle2, tone: "bg-lime-50 text-lime-700 ring-lime-200" },
-    { title: t("dashboard.closeFollowUpLeads"), value: closeFollowUpLeads, href: "/candidates?leadCategory=CLOSE_FOLLOW_UP", change: t("dashboard.followUp"), description: t("dashboard.closeFollowUpDesc"), icon: TimerReset, tone: "bg-violet-50 text-violet-700 ring-violet-200" },
     { title: t("dashboard.longTermLeads"), value: longTermLeads, href: "/candidates?leadCategory=LONG_TERM", change: t("dashboard.longTerm"), description: t("dashboard.longTermDesc"), icon: Clock3, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
     { title: t("dashboard.unproductiveLeads"), value: unproductiveLeads, href: "/candidates?leadCategory=UNPRODUCTIVE", change: `% ${unproductiveRate}`, description: t("dashboard.unproductiveDesc"), icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
     { title: "Hatalı Form", value: invalidFormLeads, href: "/candidates?leadCategory=INVALID_FORM", change: "Hariç", description: "Rapor oranlarından hariç tutulan geçersiz başvurular.", icon: XCircle, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
@@ -155,7 +146,6 @@ export default async function Home() {
     [t("dashboard.appointmentCount"), appointmentCount],
     [t("dashboard.appointmentConversionRate"), `%${conversionRate}`],
     [t("dashboard.attendanceRate"), `%${attendanceRate}`],
-    [t("dashboard.positiveLeadRate"), `%${positiveRate}`],
     [t("dashboard.unproductiveLeadRate"), `%${unproductiveRate}`],
   ];
   const locationOpportunities = [

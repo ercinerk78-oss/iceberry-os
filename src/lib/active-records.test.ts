@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { activeLeadWhere, CLOSED_LEAD_PROCESS_STATUSES, CLOSED_LEAD_STATUSES, unconvertedLeadWhere } from "./active-records";
 
 test("activeLeadWhere excludes converted and closed lead records", () => {
-  assert.deepEqual(activeLeadWhere({ leadCategory: "POSITIVE" }), {
+  assert.deepEqual(activeLeadWhere({ leadCategory: "LONG_TERM" }), {
     AND: [
       { convertedCandidateId: null },
       {
@@ -15,7 +15,7 @@ test("activeLeadWhere excludes converted and closed lead records", () => {
           ],
         },
       },
-      { leadCategory: "POSITIVE" },
+      { leadCategory: "LONG_TERM" },
     ],
   });
 });

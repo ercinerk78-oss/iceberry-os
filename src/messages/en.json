@@ -114,10 +114,9 @@
     "CLOSED": "Closed"
   },
   "leadCategory": {
-    "POSITIVE": "Positive Lead",
-    "CLOSE_FOLLOW_UP": "Close Follow-up Lead",
     "LONG_TERM": "Long Term Lead",
     "UNPRODUCTIVE": "Unproductive Lead",
+    "INVALID_FORM": "Invalid Form",
     "NONE": "No category"
   },
   "appointmentStatus": {
@@ -141,8 +140,6 @@
     "newLeads": "New Leads",
     "waitingAppointmentLeads": "Leads Waiting for Appointment",
     "todayAppointments": "Today's Appointments",
-    "positiveLeads": "Positive Leads",
-    "closeFollowUpLeads": "Close Follow-up Leads",
     "longTermLeads": "Long Term Leads",
     "unproductiveLeads": "Unproductive Leads",
     "overdueFollowUps": "Overdue Follow-ups",
@@ -158,8 +155,6 @@
     "newLeadsDesc": "Leads not processed yet",
     "waitingAppointmentDesc": "Leads followed by the appointment department",
     "todayAppointmentsDesc": "Meetings planned for today",
-    "positiveLeadsDesc": "Leads evaluated positively",
-    "closeFollowUpDesc": "Leads to follow in the short term",
     "longTermDesc": "Leads planned for a later date",
     "unproductiveDesc": "Low efficiency applications",
     "overdueDesc": "Leads and tasks past follow-up date",
@@ -171,7 +166,6 @@
     "appointmentCount": "Appointments scheduled",
     "appointmentConversionRate": "Appointment conversion rate",
     "attendanceRate": "Meeting attendance rate",
-    "positiveLeadRate": "Positive lead rate",
     "unproductiveLeadRate": "Unproductive lead rate",
     "unassigned": "Unassigned",
     "noAppointmentData": "No appointment data yet."

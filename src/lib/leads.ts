@@ -38,16 +38,12 @@ export const LEGACY_LEAD_STATUS_ALIASES: Record<string, (typeof LEAD_STATUSES)[n
 };
 
 export const LEAD_CATEGORIES = [
-  "POSITIVE",
-  "CLOSE_FOLLOW_UP",
   "LONG_TERM",
   "UNPRODUCTIVE",
   "INVALID_FORM",
 ] as const;
 
 export const LEAD_CATEGORY_LABELS: Record<(typeof LEAD_CATEGORIES)[number], string> = {
-  POSITIVE: "Olumlu Lead",
-  CLOSE_FOLLOW_UP: "Yakın Takip Lead",
   LONG_TERM: "Uzun Vade Lead",
   UNPRODUCTIVE: "Verimsiz Lead",
   INVALID_FORM: "Hatalı Form",
