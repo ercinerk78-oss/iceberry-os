@@ -35,7 +35,7 @@ export default async function ReportsPage() {
   ]);
   const revenueTotal = revenueRows.reduce((sum, row) => sum + (row.netRevenue ?? 0), 0);
   const cards = [
-    { title: "Lead Raporu", value: leadCount, href: "/leads", icon: Target, note: "Lead havuzu ve randevu dönüşümü" },
+    { title: "Lead Raporu", value: leadCount, href: "/candidates", icon: Target, note: "Franchise adayları içinde lead ve randevu dönüşümü" },
     { title: "Randevu Raporu", value: appointmentCount, href: "/appointments", icon: CalendarCheck2, note: "Planlanan ve tamamlanan görüşmeler" },
     { title: "Şube Raporu", value: branchCount, href: "/branches", icon: Store, note: "Aktif ve toplam şube görünümü" },
     { title: "Açılış Raporu", value: openingCount, href: "/openings", icon: BarChart3, note: "Kurulum projeleri ve aşamalar" },

@@ -61,7 +61,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         id: task.lead.id,
         fullName: task.lead.fullName,
         city: task.lead.city,
-        href: `/leads/${task.lead.id}`,
+        href: `/candidates?leadId=${task.lead.id}`,
         type: "lead" as const,
       },
     })),

@@ -58,7 +58,6 @@ export const navigationGroups: NavigationGroup[] = [
     key: "navigationGroups.franchise",
     icon: "Building2",
     children: [
-      item("leads", "navigation.leads", "/leads", "MessageSquareText"),
       item("appointments", "navigation.appointments", "/appointments", "CalendarCheck2"),
       item("candidates", "navigation.candidates", "/candidates", "UsersRound"),
       item("locations", "navigation.locations", "/locations", "MapPinned"),

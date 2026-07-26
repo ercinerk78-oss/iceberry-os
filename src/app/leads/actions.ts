@@ -19,6 +19,7 @@ const stringOrNull = (value?: string) => value || null;
 
 const refresh = (id?: string) => {
   revalidatePath("/leads");
+  revalidatePath("/candidates");
   if (id) revalidatePath(`/leads/${id}`);
   revalidatePath("/");
   revalidatePath("/dashboard");
@@ -54,7 +55,7 @@ export async function createLead(_: LeadActionState, formData: FormData): Promis
         success: false,
         message: `${duplicate.fullName} adında mevcut bir lead bulundu. Varsayılan olarak ikinci lead oluşturulmadı.`,
         leadId: duplicate.id,
-        redirectHref: `/leads/${duplicate.id}`,
+        redirectHref: `/candidates?leadId=${duplicate.id}`,
         linkLabel: "Mevcut kaydı aç",
       };
     }
@@ -83,7 +84,7 @@ export async function createLead(_: LeadActionState, formData: FormData): Promis
     });
 
     refresh();
-    return { success: true, message: "Lead başarıyla havuza eklendi." };
+    return { success: true, message: "Lead başarıyla Franchise Adayları ekranına eklendi." };
   } catch {
     return { success: false, message: "Lead kaydedilemedi." };
   }
@@ -260,7 +261,7 @@ export async function convertLead(leadId: string) {
           status: "Yeni Lead",
           temperature: "Ilık",
           assignedUserId: lead.assignedUserId || user.name,
-          generalNotes: lead.description || "Lead Havuzu üzerinden franchise adayına dönüştürüldü.",
+          generalNotes: lead.description || "Lead kaydı üzerinden franchise adayına dönüştürüldü.",
           timelineEvents: {
             create: {
               eventType: "LEAD_CONVERTED",

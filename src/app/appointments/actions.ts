@@ -75,6 +75,7 @@ function refresh(leadId?: string) {
   revalidatePath("/");
   revalidatePath("/dashboard");
   revalidatePath("/leads");
+  revalidatePath("/candidates");
   revalidatePath("/appointments");
   revalidatePath("/tasks");
   if (leadId) revalidatePath(`/leads/${leadId}`);
@@ -211,7 +212,7 @@ export async function createManualLeadFromAppointments(_: LeadActionState, formD
       success: false,
       message: `${duplicate.fullName} adında mevcut bir lead bulundu. Yeni lead oluşturulmadı; mevcut kayıt üzerinden yeni randevu oluşturabilirsiniz.`,
       leadId: duplicate.id,
-      redirectHref: `/leads/${duplicate.id}`,
+      redirectHref: `/candidates?leadId=${duplicate.id}`,
       linkLabel: "Mevcut kaydı aç",
     };
   }
@@ -304,7 +305,7 @@ export async function createManualLeadFromAppointments(_: LeadActionState, formD
       message: result.appointmentId ? "Manuel lead ve randevu birlikte oluşturuldu." : "Manuel lead oluşturuldu.",
       leadId: result.leadId,
       appointmentId: result.appointmentId ?? undefined,
-      redirectHref: result.appointmentId ? `/appointments?lead=${result.leadId}` : `/leads/${result.leadId}`,
+      redirectHref: result.appointmentId ? `/appointments?lead=${result.leadId}` : `/candidates?leadId=${result.leadId}`,
       linkLabel: result.appointmentId ? "Randevuları aç" : "Lead kaydını aç",
     };
   } catch (error) {

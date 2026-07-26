@@ -154,7 +154,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
                 <article key={match.id} className="rounded-lg border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <Link href={`/leads/${match.leadId}`} className="font-semibold hover:underline">{match.lead.fullName}</Link>
+                      <Link href={`/candidates?leadId=${match.leadId}`} className="font-semibold hover:underline">{match.lead.fullName}</Link>
                       <p className="mt-1 text-sm text-[#65705f]">{match.lead.city} · {match.lead.phone} · {match.lead.requestedConcept}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Badge>{matchStatusLabel(match.matchStatus)}</Badge>

@@ -211,7 +211,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <Badge variant="secondary">{appointmentTypeLabel(appointment.appointmentType)}</Badge>
                           <Badge variant="secondary">{leadCategoryLabel(appointment.lead.leadCategory)}</Badge>
                         </div>
-                        <Link href={`/leads/${appointment.leadId}`} className="mt-3 block font-semibold hover:underline">
+                        <Link href={`/candidates?leadId=${appointment.leadId}`} className="mt-3 block font-semibold hover:underline">
                           {appointment.title}
                         </Link>
                         <p className="mt-1 text-sm text-[#65705f]">

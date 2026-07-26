@@ -130,6 +130,57 @@ export async function archiveCandidate(id: string): Promise<ActionState> {
   }
 }
 
+export async function archiveCandidateWithReason(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (reason.length < 5) {
+    return { success: false, message: "Silme nedeni en az 5 karakter olmalıdır." };
+  }
+
+  try {
+    const candidate = await prisma.franchiseCandidate.findFirst({
+      where: { id, archivedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        branch: { select: { id: true } },
+        franchisee: { select: { id: true } },
+        openingProjects: { where: { archivedAt: null }, select: { id: true }, take: 1 },
+      },
+    });
+
+    if (!candidate) {
+      return { success: false, message: "Aday bulunamadı veya daha önce arşivlendi." };
+    }
+
+    if (candidate.branch || candidate.franchisee || candidate.openingProjects.length) {
+      return {
+        success: false,
+        message: "Bu aday şubeye veya açılış projesine bağlı olduğu için silinemez. Arşivleyebilirsiniz.",
+      };
+    }
+
+    await prisma.$transaction([
+      prisma.candidateTimelineEvent.create({
+        data: {
+          candidateId: id,
+          eventType: "CANDIDATE_ARCHIVED",
+          title: "Aday silindi",
+          description: `Silme nedeni: ${reason}`,
+          actorName: user.name,
+        },
+      }),
+      prisma.franchiseCandidate.update({ where: { id }, data: { archivedAt: new Date() } }),
+    ]);
+
+    refreshCandidate(id);
+    return { success: true, message: `${candidate.fullName} varsayılan listeden kaldırıldı.` };
+  } catch {
+    return { success: false, message: "Aday silinemedi. Lütfen tekrar deneyin." };
+  }
+}
+
 export async function createInteraction(candidateId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = interactionSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
