@@ -90,6 +90,7 @@ export function LocationDocumentUpload({ locationId }: { locationId: string }) {
       <label className="grid gap-2 text-sm font-medium">
         <span>Dosyalar</span>
         <input required multiple type="file" name="files" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="rounded-lg border bg-white p-2 text-sm" />
+        <span className="text-xs text-[#65705f]">PDF, JPG veya PNG dosyası yükleyebilirsiniz. Dosya başına maksimum 25 MB.</span>
       </label>
       <label className="grid gap-2 text-sm font-medium">
         <span>Açıklama</span>
