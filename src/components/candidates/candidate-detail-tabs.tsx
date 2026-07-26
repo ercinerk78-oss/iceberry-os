@@ -2,10 +2,10 @@
 
 import type React from "react";
 import { useActionState, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Archive, CheckSquare, Clock3, MessageSquareText, Pencil, UserRound, X } from "lucide-react";
+import Link from "next/link";
+import { CheckSquare, Clock3, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
 
-import { archiveCandidate, createInteraction, updateCandidate } from "@/app/candidates/actions";
+import { archiveCandidateWithReason, createInteraction, updateCandidate } from "@/app/candidates/actions";
 import { CandidateForm } from "@/components/candidates/candidate-form";
 import { CandidateTaskPanel } from "@/components/tasks/candidate-task-panel";
 import { Badge } from "@/components/ui/badge";
@@ -22,15 +22,8 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
   const [tab, setTab] = useState<"general" | "notes" | "tasks" | "timeline">("general");
   const [edit, setEdit] = useState(false);
   const [note, setNote] = useState(false);
-  const router = useRouter();
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const update = updateCandidate.bind(null, candidate.id);
-
-  async function archive() {
-    if (!window.confirm("Bu adayı arşivlemek istediğinize emin misiniz?")) return;
-    const result = await archiveCandidate(candidate.id);
-    if (result.success) router.push("/candidates");
-    else window.alert(result.message);
-  }
 
   return (
     <>
@@ -45,7 +38,7 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="size-4" />Düzenle</Button>
-              <Button variant="outline" onClick={archive} className="text-rose-700"><Archive className="size-4" />Arşivle</Button>
+              <Button variant="outline" onClick={() => setArchiveOpen(true)} className="text-rose-700"><Trash2 className="size-4" />Adayı Sil</Button>
             </div>
           </div>
         </CardHeader>
@@ -66,7 +59,37 @@ export function CandidateDetailTabs({ candidate }: { candidate: Candidate }) {
           <InteractionForm candidateId={candidate.id} onClose={() => setNote(false)} />
         </Modal>
       ) : null}
+      {archiveOpen ? (
+        <Modal title="Adayı Sil" onClose={() => setArchiveOpen(false)}>
+          <ArchiveCandidateForm candidate={candidate} onClose={() => setArchiveOpen(false)} />
+        </Modal>
+      ) : null}
     </>
+  );
+}
+
+function ArchiveCandidateForm({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  const [state, action, pending] = useActionState(archiveCandidateWithReason.bind(null, candidate.id), initial);
+
+  return (
+    <form action={action} className="grid gap-4 p-5">
+      <p className="text-sm leading-6 text-[#65705f]">
+        {candidate.fullName} varsayılan aday listelerinden kaldırılacak. Şube veya açılış projesi bağlantısı varsa işlem engellenir.
+      </p>
+      <label className="grid gap-2">
+        <span className="text-sm font-medium">Silme nedeni</span>
+        <textarea name="reason" required minLength={5} rows={4} placeholder="Neden silindiğini yazın" className="rounded-lg border bg-[#f8faf6] p-3" />
+      </label>
+      {state.message ? <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>Vazgeç</Button>
+        {state.success ? (
+          <Button asChild className="bg-[#17201b] text-white"><Link href="/candidates">Aday Listesine Dön</Link></Button>
+        ) : (
+          <Button disabled={pending} variant="destructive">{pending ? "İşleniyor..." : "Adayı Sil"}</Button>
+        )}
+      </div>
+    </form>
   );
 }
 

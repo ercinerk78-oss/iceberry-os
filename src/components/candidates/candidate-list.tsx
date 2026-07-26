@@ -1,10 +1,11 @@
 "use client";
 
 import type React from "react";
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Filter, Plus, Search, Star, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { CalendarClock, Filter, Plus, Search, Star, X } from "lucide-react";
 
-import { archiveCandidateWithReason, createCandidate, updateCandidate } from "@/app/candidates/actions";
+import { createCandidate } from "@/app/candidates/actions";
 import { CandidateForm } from "@/components/candidates/candidate-form";
 import { LeadDetail } from "@/components/leads/lead-detail";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/candidates";
 import { LEAD_CATEGORIES, LEAD_CATEGORY_LABELS, LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, statusValuesForFilter, type LeadView } from "@/lib/leads";
 import { relativeTime } from "@/lib/qualification";
-import type { ActionState } from "@/lib/validations/candidate";
 import type { Candidate } from "@/types/candidate";
 
 const ALL = "Tümü";
@@ -35,8 +35,6 @@ type CandidateListProps = {
 type UnifiedRow =
   | { type: "candidate"; id: string; date: string; candidate: Candidate; lead?: never }
   | { type: "lead"; id: string; date: string; lead: LeadView; candidate?: never };
-
-const archiveInitial: ActionState = { success: false, message: "" };
 
 export function CandidateList({
   candidates,
@@ -81,11 +79,11 @@ export function CandidateList({
 
     return [...leadRows, ...candidateRows];
   }, [candidates, leads]);
-  const [selectedRow, setSelectedRow] = useState<UnifiedRow | null>(() => {
+  const [selectedLead, setSelectedLead] = useState<LeadView | null>(() => {
     if (!initialLeadId) return null;
     const lead = leads.find((item) => item.id === initialLeadId);
 
-    return lead ? { type: "lead", id: `lead:${lead.id}`, date: lead.leadDate, lead } : null;
+    return lead ?? null;
   });
 
   const values = (items: string[]) => Array.from(new Set(items.filter(Boolean))).sort((a, b) => a.localeCompare(b, "tr"));
@@ -225,7 +223,7 @@ export function CandidateList({
               </thead>
               <tbody className="divide-y divide-[#edf0e9]">
                 {filtered.map((row) => (
-                  <UnifiedTableRow key={row.id} row={row} onOpen={() => setSelectedRow(row)} />
+                  <UnifiedTableRow key={row.id} row={row} onOpenLead={(lead) => setSelectedLead(lead)} />
                 ))}
               </tbody>
             </table>
@@ -240,20 +238,16 @@ export function CandidateList({
         </Modal>
       ) : null}
 
-      {selectedRow ? (
-        <Modal title={rowTitle(selectedRow)} description={selectedRow.type === "lead" ? "Lead detayını aynı aday çalışma ekranında yönet." : "Aday bilgilerini düzenle veya güvenli şekilde arşivle."} onClose={() => setSelectedRow(null)}>
-          {selectedRow.type === "lead" ? (
-            <LeadDetail lead={selectedRow.lead} availableLocations={availableLocations} />
-          ) : (
-            <CandidateDetailDrawer candidate={selectedRow.candidate} conceptOptions={conceptFilterOptions} tagOptions={tagOptions} onClose={() => setSelectedRow(null)} />
-          )}
+      {selectedLead ? (
+        <Modal title={`${selectedLead.fullName} - Lead Detayı`} description="Lead detayını aynı aday çalışma ekranında yönet." onClose={() => setSelectedLead(null)}>
+          <LeadDetail lead={selectedLead} availableLocations={availableLocations} />
         </Modal>
       ) : null}
     </div>
   );
 }
 
-function UnifiedTableRow({ row, onOpen }: { row: UnifiedRow; onOpen: () => void }) {
+function UnifiedTableRow({ row, onOpenLead }: { row: UnifiedRow; onOpenLead: (lead: LeadView) => void }) {
   const isLead = row.type === "lead";
   const item = isLead ? row.lead : row.candidate;
   const task = isLead ? nextLeadTask(row.lead) : nextOpenTask(row.candidate);
@@ -266,9 +260,15 @@ function UnifiedTableRow({ row, onOpen }: { row: UnifiedRow; onOpen: () => void 
   return (
     <tr className="hover:bg-[#fbfcf9]">
       <td className="px-4 py-4">
-        <button type="button" onClick={onOpen} className="text-left font-semibold hover:underline">
-          {item.fullName}
-        </button>
+        {isLead ? (
+          <button type="button" onClick={() => onOpenLead(row.lead)} className="text-left font-semibold hover:underline">
+            {item.fullName}
+          </button>
+        ) : (
+          <Link href={`/candidates/${row.candidate.id}`} className="font-semibold hover:underline">
+            {item.fullName}
+          </Link>
+        )}
         <div className="mt-1 flex flex-wrap gap-1">
           <Badge className={isLead ? "bg-sky-100 text-sky-800" : "bg-emerald-100 text-emerald-800"}>{isLead ? "Lead" : "Aday"}</Badge>
           <span className="text-xs text-[#65705f]">{item.source}</span>
@@ -296,75 +296,23 @@ function UnifiedTableRow({ row, onOpen }: { row: UnifiedRow; onOpen: () => void 
       <td className="px-4">{latestContact}</td>
       <td className="px-4">
         {task ? (
-          <button type="button" onClick={onOpen} className="inline-flex items-center gap-1 text-sm font-medium text-[#17201b] hover:underline">
-            <CalendarClock className="size-4" />
-            {task.title}
-          </button>
+          isLead ? (
+            <button type="button" onClick={() => onOpenLead(row.lead)} className="inline-flex items-center gap-1 text-sm font-medium text-[#17201b] hover:underline">
+              <CalendarClock className="size-4" />
+              {task.title}
+            </button>
+          ) : (
+            <Link href={`/candidates/${row.candidate.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-[#17201b] hover:underline">
+              <CalendarClock className="size-4" />
+              {task.title}
+            </Link>
+          )
         ) : (
           <span className="text-[#65705f]">Planlı aksiyon yok</span>
         )}
         <div className="text-xs text-[#65705f]">{task ? formatDate(task.dueDate) : formatDate(isLead ? row.lead.nextFollowUpAt : row.candidate.nextFollowUpAt)}</div>
       </td>
     </tr>
-  );
-}
-
-function CandidateDetailDrawer({ candidate, conceptOptions, tagOptions, onClose }: { candidate: Candidate; conceptOptions: string[]; tagOptions: string[]; onClose: () => void }) {
-  const [archiveOpen, setArchiveOpen] = useState(false);
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-emerald-100 text-emerald-800">Aday</Badge>
-              <Badge variant="secondary">{candidate.source}</Badge>
-              <Badge>{candidate.status}</Badge>
-            </div>
-            <h3 className="mt-3 text-xl font-semibold">{candidate.fullName}</h3>
-            <p className="mt-1 text-sm text-[#65705f]">{candidate.city} - {candidate.phone}</p>
-          </div>
-          <Button type="button" variant="outline" onClick={() => setArchiveOpen(true)}>
-            <Trash2 className="size-4" />
-            Adayı Sil
-          </Button>
-        </div>
-      </div>
-      <CandidateForm action={updateCandidate.bind(null, candidate.id)} candidate={candidate} conceptOptions={conceptOptions} tagOptions={tagOptions} onCancel={onClose} onSuccess={onClose} />
-      {archiveOpen ? <ArchiveCandidateModal candidate={candidate} onClose={() => setArchiveOpen(false)} /> : null}
-    </div>
-  );
-}
-
-function ArchiveCandidateModal({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
-  const [state, action, pending] = useActionState(archiveCandidateWithReason.bind(null, candidate.id), archiveInitial);
-
-  useEffect(() => {
-    if (state.success) {
-      const timer = setTimeout(onClose, 700);
-      return () => clearTimeout(timer);
-    }
-  }, [onClose, state.success]);
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end bg-[#17201b]/50 p-3 md:items-center md:justify-center">
-      <form action={action} className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
-        <h3 className="text-lg font-semibold">Adayı Sil</h3>
-        <p className="mt-2 text-sm leading-6 text-[#65705f]">
-          {candidate.fullName} varsayılan aday listelerinden kaldırılacak. Şube veya açılış projesi bağlantısı varsa işlem engellenir ve arşiv önerilir.
-        </p>
-        <label className="mt-4 grid gap-2">
-          <span className="text-sm font-medium">Silme nedeni</span>
-          <textarea name="reason" required minLength={5} rows={4} placeholder="Neden silindiğini yazın" className="rounded-lg border border-[#d3d9cf] bg-[#f8faf6] p-3 text-sm" />
-        </label>
-        {state.message ? <p className={`mt-3 rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
-        <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>Vazgeç</Button>
-          <Button disabled={pending} variant="destructive">{pending ? "İşleniyor..." : "Adayı Sil"}</Button>
-        </div>
-      </form>
-    </div>
   );
 }
 
@@ -432,10 +380,6 @@ function dateValue(value?: string) {
   if (!value) return Number.MAX_SAFE_INTEGER;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
-}
-
-function rowTitle(row: UnifiedRow) {
-  return row.type === "lead" ? `${row.lead.fullName} - Lead Detayı` : `${row.candidate.fullName} - Aday Detayı`;
 }
 
 function MultiFilter({ title, items, selected, setSelected }: { title: string; items: string[]; selected: string[]; setSelected: (value: string[]) => void }) {
