@@ -4,6 +4,7 @@ import { BarChart3, CalendarCheck2, FileText, LineChart, Store, Target } from "l
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { activeLeadWhere } from "@/lib/active-records";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -14,8 +15,8 @@ export default async function ReportsPage() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const [leadCount, appointmentCount, branchCount, openingCount, revenueRows, documentCount, branchConcepts] = await Promise.all([
-    safe(prisma.lead.count(), 0),
-    safe(prisma.leadAppointment.count(), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere() } }), 0),
     safe(prisma.branch.count({ where: { archivedAt: null } }), 0),
     safe(prisma.openingProject.count({ where: { archivedAt: null } }), 0),
     safe(prisma.branchRevenueRecord.findMany({

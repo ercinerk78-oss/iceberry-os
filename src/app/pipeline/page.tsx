@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { PipelineBoard } from "@/components/pipeline/pipeline-board";
+import { activeLeadWhere } from "@/lib/active-records";
 import { toCandidate } from "@/lib/candidates";
 import { toLead } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +28,7 @@ export default async function PipelinePage() {
       take: PIPELINE_LIST_LIMIT,
     }),
     prisma.lead.findMany({
-      where: { convertedCandidateId: null },
+      where: activeLeadWhere(),
       include: {
         activities: { orderBy: { createdAt: "desc" }, take: RECENT_INTERACTION_LIMIT },
         concepts: { include: { concept: true } },

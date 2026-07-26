@@ -16,6 +16,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { activeLeadWhere, unconvertedLeadWhere } from "@/lib/active-records";
 import { getTranslations } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 
@@ -77,33 +78,29 @@ export default async function Home() {
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
-    safe(prisma.lead.count({ where: leadProcessWhere(["NEW"], ["NEW", "Yeni"]) }), 0),
-    safe(prisma.lead.count({ where: leadProcessWhere(["WAITING_FOR_APPOINTMENT"]) }), 0),
-    safe(prisma.leadAppointment.count({ where: { appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
-    safe(prisma.lead.count({ where: { leadCategory: "POSITIVE" } }), 0),
-    safe(prisma.lead.count({ where: { leadCategory: "CLOSE_FOLLOW_UP" } }), 0),
-    safe(prisma.lead.count({ where: { leadCategory: "LONG_TERM" } }), 0),
-    safe(prisma.lead.count({ where: { leadCategory: "UNPRODUCTIVE" } }), 0),
-    safe(prisma.lead.count({ where: { leadCategory: "INVALID_FORM" } }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["NEW"], ["NEW", "Yeni"])) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["WAITING_FOR_APPOINTMENT"])) }), 0),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "POSITIVE" }) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "CLOSE_FOLLOW_UP" }) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "LONG_TERM" }) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "UNPRODUCTIVE" }) }), 0),
+    safe(prisma.lead.count({ where: unconvertedLeadWhere({ leadCategory: "INVALID_FORM" }) }), 0),
     safe(prisma.lead.count({
-      where: {
-        nextFollowUpAt: { lt: startOfDay },
-        processStatus: { notIn: ["CONVERTED_TO_CANDIDATE", "CLOSED"] },
-        status: { notIn: ["CONVERTED_TO_CANDIDATE", "CLOSED", "Adaya Dönüştürüldü", "Reddedildi"] },
-      },
+      where: activeLeadWhere({ nextFollowUpAt: { lt: startOfDay } }),
     }), 0),
-    safe(prisma.leadTask.count({ where: { dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
-    prisma.lead.count(),
+    safe(prisma.leadTask.count({ where: { lead: activeLeadWhere(), dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
     safe(prisma.lead.count({
-      where: leadProcessWhere(
+      where: activeLeadWhere(leadProcessWhere(
         ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION"],
         ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION", "Arandı", "Randevu"],
-      ),
+      )),
     }), 0),
-    safe(prisma.lead.count({ where: leadProcessWhere(["UNREACHABLE"], ["UNREACHABLE", "Ulaşılamadı"]) }), 0),
-    safe(prisma.leadAppointment.count(), 0),
-    safe(prisma.leadAppointment.count({ where: { status: "COMPLETED" } }), 0),
-    safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
+    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["UNREACHABLE"], ["UNREACHABLE", "Ulaşılamadı"])) }), 0),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere() } }), 0),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), status: "COMPLETED" } }), 0),
+    safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], where: { lead: activeLeadWhere() }, _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "NEW_OPPORTUNITY" } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "WAITING_FOR_INVESTOR" } }), 0),
@@ -114,7 +111,8 @@ export default async function Home() {
     safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 9, lte: 10 } } }), 0),
     safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: null } }), 0),
     safe(prisma.concept.findMany({
-      select: { id: true, name: true, _count: { select: { candidateConcepts: true } } },
+      where: { isActive: true },
+      select: { id: true, name: true, _count: { select: { candidateConcepts: { where: { candidate: { archivedAt: null } } } } } },
       orderBy: { candidateConcepts: { _count: "desc" } },
       take: 6,
     }), []),
