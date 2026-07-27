@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, X } from "lucide-react";
 
 import { createManualLeadFromAppointments } from "@/app/appointments/actions";
@@ -16,6 +17,42 @@ type UserOption = { id: string; name: string };
 
 export function ManualLeadEntry({ users }: { users: UserOption[] }) {
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => {
+      dialogRef.current?.scrollTo({ top: 0 });
+    });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  const dialog = open ? (
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#17201b]/45 p-3 backdrop-blur-sm sm:p-4">
+      <div className="flex min-h-full items-start justify-center py-4 sm:py-6">
+        <div ref={dialogRef} className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 sm:max-h-[calc(100dvh-3rem)] md:max-w-4xl">
+          <div className="flex shrink-0 items-center justify-between border-b bg-white px-5 py-4">
+            <div>
+              <h3 className="text-lg font-semibold">Randevudan Yeni Lead Ekle</h3>
+              <p className="text-sm text-[#65705f]">Telefonla veya manuel kanaldan gelen başvuruyu kaydet.</p>
+            </div>
+            <Button type="button" size="icon" variant="ghost" onClick={() => setOpen(false)}>
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="min-h-0 overflow-y-auto">
+            <ManualLeadForm users={users} onCancel={() => setOpen(false)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -23,22 +60,7 @@ export function ManualLeadEntry({ users }: { users: UserOption[] }) {
         <Plus className="size-4" />
         Yeni Lead Ekle
       </Button>
-      {open ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-[#17201b]/40 p-3 md:items-center md:justify-center">
-          <div className="max-h-[92vh] w-full overflow-auto rounded-lg bg-white md:max-w-4xl">
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold">Randevudan Yeni Lead Ekle</h3>
-                <p className="text-sm text-[#65705f]">Telefonla veya manuel kanaldan gelen başvuruyu kaydet.</p>
-              </div>
-              <Button type="button" size="icon" variant="ghost" onClick={() => setOpen(false)}>
-                <X className="size-4" />
-              </Button>
-            </div>
-            <ManualLeadForm users={users} onCancel={() => setOpen(false)} />
-          </div>
-        </div>
-      ) : null}
+      {dialog && typeof document !== "undefined" ? createPortal(dialog, document.body) : null}
     </>
   );
 }
