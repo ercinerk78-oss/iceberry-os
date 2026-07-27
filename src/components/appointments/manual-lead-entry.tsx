@@ -7,15 +7,12 @@ import { Plus, X } from "lucide-react";
 
 import { createManualLeadFromAppointments } from "@/app/appointments/actions";
 import { Button } from "@/components/ui/button";
-import { APPOINTMENT_TYPE_LABELS } from "@/lib/appointments";
-import { LEAD_CATEGORIES, LEAD_CATEGORY_LABELS, LEAD_CONCEPTS, LEAD_STATUSES, LEAD_STATUS_LABELS } from "@/lib/leads";
+import { LEAD_CONCEPTS } from "@/lib/leads";
 import type { LeadActionState } from "@/lib/validations/lead";
 
 const initial: LeadActionState = { success: false, message: "" };
 
-type UserOption = { id: string; name: string };
-
-export function ManualLeadEntry({ users }: { users: UserOption[] }) {
+export function ManualLeadEntry() {
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -39,15 +36,15 @@ export function ManualLeadEntry({ users }: { users: UserOption[] }) {
         <div ref={dialogRef} className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 sm:max-h-[calc(100dvh-3rem)] md:max-w-4xl">
           <div className="flex shrink-0 items-center justify-between border-b bg-white px-5 py-4">
             <div>
-              <h3 className="text-lg font-semibold">Randevudan Yeni Lead Ekle</h3>
-              <p className="text-sm text-[#65705f]">Telefonla veya manuel kanaldan gelen başvuruyu kaydet.</p>
+              <h3 className="text-lg font-semibold">Yeni Lead Ekle</h3>
+              <p className="text-sm text-[#65705f]">Henüz randevu alınmamış başvurunun standart bilgilerini kaydet.</p>
             </div>
             <Button type="button" size="icon" variant="ghost" onClick={() => setOpen(false)}>
               <X className="size-4" />
             </Button>
           </div>
           <div className="min-h-0 overflow-y-auto">
-            <ManualLeadForm users={users} onCancel={() => setOpen(false)} />
+            <ManualLeadForm onCancel={() => setOpen(false)} />
           </div>
         </div>
       </div>
@@ -65,7 +62,7 @@ export function ManualLeadEntry({ users }: { users: UserOption[] }) {
   );
 }
 
-function ManualLeadForm({ users, onCancel }: { users: UserOption[]; onCancel: () => void }) {
+function ManualLeadForm({ onCancel }: { onCancel: () => void }) {
   const [state, formAction, pending] = useActionState(createManualLeadFromAppointments, initial);
   const formRef = useRef<HTMLFormElement>(null);
   const concepts = useMemo(() => [...LEAD_CONCEPTS], []);
@@ -78,15 +75,14 @@ function ManualLeadForm({ users, onCancel }: { users: UserOption[]; onCancel: ()
   return (
     <form ref={formRef} action={formAction} className="grid gap-4 p-5 md:grid-cols-2">
       <input type="hidden" name="requestedConcept" value={selectedConcepts[0] ?? concepts[0]} />
+      <input type="hidden" name="source" value="Manuel" />
+
       <Section title="Lead Bilgileri" />
       <Field name="fullName" label="Ad Soyad" error={state.errors?.fullName} />
       <Field name="phone" label="Telefon" error={state.errors?.phone} />
       <Field name="email" label="E-posta" type="email" required={false} error={state.errors?.email} />
       <Field name="city" label="Şehir" error={state.errors?.city} />
-      <input type="hidden" name="source" value="Manuel" />
       <Field name="investmentBudget" label="Yatırım Bütçesi" required={false} />
-      <Select name="leadCategory" label="Lead Kategorisi" items={[["", "Kategori seç"], ...LEAD_CATEGORIES.map((item) => [item, LEAD_CATEGORY_LABELS[item]] as [string, string])]} />
-      <Select name="leadStatus" label="Lead Durumu" items={LEAD_STATUSES.map((item) => [item, LEAD_STATUS_LABELS[item]] as [string, string])} />
 
       <fieldset className="grid gap-2 md:col-span-2">
         <legend className="text-sm font-medium">İlgilendiği Konseptler</legend>
@@ -110,18 +106,8 @@ function ManualLeadForm({ users, onCancel }: { users: UserOption[]; onCancel: ()
           ))}
         </div>
       </fieldset>
-      <Area name="description" label="Açıklama / Not" />
 
-      <Section title="Randevu Bilgileri" />
-      <Field name="appointmentDate" label="Randevu Tarihi" type="date" required={false} error={state.errors?.appointmentDate} />
-      <Field name="appointmentTime" label="Randevu Saati" type="time" required={false} />
-      <Field name="endTime" label="Bitiş Saati" type="time" required={false} />
-      <Select name="appointmentType" label="Randevu Türü" items={[["", "Randevu türü seç"], ...Object.entries(APPOINTMENT_TYPE_LABELS)]} />
-      <Select name="assignedUserId" label="Randevu Sorumlusu" items={[["", "Sorumlu seç"], ...users.map((user) => [user.name, user.name] as [string, string])]} />
-      <Field name="title" label="Randevu Başlığı" required={false} />
-      <Field name="location" label="Lokasyon" required={false} />
-      <Field name="meetingLink" label="Online Görüşme Linki" required={false} />
-      <Area name="appointmentNotes" label="Randevu Notu" />
+      <Area name="description" label="Açıklama / Not" />
 
       {state.message ? (
         <p className={`rounded-lg p-3 text-sm md:col-span-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
@@ -161,17 +147,6 @@ function Area({ name, label }: { name: string; label: string }) {
     <label className="grid gap-2 md:col-span-2">
       <span className="text-sm font-medium">{label}</span>
       <textarea name={name} rows={3} className="rounded-lg border bg-[#f8faf6] p-3 text-sm" />
-    </label>
-  );
-}
-
-function Select({ name, label, items }: { name: string; label: string; items: [string, string][] }) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-sm font-medium">{label}</span>
-      <select name={name} className="h-10 rounded-lg border bg-white px-3">
-        {items.map(([value, text]) => <option key={value || text} value={value}>{text}</option>)}
-      </select>
     </label>
   );
 }

@@ -144,7 +144,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   ];
 
   return (
-    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular" action={<ManualLeadEntry users={users} />}>
+    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular" action={<ManualLeadEntry />}>
       <div className="space-y-5">
         <Card className="shadow-none">
           <CardHeader>
