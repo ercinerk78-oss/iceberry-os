@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { activeLeadWhere } from "@/lib/active-records";
 import { requireUser } from "@/lib/auth";
 import { leadCategoryLabel, leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
@@ -39,14 +40,14 @@ export async function createLead(_: LeadActionState, formData: FormData): Promis
     const normalizedPhone = normalizePhone(data.phone);
     const normalizedEmail = normalizeEmail(data.email);
     const duplicate = await prisma.lead.findFirst({
-      where: {
+      where: activeLeadWhere({
         OR: [
           ...(normalizedPhone ? [{ normalizedPhone }] : []),
           ...(normalizedEmail ? [{ normalizedEmail }] : []),
           { phone: data.phone },
           ...(data.email ? [{ email: { equals: data.email, mode: "insensitive" as const } }] : []),
         ],
-      },
+      }),
       select: { id: true, fullName: true },
     });
 

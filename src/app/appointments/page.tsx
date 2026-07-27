@@ -13,6 +13,7 @@ import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { activeLeadWhere } from "@/lib/active-records";
 import {
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_TYPE_LABELS,
@@ -43,6 +44,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const where: Prisma.LeadAppointmentWhereInput = {};
+  const leadWhere: Prisma.LeadWhereInput = activeLeadWhere();
   const q = params.q?.trim();
   const digits = phoneDigits(q);
 
@@ -55,9 +57,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   }
   if (params.assignedUserId) where.assignedUserId = params.assignedUserId;
   if (params.appointmentType) where.appointmentType = params.appointmentType;
-  if (params.status) where.status = params.status;
-  if (params.leadCategory) where.lead = { leadCategory: params.leadCategory };
-  if (params.city) where.lead = { ...(where.lead as Prisma.LeadWhereInput), city: containsInsensitive(params.city) };
+  if (params.status) {
+    where.status = params.status;
+  } else {
+    where.status = { not: "CANCELLED" };
+  }
+  if (params.leadCategory) leadWhere.AND = [...(Array.isArray(leadWhere.AND) ? leadWhere.AND : []), { leadCategory: params.leadCategory }];
+  if (params.city) leadWhere.AND = [...(Array.isArray(leadWhere.AND) ? leadWhere.AND : []), { city: containsInsensitive(params.city) }];
   if (params.lead) where.leadId = params.lead;
   if (q) {
     where.AND = [
@@ -73,6 +79,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       },
     ];
   }
+  where.lead = leadWhere;
 
   const [appointments, leads, users, cities] = await Promise.all([
     prisma.leadAppointment.findMany({
@@ -84,7 +91,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       return [];
     }),
     prisma.lead.findMany({
-      where: { convertedCandidateId: null },
+      where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
       take: 100,
@@ -94,7 +101,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.lead.findMany({ select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.lead.findMany({ where: activeLeadWhere(), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
   ]);
 
   const groups = [
@@ -123,11 +130,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       title: "Tamamlanan Randevular",
       icon: CheckCircle2,
       items: appointments.filter((item) => item.status === "COMPLETED"),
-    },
-    {
-      title: "İptal Edilenler",
-      icon: XCircle,
-      items: appointments.filter((item) => item.status === "CANCELLED"),
     },
     {
       title: "Gelmeyenler",

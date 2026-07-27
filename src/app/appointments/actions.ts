@@ -11,6 +11,7 @@ import {
   combineAppointmentDate,
 } from "@/lib/appointments";
 import { requirePermission, requireUser } from "@/lib/auth";
+import { activeLeadWhere } from "@/lib/active-records";
 import { LEAD_CATEGORIES, leadCategoryLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import { parseMultiValue, replaceLeadConcepts } from "@/lib/qualification";
@@ -105,12 +106,12 @@ export async function createLeadAppointment(
     const data = parsed.data;
     const startDateTime = combineAppointmentDate(data.appointmentDate, data.appointmentTime);
     const endDateTime = data.endTime ? combineAppointmentDate(data.appointmentDate, data.endTime) : null;
-    const lead = await prisma.lead.findUnique({
-      where: { id: data.leadId },
+    const lead = await prisma.lead.findFirst({
+      where: activeLeadWhere({ id: data.leadId }),
       select: { id: true, fullName: true },
     });
 
-    if (!lead) return { success: false, message: "Lead bulunamadı." };
+    if (!lead) return { success: false, message: "Lead bulunamadı veya aktif listeden kaldırılmış." };
 
     const title = data.title || `${lead.fullName} ile franchise görüşmesi`;
     const assignedUserId = data.assignedUserId || user.name;
@@ -196,14 +197,14 @@ export async function createManualLeadFromAppointments(_: LeadActionState, formD
   const normalizedPhone = normalizePhone(data.phone);
   const normalizedEmail = normalizeEmail(data.email);
   const duplicate = await prisma.lead.findFirst({
-    where: {
+    where: activeLeadWhere({
       OR: [
         ...(normalizedPhone ? [{ normalizedPhone }] : []),
         ...(normalizedEmail ? [{ normalizedEmail }] : []),
         { phone: data.phone },
         ...(data.email ? [{ email: { equals: data.email, mode: "insensitive" as const } }] : []),
       ],
-    },
+    }),
     select: { id: true, fullName: true },
   });
 
@@ -399,15 +400,29 @@ export async function changeLeadAppointmentStatus(appointmentId: string, status:
 
   try {
     const reason = String(formData?.get("reason") || "");
-    const appointment = await prisma.leadAppointment.update({
+    const appointment = await prisma.$transaction(async (tx) => tx.leadAppointment.update({
       where: { id: appointmentId },
       data: {
         status: parsed.data,
         cancelledAt: parsed.data === "CANCELLED" ? new Date() : null,
         cancellationReason: parsed.data === "CANCELLED" ? reason || null : undefined,
       },
-      select: { leadId: true },
-    });
+      select: { leadId: true, appointmentDate: true },
+    }));
+    if (parsed.data === "NO_SHOW") {
+      await prisma.lead.update({
+        where: { id: appointment.leadId },
+        data: { status: "TO_BE_CALLED", processStatus: "TO_BE_CALLED", nextFollowUpAt: new Date() },
+      });
+    }
+
+    if (parsed.data === "CANCELLED") {
+      await prisma.leadTask.updateMany({
+        where: { leadId: appointment.leadId, dueDate: appointment.appointmentDate, status: { in: ["Açık", "Devam Ediyor"] } },
+        data: { status: "İptal Edildi", completedAt: new Date() },
+      });
+    }
+
     await prisma.leadActivity.create({
       data: {
         leadId: appointment.leadId,

@@ -8,6 +8,7 @@ import { CandidateLocationLinkForm, CandidateMatchUpdateForm, LeadLocationLinkFo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { activeLeadWhere } from "@/lib/active-records";
 import { requireUser } from "@/lib/auth";
 import {
   conceptSuitabilityLabel,
@@ -37,6 +38,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
     include: {
       documents: { where: { archivedAt: null }, orderBy: { createdAt: "desc" } },
       leadMatches: {
+        where: { lead: activeLeadWhere() },
         include: {
           lead: { select: { id: true, fullName: true, phone: true, city: true, requestedConcept: true, leadCategory: true } },
         },
@@ -54,7 +56,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
 
   const [leads, candidates, locations] = await Promise.all([
     prisma.lead.findMany({
-      where: { convertedCandidateId: null },
+      where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
       take: 100,

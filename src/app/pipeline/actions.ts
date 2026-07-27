@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { activeLeadWhere } from "@/lib/active-records";
 import { requireUser } from "@/lib/auth";
 import { LEAD_PIPELINE_STAGES, LEAD_STAGE_STATUS, PIPELINE_STAGES } from "@/lib/pipeline";
 import { prisma } from "@/lib/prisma";
@@ -74,7 +75,7 @@ async function moveLead(leadId: string, nextStage: (typeof PIPELINE_STAGES)[numb
 
   try {
     const lead = await prisma.lead.findFirst({
-      where: { id: leadId, convertedCandidateId: null },
+      where: activeLeadWhere({ id: leadId }),
       select: { status: true, processStatus: true, fullName: true },
     });
     if (!lead) return { success: false, message: "Lead bulunamadı veya daha önce adaya dönüştürüldü." };
