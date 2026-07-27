@@ -31,6 +31,7 @@ const dataFrom = (formData: FormData) =>
 const empty = (value?: string) => value || null;
 const date = (value?: string) => (value ? new Date(value) : null);
 const number = (value?: string) => (value ? Number(value) : null);
+const BRANCH_CONVERSION_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
 async function conceptForWrite(conceptId: string, options?: { currentConceptId?: string | null; allowInactive?: boolean }) {
   const concept = await prisma.branchConcept.findUnique({
@@ -176,6 +177,7 @@ export async function convertCandidateToBranch(candidateId: string, _: FormState
 
   try {
     const concept = await conceptForWrite(parsed.data.conceptId);
+    const openingTemplate = await OpeningProjectService.ensureDefaultTemplate();
     const result = await prisma.$transaction(async (tx) => {
       const candidate = await tx.franchiseCandidate.findFirst({
         where: { id: candidateId, archivedAt: null },
@@ -228,6 +230,7 @@ export async function convertCandidateToBranch(candidateId: string, _: FormState
 
       const project = await OpeningProjectService.createFromBranchInTransaction(tx, {
         branchId: branch.id,
+        templateId: openingTemplate.id,
         targetOpeningDate: new Date(targetOpeningDate),
         plannedStartDate: new Date(),
         openingCoordinatorId,
@@ -266,7 +269,7 @@ export async function convertCandidateToBranch(candidateId: string, _: FormState
       }
 
       return { branchId: branch.id, openingProjectId: project.id, projectNumber: project.projectNumber, alreadyConverted: false };
-    });
+    }, BRANCH_CONVERSION_TRANSACTION_OPTIONS);
 
     await audit("CANDIDATE_CONVERTED_TO_BRANCH", "FranchiseCandidate", candidateId, "Aday şubeye ve açılış projesine dönüştürüldü.", user.id);
     refresh(result.branchId);

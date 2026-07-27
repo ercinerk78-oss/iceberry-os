@@ -4,6 +4,7 @@ import { defaultMilestonesByStage, defaultOpeningTemplateStages } from "@/lib/op
 import { prisma } from "@/lib/prisma";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+const OPENING_PROJECT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
 export const activeProjectStatuses: OpeningProjectStatus[] = [
   "DRAFT",
@@ -99,7 +100,11 @@ export class OpeningProjectService {
     description?: string | null;
     createdById?: string | null;
   }) {
-    return prisma.$transaction((tx) => OpeningProjectService.createFromBranchInTransaction(tx, input));
+    const templateId = input.templateId || (await OpeningProjectService.ensureDefaultTemplate()).id;
+    return prisma.$transaction(
+      (tx) => OpeningProjectService.createFromBranchInTransaction(tx, { ...input, templateId }),
+      OPENING_PROJECT_TRANSACTION_OPTIONS,
+    );
   }
 
   static async createFromBranchInTransaction(tx: Tx, input: {
