@@ -4,14 +4,13 @@ import type { Prisma } from "@prisma/client";
 
 import {
   changeLeadAppointmentStatusForm,
-  createLeadAppointmentForm,
   deleteLeadAppointmentForm,
   markLeadUnreachableForm,
   rescheduleLeadAppointment,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentCompleteDialog } from "@/components/appointments/appointment-complete-dialog";
-import { AppointmentFormFocus } from "@/components/appointments/appointment-form-focus";
+import { AppointmentSchedulerDialog } from "@/components/appointments/appointment-scheduler-dialog";
 import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
 import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +26,7 @@ import {
   formatAppointmentRange,
   todayInAppointmentTimeZone,
 } from "@/lib/appointments";
-import { LEAD_CATEGORY_LABELS, leadCategoryLabel, leadStatusLabel } from "@/lib/leads";
+import { LEAD_CATEGORY_LABELS, LEAD_STATUS_LABELS, leadCategoryLabel, leadStatusLabel, statusValuesForFilter } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive, phoneDigits } from "@/lib/search";
 
@@ -39,10 +38,10 @@ type Params = {
   appointmentType?: string;
   status?: string;
   leadCategory?: string;
+  leadStatus?: string;
   city?: string;
   q?: string;
   lead?: string;
-  scheduleLead?: string;
 };
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -68,6 +67,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     where.status = { not: "CANCELLED" };
   }
   if (params.leadCategory) leadWhere.AND = [...(Array.isArray(leadWhere.AND) ? leadWhere.AND : []), { leadCategory: params.leadCategory }];
+  if (params.leadStatus) {
+    const values = statusValuesForFilter(params.leadStatus);
+    leadWhere.AND = [
+      ...(Array.isArray(leadWhere.AND) ? leadWhere.AND : []),
+      { OR: [{ processStatus: { in: values } }, { status: { in: values } }] },
+    ];
+  }
   if (params.city) leadWhere.AND = [...(Array.isArray(leadWhere.AND) ? leadWhere.AND : []), { city: containsInsensitive(params.city) }];
   if (params.lead) where.leadId = params.lead;
   if (q) {
@@ -85,23 +91,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     ];
   }
   where.lead = leadWhere;
-  const appointmentCallUnreachableWhere: Prisma.LeadWhereInput = {
-    OR: [
-      { processStatus: "APPOINTMENT_CALL_UNREACHABLE" },
-      { status: "APPOINTMENT_CALL_UNREACHABLE" },
-      { processStatus: "UNREACHABLE" },
-      { status: "UNREACHABLE" },
-      { status: "Ulaşılamadı" },
-    ],
-  };
-  const appointmentNoShowFollowUpWhere: Prisma.LeadWhereInput = {
-    OR: [{ processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP" }, { status: "APPOINTMENT_NO_SHOW_FOLLOW_UP" }],
-  };
-  const schedulableLeadWhere = activeLeadWhere({
-    NOT: { OR: [appointmentCallUnreachableWhere, appointmentNoShowFollowUpWhere] },
-  });
-
-  const [appointments, leads, schedulableLeads, appointmentCallUnreachableLeads, appointmentNoShowFollowUpLeads, users, cities] = await Promise.all([
+  const [appointments, appointmentLeadOptions, visibleLeads, users, cities] = await Promise.all([
     prisma.leadAppointment.findMany({
       where,
       include: { lead: { select: { id: true, fullName: true, city: true, phone: true, leadCategory: true } } },
@@ -114,25 +104,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
-      take: 100,
+      take: 200,
     }),
     prisma.lead.findMany({
-      where: schedulableLeadWhere,
-      select: { id: true, fullName: true, city: true, phone: true, source: true, processStatus: true, status: true },
-      orderBy: { leadDate: "desc" },
-      take: 12,
-    }),
-    prisma.lead.findMany({
-      where: activeLeadWhere(appointmentCallUnreachableWhere),
+      where: leadWhere,
       select: { id: true, fullName: true, city: true, phone: true, source: true, processStatus: true, status: true, nextFollowUpAt: true },
       orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
-      take: 12,
-    }),
-    prisma.lead.findMany({
-      where: activeLeadWhere(appointmentNoShowFollowUpWhere),
-      select: { id: true, fullName: true, city: true, phone: true, source: true, processStatus: true, status: true, nextFollowUpAt: true },
-      orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
-      take: 12,
+      take: 200,
     }),
     prisma.user.findMany({
       where: { isActive: true, archivedAt: null },
@@ -141,6 +119,17 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     }),
     prisma.lead.findMany({ where: activeLeadWhere(), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
   ]);
+
+  const appointmentLeadOptionItems = appointmentLeadOptions.map((lead) => [lead.id, `${lead.fullName} · ${lead.city}`] as [string, string]);
+  const userOptionItems = users.map((user) => [user.name, user.name] as [string, string]);
+  const appointmentTypeOptionItems = Object.entries(APPOINTMENT_TYPE_LABELS);
+  const leadStatusOf = (lead: { processStatus: string | null; status: string }) => lead.processStatus || lead.status;
+  const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
+  const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE", "Ulaşılamadı"]);
+  const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
+  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
+  const appointmentCallUnreachableLeads = visibleLeads.filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)));
+  const appointmentNoShowFollowUpLeads = visibleLeads.filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)));
 
   const groups = [
     {
@@ -184,7 +173,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   return (
     <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular" action={<ManualLeadEntry />}>
       <div className="space-y-5">
-        <AppointmentFormFocus />
         <Card className="shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -196,9 +184,10 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
             <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <input name="q" defaultValue={q} placeholder="Ad, telefon, şehir veya not ara" className="h-10 rounded-lg border px-3 text-sm md:col-span-2" />
               <input name="date" defaultValue={params.date === "today" ? "" : params.date} type="date" className="h-10 rounded-lg border px-3 text-sm" />
-              <Select name="assignedUserId" current={params.assignedUserId} first="Tüm sorumlular" options={users.map((user) => [user.name, user.name])} />
-              <Select name="appointmentType" current={params.appointmentType} first="Tüm tipler" options={Object.entries(APPOINTMENT_TYPE_LABELS)} />
-              <Select name="status" current={params.status} first="Tüm durumlar" options={Object.entries(APPOINTMENT_STATUS_LABELS)} />
+              <Select name="assignedUserId" current={params.assignedUserId} first="Tüm sorumlular" options={userOptionItems} />
+              <Select name="appointmentType" current={params.appointmentType} first="Tüm tipler" options={appointmentTypeOptionItems} />
+              <Select name="status" current={params.status} first="Tüm randevu durumları" options={Object.entries(APPOINTMENT_STATUS_LABELS)} />
+              <Select name="leadStatus" current={params.leadStatus} first="Tüm lead durumları" options={Object.entries(LEAD_STATUS_LABELS)} />
               <Select name="leadCategory" current={params.leadCategory} first="Tüm kategoriler" options={Object.entries(LEAD_CATEGORY_LABELS)} />
               <Select name="city" current={params.city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
               <div className="flex gap-2 md:col-span-3 xl:col-span-6">
@@ -211,34 +200,17 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </CardContent>
         </Card>
 
-        <Card id="new-appointment" className="scroll-mt-24 shadow-none">
-          <CardHeader>
-            <CardTitle className="text-base">Yeni Randevu Oluştur</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={createLeadAppointmentForm} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Select name="leadId" current={params.scheduleLead} first="Lead seç" options={leads.map((lead) => [lead.id, `${lead.fullName} · ${lead.city}`])} required />
-              <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="endTime" type="time" className="h-10 rounded-lg border px-3 text-sm" />
-              <Select name="appointmentType" options={Object.entries(APPOINTMENT_TYPE_LABELS)} required />
-              <Select name="assignedUserId" first="Sorumlu seç" options={users.map((user) => [user.name, user.name])} />
-              <input name="title" placeholder="Başlık" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="location" placeholder="Lokasyon" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="meetingLink" placeholder="Online görüşme linki" className="h-10 rounded-lg border px-3 text-sm" />
-              <textarea name="notes" placeholder="Randevu notu" className="min-h-20 rounded-lg border p-3 text-sm md:col-span-2 xl:col-span-5" />
-              <AppointmentSubmitButton className="h-10 bg-[#17201b] text-white" pendingLabel="Oluşturuluyor...">
-                Randevu Oluştur
-              </AppointmentSubmitButton>
-            </form>
-          </CardContent>
-        </Card>
-
         <div className="grid gap-4 xl:grid-cols-2">
           <Card className="shadow-none">
-            <CardHeader>
-              <CardTitle className="text-base">Randevu Adayları</CardTitle>
-            </CardHeader>
+            <details open>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevu Adayları</span>
+                    <Badge variant="secondary">{schedulableLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
             <CardContent>
               <div className="space-y-3">
                 {schedulableLeads.map((lead) => (
@@ -253,9 +225,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <p className="mt-1 text-sm text-[#65705f]">{lead.phone} · {lead.city}</p>
                       </div>
                       <div className="grid shrink-0 gap-2">
-                        <Button asChild size="sm">
-                          <Link href={`/appointments?scheduleLead=${lead.id}#new-appointment`}>Randevu Al</Link>
-                        </Button>
+                        <AppointmentSchedulerDialog
+                          leads={appointmentLeadOptionItems}
+                          users={userOptionItems}
+                          appointmentTypes={appointmentTypeOptionItems}
+                          initialLeadId={lead.id}
+                        />
                         <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2">
                           <input name="reason" placeholder="Ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                           <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
@@ -271,12 +246,19 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 ) : null}
               </div>
             </CardContent>
+            </details>
           </Card>
 
           <Card className="shadow-none">
-            <CardHeader>
-              <CardTitle className="text-base">Randevu İçin Ulaşılamayanlar</CardTitle>
-            </CardHeader>
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevu İçin Ulaşılamayanlar</span>
+                    <Badge variant="secondary">{appointmentCallUnreachableLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
             <CardContent>
               <div className="space-y-3">
                 {appointmentCallUnreachableLeads.map((lead) => (
@@ -291,9 +273,14 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <p className="mt-1 text-sm text-[#65705f]">{lead.phone} · {lead.city}</p>
                         {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                       </div>
-                      <Button asChild size="sm" className="shrink-0">
-                        <Link href={`/appointments?scheduleLead=${lead.id}#new-appointment`}>Randevu Al</Link>
-                      </Button>
+                      <div className="shrink-0">
+                        <AppointmentSchedulerDialog
+                          leads={appointmentLeadOptionItems}
+                          users={userOptionItems}
+                          appointmentTypes={appointmentTypeOptionItems}
+                          initialLeadId={lead.id}
+                        />
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -302,12 +289,19 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 ) : null}
               </div>
             </CardContent>
+            </details>
           </Card>
 
           <Card className="shadow-none">
-            <CardHeader>
-              <CardTitle className="text-base">Randevuda Ulaşılamayanlar</CardTitle>
-            </CardHeader>
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevuda Ulaşılamayanlar</span>
+                    <Badge variant="secondary">{appointmentNoShowFollowUpLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
             <CardContent>
               <div className="space-y-3">
                 {appointmentNoShowFollowUpLeads.map((lead) => (
@@ -322,9 +316,15 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <p className="mt-1 text-sm text-[#65705f]">{lead.phone} · {lead.city}</p>
                         {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                       </div>
-                      <Button asChild size="sm" className="shrink-0">
-                        <Link href={`/appointments?scheduleLead=${lead.id}#new-appointment`}>Tekrar Randevu Oluştur</Link>
-                      </Button>
+                      <div className="shrink-0">
+                        <AppointmentSchedulerDialog
+                          leads={appointmentLeadOptionItems}
+                          users={userOptionItems}
+                          appointmentTypes={appointmentTypeOptionItems}
+                          initialLeadId={lead.id}
+                          label="Tekrar Randevu Oluştur"
+                        />
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -333,20 +333,22 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 ) : null}
               </div>
             </CardContent>
+            </details>
           </Card>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
           {groups.map((group) => (
             <section key={group.title} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2 font-semibold">
-                  <group.icon className="size-4" />
-                  {group.title}
-                </h2>
-                <Badge variant="secondary">{group.items.length}</Badge>
-              </div>
-              <div className="space-y-3">
+              <details open={group.title === "Bugünkü Randevular"}>
+                <summary className="mb-4 flex cursor-pointer list-none items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 font-semibold">
+                    <group.icon className="size-4" />
+                    {group.title}
+                  </h2>
+                  <Badge variant="secondary">{group.items.length}</Badge>
+                </summary>
+                <div className="space-y-3">
                 {group.items.map((appointment) => (
                   <article key={appointment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
                     <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
@@ -404,7 +406,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 {!group.items.length ? (
                   <p className="py-8 text-center text-sm text-[#65705f]">Bu bölümde randevu yok.</p>
                 ) : null}
-              </div>
+                </div>
+              </details>
             </section>
           ))}
         </div>
