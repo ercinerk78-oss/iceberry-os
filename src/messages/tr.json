@@ -116,6 +116,8 @@
     "CLOSED": "Kapatıldı"
   },
   "leadCategory": {
+    "POSITIVE": "Olumlu",
+    "CLOSE_FOLLOW_UP": "Yakın Takip",
     "LONG_TERM": "Uzun Vade Lead",
     "UNPRODUCTIVE": "Verimsiz Lead",
     "INVALID_FORM": "Hatalı Form",

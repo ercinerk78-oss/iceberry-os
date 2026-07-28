@@ -116,6 +116,8 @@
     "CLOSED": "Closed"
   },
   "leadCategory": {
+    "POSITIVE": "Positive",
+    "CLOSE_FOLLOW_UP": "Close Follow-up",
     "LONG_TERM": "Long Term Lead",
     "UNPRODUCTIVE": "Unproductive Lead",
     "INVALID_FORM": "Invalid Form",
