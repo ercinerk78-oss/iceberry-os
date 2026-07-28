@@ -38,16 +38,59 @@ export function appointmentStatusLabel(status: string, locale?: Locale) {
     : status;
 }
 
+export const APPOINTMENT_TIME_ZONE = "Europe/Istanbul";
+const TURKEY_UTC_OFFSET_HOURS = 3;
+
+function parseDateParts(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return { year, month, day };
+}
+
+function parseTimeParts(time: string) {
+  const [hour = 9, minute = 0, second = 0] = (time || "09:00").split(":").map(Number);
+  return { hour, minute, second };
+}
+
 export function combineAppointmentDate(date: string, time: string) {
-  return new Date(`${date}T${time || "09:00"}:00`);
+  const { year, month, day } = parseDateParts(date);
+  const { hour, minute, second } = parseTimeParts(time);
+
+  return new Date(Date.UTC(year, month - 1, day, hour - TURKEY_UTC_OFFSET_HOURS, minute, second));
 }
 
 export function appointmentDateParts(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APPOINTMENT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
 
-  return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}` };
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}` };
+}
+
+export function appointmentDayRange(date: string) {
+  return {
+    start: combineAppointmentDate(date, "00:00"),
+    end: combineAppointmentDate(date, "24:00"),
+  };
+}
+
+export function todayInAppointmentTimeZone(now = new Date()) {
+  return appointmentDateParts(now).date;
+}
+
+export function formatAppointmentDateTime(value: Date | string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: APPOINTMENT_TIME_ZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }

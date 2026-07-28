@@ -17,10 +17,12 @@ import { activeLeadWhere } from "@/lib/active-records";
 import {
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_TYPE_LABELS,
+  appointmentDayRange,
   appointmentStatusLabel,
   appointmentTypeLabel,
+  formatAppointmentDateTime,
+  todayInAppointmentTimeZone,
 } from "@/lib/appointments";
-import { formatDate } from "@/lib/candidates";
 import { LEAD_CATEGORY_LABELS, leadCategoryLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive, phoneDigits } from "@/lib/search";
@@ -40,18 +42,16 @@ type Params = {
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const today = todayInAppointmentTimeZone();
+  const { start: startOfDay, end: endOfDay } = appointmentDayRange(today);
   const where: Prisma.LeadAppointmentWhereInput = {};
   const leadWhere: Prisma.LeadWhereInput = activeLeadWhere();
   const q = params.q?.trim();
   const digits = phoneDigits(q);
 
   if (params.date && params.date !== "today") {
-    const start = new Date(`${params.date}T00:00:00`);
-    const end = new Date(`${params.date}T23:59:59`);
-    where.appointmentDate = { gte: start, lte: end };
+    const { start, end } = appointmentDayRange(params.date);
+    where.appointmentDate = { gte: start, lt: end };
   } else if (params.date === "today") {
     where.appointmentDate = { gte: startOfDay, lt: endOfDay };
   }
@@ -217,7 +217,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {appointment.title}
                         </Link>
                         <p className="mt-1 text-sm text-[#65705f]">
-                          {appointment.lead.fullName} · {appointment.lead.city} · {formatDate(appointment.appointmentDate.toISOString())}
+                          {appointment.lead.fullName} · {appointment.lead.city} · {formatAppointmentDateTime(appointment.appointmentDate)}
                         </p>
                         {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
                         {appointment.meetingLink ? (

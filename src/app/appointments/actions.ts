@@ -9,6 +9,7 @@ import {
   APPOINTMENT_TYPES,
   appointmentTypeLabel,
   combineAppointmentDate,
+  formatAppointmentDateTime,
 } from "@/lib/appointments";
 import { requirePermission, requireUser } from "@/lib/auth";
 import { activeLeadWhere } from "@/lib/active-records";
@@ -83,13 +84,7 @@ function refresh(leadId?: string) {
 }
 
 function formattedDate(value: Date) {
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
+  return formatAppointmentDateTime(value);
 }
 
 export async function createLeadAppointment(
