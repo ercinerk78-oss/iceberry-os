@@ -73,6 +73,7 @@ export type AppointmentActionState = {
   success: boolean;
   message: string;
   errors?: Record<string, string[]>;
+  redirectHref?: string;
 };
 
 const initialError = { success: false, message: "Form bilgilerini kontrol edin." };
@@ -391,14 +392,17 @@ export async function completeLeadAppointment(
       });
     });
 
-    const conversion = appointment.lead.convertedCandidateId ? { success: true } : await convertLead(appointment.leadId);
+    const conversion = appointment.lead.convertedCandidateId
+      ? { success: true, candidateId: appointment.lead.convertedCandidateId }
+      : await convertLead(appointment.leadId);
 
     refresh(appointment.leadId);
     return {
       success: true,
       message: conversion.success
-        ? "Görüşme kaydedildi ve lead franchise adayına aktarıldı."
+        ? "Görüşme kaydedildi. Franchise adayı sayfası açılıyor."
         : "Görüşme kaydedildi. Adaya dönüştürme ayrıca kontrol edilmeli.",
+      redirectHref: conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined,
     };
   } catch (error) {
     console.error("Lead appointment complete failed", error);

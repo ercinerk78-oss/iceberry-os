@@ -1,16 +1,18 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, X } from "lucide-react";
 
-import { completeLeadAppointment } from "@/app/appointments/actions";
+import { completeLeadAppointment, type AppointmentActionState } from "@/app/appointments/actions";
 import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
 import { Button } from "@/components/ui/button";
 import { LEAD_CATEGORY_LABELS } from "@/lib/leads";
 
-const initialState = { success: false, message: "" };
+const initialState: AppointmentActionState = { success: false, message: "" };
 
 export function AppointmentCompleteDialog({ appointmentId }: { appointmentId: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, action] = useActionState(completeLeadAppointment.bind(null, appointmentId), initialState);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -30,9 +32,14 @@ export function AppointmentCompleteDialog({ appointmentId }: { appointmentId: st
   useEffect(() => {
     if (!state.success) return;
 
+    if (state.redirectHref) {
+      router.push(state.redirectHref);
+      return;
+    }
+
     const timer = setTimeout(() => setOpen(false), 700);
     return () => clearTimeout(timer);
-  }, [state.success]);
+  }, [router, state.redirectHref, state.success]);
 
   return (
     <>
