@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Filter, RotateCcw, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Filter, RotateCcw, Trash2, XCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import {
   changeLeadAppointmentStatusForm,
   completeLeadAppointmentForm,
   createLeadAppointmentForm,
+  deleteLeadAppointmentForm,
   rescheduleLeadAppointment,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
+import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
 import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +22,7 @@ import {
   appointmentDayRange,
   appointmentStatusLabel,
   appointmentTypeLabel,
-  formatAppointmentDateTime,
+  formatAppointmentRange,
   todayInAppointmentTimeZone,
 } from "@/lib/appointments";
 import { LEAD_CATEGORY_LABELS, leadCategoryLabel } from "@/lib/leads";
@@ -188,7 +190,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <input name="location" placeholder="Lokasyon" className="h-10 rounded-lg border px-3 text-sm" />
               <input name="meetingLink" placeholder="Online görüşme linki" className="h-10 rounded-lg border px-3 text-sm" />
               <textarea name="notes" placeholder="Randevu notu" className="min-h-20 rounded-lg border p-3 text-sm md:col-span-2 xl:col-span-5" />
-              <Button className="h-10 bg-[#17201b] text-white">Randevu Oluştur</Button>
+              <AppointmentSubmitButton className="h-10 bg-[#17201b] text-white" pendingLabel="Oluşturuluyor...">
+                Randevu Oluştur
+              </AppointmentSubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -217,7 +221,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {appointment.title}
                         </Link>
                         <p className="mt-1 text-sm text-[#65705f]">
-                          {appointment.lead.fullName} · {appointment.lead.city} · {formatAppointmentDateTime(appointment.appointmentDate)}
+                          {appointment.lead.fullName} · {appointment.lead.city} · {formatAppointmentRange(appointment.appointmentDate, appointment.endDateTime)}
                         </p>
                         {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
                         {appointment.meetingLink ? (
@@ -235,6 +239,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "CANCELLED")} className="flex flex-wrap gap-2">
                           <input name="reason" placeholder="İptal nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                           <Button size="sm" variant="outline">İptal Et</Button>
+                        </form>
+                        <form action={deleteLeadAppointmentForm.bind(null, appointment.id)}>
+                          <AppointmentSubmitButton size="sm" variant="destructive" pendingLabel="Siliniyor...">
+                            <Trash2 className="size-4" />
+                            Sil
+                          </AppointmentSubmitButton>
                         </form>
                       </div>
                     </div>

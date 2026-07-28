@@ -5,6 +5,7 @@ import {
   appointmentDateParts,
   appointmentDayRange,
   combineAppointmentDate,
+  formatAppointmentRange,
 } from "@/lib/appointments";
 
 describe("Randevu saat dilimi kuralları", () => {
@@ -25,5 +26,11 @@ describe("Randevu saat dilimi kuralları", () => {
 
     assert.equal(range.start.toISOString(), "2026-07-27T21:00:00.000Z");
     assert.equal(range.end.toISOString(), "2026-07-28T21:00:00.000Z");
+  });
+  it("Randevu kartında başlangıç ve bitiş saat aralığını gösterir", () => {
+    const start = combineAppointmentDate("2026-07-28", "12:00");
+    const end = combineAppointmentDate("2026-07-28", "13:00");
+
+    assert.match(formatAppointmentRange(start, end), /12:00 - 13:00/);
   });
 });

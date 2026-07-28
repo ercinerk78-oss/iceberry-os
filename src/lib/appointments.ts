@@ -94,3 +94,25 @@ export function formatAppointmentDateTime(value: Date | string) {
     minute: "2-digit",
   }).format(new Date(value));
 }
+
+export function formatAppointmentRange(startValue: Date | string, endValue?: Date | string | null) {
+  const start = new Date(startValue);
+  const end = endValue ? new Date(endValue) : null;
+  const startParts = appointmentDateParts(start);
+  const endParts = end ? appointmentDateParts(end) : null;
+
+  if (!end || !endParts) return formatAppointmentDateTime(start);
+
+  const startDate = new Intl.DateTimeFormat("tr-TR", {
+    timeZone: APPOINTMENT_TIME_ZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(start);
+
+  if (startParts.date === endParts.date) {
+    return `${startDate} ${startParts.time} - ${endParts.time}`;
+  }
+
+  return `${formatAppointmentDateTime(start)} - ${formatAppointmentDateTime(end)}`;
+}

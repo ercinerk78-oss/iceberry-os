@@ -101,12 +101,29 @@ export async function createLeadAppointment(
     const data = parsed.data;
     const startDateTime = combineAppointmentDate(data.appointmentDate, data.appointmentTime);
     const endDateTime = data.endTime ? combineAppointmentDate(data.appointmentDate, data.endTime) : null;
+    if (endDateTime && endDateTime <= startDateTime) {
+      return { success: false, message: "Bitiş saati başlangıç saatinden sonra olmalıdır." };
+    }
     const lead = await prisma.lead.findFirst({
       where: activeLeadWhere({ id: data.leadId }),
       select: { id: true, fullName: true },
     });
 
     if (!lead) return { success: false, message: "Lead bulunamadı veya aktif listeden kaldırılmış." };
+
+    const existingAppointment = await prisma.leadAppointment.findFirst({
+      where: {
+        leadId: lead.id,
+        startDateTime,
+        appointmentType: data.appointmentType,
+        status: { not: "CANCELLED" },
+      },
+      select: { id: true },
+    });
+
+    if (existingAppointment) {
+      return { success: true, message: "Bu randevu zaten kayıtlı. İkinci kayıt oluşturulmadı." };
+    }
 
     const title = data.title || `${lead.fullName} ile franchise görüşmesi`;
     const assignedUserId = data.assignedUserId || user.name;
@@ -435,6 +452,70 @@ export async function changeLeadAppointmentStatus(appointmentId: string, status:
 
 export async function changeLeadAppointmentStatusForm(appointmentId: string, status: string, formData: FormData) {
   await changeLeadAppointmentStatus(appointmentId, status, formData);
+}
+
+export async function deleteLeadAppointment(appointmentId: string) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  const appointment = await prisma.leadAppointment.findUnique({
+    where: { id: appointmentId },
+    select: { leadId: true, appointmentDate: true, title: true },
+  });
+
+  if (!appointment) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leadAppointment.delete({ where: { id: appointmentId } });
+    await tx.leadTask.deleteMany({
+      where: {
+        leadId: appointment.leadId,
+        dueDate: appointment.appointmentDate,
+        title: appointment.title,
+        status: { in: ["Açık", "Devam Ediyor"] },
+      },
+    });
+
+    const nextAppointment = await tx.leadAppointment.findFirst({
+      where: {
+        leadId: appointment.leadId,
+        status: { in: ["SCHEDULED", "RESCHEDULED"] },
+        appointmentDate: { gte: new Date() },
+      },
+      select: { appointmentDate: true, assignedUserId: true },
+      orderBy: { appointmentDate: "asc" },
+    });
+
+    await tx.lead.update({
+      where: { id: appointment.leadId },
+      data: nextAppointment
+        ? {
+            status: "WAITING_FOR_APPOINTMENT",
+            processStatus: "WAITING_FOR_APPOINTMENT",
+            nextFollowUpAt: nextAppointment.appointmentDate,
+            assignedUserId: nextAppointment.assignedUserId || undefined,
+          }
+        : {
+            status: "TO_BE_CALLED",
+            processStatus: "TO_BE_CALLED",
+            nextFollowUpAt: null,
+          },
+    });
+
+    await tx.leadActivity.create({
+      data: {
+        leadId: appointment.leadId,
+        type: "APPOINTMENT_DELETED",
+        description: `${user.name} hatalı oluşturulan randevu kaydını sildi: ${formattedDate(appointment.appointmentDate)}.`,
+      },
+    });
+  });
+
+  refresh(appointment.leadId);
+}
+
+export async function deleteLeadAppointmentForm(appointmentId: string) {
+  await deleteLeadAppointment(appointmentId);
 }
 
 export async function rescheduleLeadAppointment(appointmentId: string, formData: FormData) {
