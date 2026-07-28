@@ -11,6 +11,7 @@ import {
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentCompleteDialog } from "@/components/appointments/appointment-complete-dialog";
+import { AppointmentFormFocus } from "@/components/appointments/appointment-form-focus";
 import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
 import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
@@ -183,6 +184,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   return (
     <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular" action={<ManualLeadEntry />}>
       <div className="space-y-5">
+        <AppointmentFormFocus />
         <Card className="shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -209,7 +211,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           </CardContent>
         </Card>
 
-        <Card id="new-appointment" className="shadow-none">
+        <Card id="new-appointment" className="scroll-mt-24 shadow-none">
           <CardHeader>
             <CardTitle className="text-base">Yeni Randevu Oluştur</CardTitle>
           </CardHeader>
