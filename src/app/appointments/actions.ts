@@ -47,6 +47,10 @@ const rescheduleSchema = z.object({
   rescheduleReason: z.string().trim().optional(),
 });
 
+const unreachableLeadSchema = z.object({
+  reason: z.string().trim().optional(),
+});
+
 const manualLeadAppointmentSchema = leadSchema.extend({
   leadCategory: z.enum(LEAD_CATEGORIES).optional().or(z.literal("")),
   leadStatus: z.string().optional(),
@@ -516,6 +520,58 @@ export async function deleteLeadAppointment(appointmentId: string) {
 
 export async function deleteLeadAppointmentForm(appointmentId: string) {
   await deleteLeadAppointment(appointmentId);
+}
+
+export async function markLeadUnreachable(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const reason = parsed.success ? parsed.data.reason : "";
+  const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "UNREACHABLE",
+        processStatus: "UNREACHABLE",
+        lastContactAt: new Date(),
+        nextFollowUpAt: nextCallAt,
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadTask.create({
+      data: {
+        leadId: lead.id,
+        title: `Tekrar ara: ${lead.fullName}`,
+        description: reason ? `Randevu almak için ulaşılamadı. Not: ${reason}` : "Randevu almak için ulaşılamadı.",
+        dueDate: nextCallAt,
+        priority: "Normal",
+        status: "Açık",
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "CALL_UNREACHABLE",
+        description: `${user.name} lead aramasında ulaşılamadı olarak işaretledi.${reason ? ` Not: ${reason}` : ""}`,
+      },
+    });
+  });
+
+  refresh(lead.id);
+}
+
+export async function markLeadUnreachableForm(leadId: string, formData: FormData) {
+  await markLeadUnreachable(leadId, formData);
 }
 
 export async function rescheduleLeadAppointment(appointmentId: string, formData: FormData) {

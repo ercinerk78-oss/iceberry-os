@@ -69,8 +69,12 @@ function ManualLeadForm({ onCancel }: { onCancel: () => void }) {
   const [selectedConcepts, setSelectedConcepts] = useState<string[]>([concepts[0]]);
 
   useEffect(() => {
-    if (state.success) formRef.current?.reset();
-  }, [state.success]);
+    if (!state.success) return;
+
+    formRef.current?.reset();
+    const timer = setTimeout(onCancel, 700);
+    return () => clearTimeout(timer);
+  }, [onCancel, state.success]);
 
   return (
     <form ref={formRef} action={formAction} className="grid gap-4 p-5 md:grid-cols-2">
