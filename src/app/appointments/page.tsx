@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Filter, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, Filter, RotateCcw, Trash2, XCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import {
@@ -152,11 +152,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       items: appointments.filter(
         (item) => item.appointmentDate < startOfDay && !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status),
       ),
-    },
-    {
-      title: "Tamamlanan Randevular",
-      icon: CheckCircle2,
-      items: appointments.filter((item) => item.status === "COMPLETED"),
     },
     {
       title: "Gelmeyenler",
