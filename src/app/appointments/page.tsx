@@ -4,7 +4,6 @@ import type { Prisma } from "@prisma/client";
 
 import {
   changeLeadAppointmentStatusForm,
-  completeLeadAppointmentForm,
   createLeadAppointmentForm,
   deleteLeadAppointmentForm,
   markLeadUnreachableForm,
@@ -85,14 +84,23 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     ];
   }
   where.lead = leadWhere;
-  const unreachableLeadStatusWhere: Prisma.LeadWhereInput = {
-    OR: [{ processStatus: "UNREACHABLE" }, { status: "UNREACHABLE" }, { status: "Ulaşılamadı" }],
+  const appointmentCallUnreachableWhere: Prisma.LeadWhereInput = {
+    OR: [
+      { processStatus: "APPOINTMENT_CALL_UNREACHABLE" },
+      { status: "APPOINTMENT_CALL_UNREACHABLE" },
+      { processStatus: "UNREACHABLE" },
+      { status: "UNREACHABLE" },
+      { status: "Ulaşılamadı" },
+    ],
+  };
+  const appointmentNoShowFollowUpWhere: Prisma.LeadWhereInput = {
+    OR: [{ processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP" }, { status: "APPOINTMENT_NO_SHOW_FOLLOW_UP" }],
   };
   const schedulableLeadWhere = activeLeadWhere({
-    NOT: unreachableLeadStatusWhere,
+    NOT: { OR: [appointmentCallUnreachableWhere, appointmentNoShowFollowUpWhere] },
   });
 
-  const [appointments, leads, schedulableLeads, unreachableLeads, users, cities] = await Promise.all([
+  const [appointments, leads, schedulableLeads, appointmentCallUnreachableLeads, appointmentNoShowFollowUpLeads, users, cities] = await Promise.all([
     prisma.leadAppointment.findMany({
       where,
       include: { lead: { select: { id: true, fullName: true, city: true, phone: true, leadCategory: true } } },
@@ -114,7 +122,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       take: 12,
     }),
     prisma.lead.findMany({
-      where: activeLeadWhere(unreachableLeadStatusWhere),
+      where: activeLeadWhere(appointmentCallUnreachableWhere),
+      select: { id: true, fullName: true, city: true, phone: true, source: true, processStatus: true, status: true, nextFollowUpAt: true },
+      orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
+      take: 12,
+    }),
+    prisma.lead.findMany({
+      where: activeLeadWhere(appointmentNoShowFollowUpWhere),
       select: { id: true, fullName: true, city: true, phone: true, source: true, processStatus: true, status: true, nextFollowUpAt: true },
       orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
       take: 12,
@@ -259,11 +273,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
 
           <Card className="shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">Ulaşılamayan Leadler</CardTitle>
+              <CardTitle className="text-base">Randevu İçin Ulaşılamayanlar</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {unreachableLeads.map((lead) => (
+                {appointmentCallUnreachableLeads.map((lead) => (
                   <article key={lead.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
@@ -281,8 +295,39 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                     </div>
                   </article>
                 ))}
-                {!unreachableLeads.length ? (
-                  <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Ulaşılamayan lead yok.</p>
+                {!appointmentCallUnreachableLeads.length ? (
+                  <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Randevu için ulaşılamayan lead yok.</p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardHeader>
+              <CardTitle className="text-base">Randevuda Ulaşılamayanlar</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {appointmentNoShowFollowUpLeads.map((lead) => (
+                  <article key={lead.id} className="rounded-lg border border-rose-200 bg-rose-50/60 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                          <Badge variant="outline">{lead.source}</Badge>
+                        </div>
+                        <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                        <p className="mt-1 text-sm text-[#65705f]">{lead.phone} · {lead.city}</p>
+                        {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                      </div>
+                      <Button asChild size="sm" className="shrink-0">
+                        <Link href={`/appointments?scheduleLead=${lead.id}#new-appointment`}>Tekrar Randevu Oluştur</Link>
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+                {!appointmentNoShowFollowUpLeads.length ? (
+                  <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Randevu saatinde ulaşılamayan lead yok.</p>
                 ) : null}
               </div>
             </CardContent>
@@ -342,21 +387,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                       </div>
                     </div>
                     <details className="mt-3 rounded-lg bg-white p-3">
-                      <summary className="cursor-pointer text-sm font-medium">Sonuç / Erteleme</summary>
-                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                        <form action={completeLeadAppointmentForm.bind(null, appointment.id)} className="grid gap-2">
-                          <textarea name="notes" placeholder="Görüşme notu" className="min-h-20 rounded-lg border p-3 text-sm" />
-                          <input name="outcome" placeholder="Görüşme sonucu" required className="h-10 rounded-lg border px-3 text-sm" />
-                          <Select name="leadCategory" first="Kategori seç" options={Object.entries(LEAD_CATEGORY_LABELS)} />
-                          <input name="nextAction" placeholder="Sonraki aksiyon" className="h-10 rounded-lg border px-3 text-sm" />
-                          <input name="nextFollowUpAt" type="datetime-local" className="h-10 rounded-lg border px-3 text-sm" />
-                          <label className="flex items-center gap-2 text-sm">
-                            <input name="convertToCandidate" value="1" type="checkbox" />
-                            Franchise adayına dönüştür
-                          </label>
-                          <Button size="sm">Tamamla</Button>
-                        </form>
-                        <form action={rescheduleLeadAppointment.bind(null, appointment.id)} className="grid content-start gap-2">
+                      <summary className="cursor-pointer text-sm font-medium">Erteleme</summary>
+                      <div className="mt-3">
+                        <form action={rescheduleLeadAppointment.bind(null, appointment.id)} className="grid gap-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
                           <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
                           <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
                           <input name="rescheduleReason" placeholder="Erteleme nedeni" className="h-10 rounded-lg border px-3 text-sm" />

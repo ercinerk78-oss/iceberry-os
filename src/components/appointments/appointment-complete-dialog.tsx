@@ -81,10 +81,9 @@ export function AppointmentCompleteDialog({ appointmentId }: { appointmentId: st
                   <span>Sonraki takip zamanı</span>
                   <input name="nextFollowUpAt" type="datetime-local" className="h-10 rounded-lg border bg-[#f8faf6] px-3 text-sm" />
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input name="convertToCandidate" value="1" type="checkbox" className="size-4" />
-                  Franchise adayına dönüştür
-                </label>
+                <p className="rounded-lg bg-[#ecfbdc] p-3 text-sm text-[#2f5f20]">
+                  Görüşme kaydedildiğinde lead otomatik olarak franchise adayına aktarılır.
+                </p>
                 {state.message ? (
                   <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                     {state.message}

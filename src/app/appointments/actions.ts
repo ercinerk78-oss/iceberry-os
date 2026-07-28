@@ -391,12 +391,15 @@ export async function completeLeadAppointment(
       });
     });
 
-    if (parsed.data.convertToCandidate && !appointment.lead.convertedCandidateId) {
-      await convertLead(appointment.leadId);
-    }
+    const conversion = appointment.lead.convertedCandidateId ? { success: true } : await convertLead(appointment.leadId);
 
     refresh(appointment.leadId);
-    return { success: true, message: "Randevu sonucu kaydedildi." };
+    return {
+      success: true,
+      message: conversion.success
+        ? "Görüşme kaydedildi ve lead franchise adayına aktarıldı."
+        : "Görüşme kaydedildi. Adaya dönüştürme ayrıca kontrol edilmeli.",
+    };
   } catch (error) {
     console.error("Lead appointment complete failed", error);
     return { success: false, message: "Randevu sonucu kaydedilemedi." };
@@ -426,10 +429,24 @@ export async function changeLeadAppointmentStatus(appointmentId: string, status:
       select: { leadId: true, appointmentDate: true },
     }));
     if (parsed.data === "NO_SHOW") {
-      await prisma.lead.update({
-        where: { id: appointment.leadId },
-        data: { status: "TO_BE_CALLED", processStatus: "TO_BE_CALLED", nextFollowUpAt: new Date() },
-      });
+      const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+      await prisma.$transaction([
+        prisma.lead.update({
+          where: { id: appointment.leadId },
+          data: { status: "APPOINTMENT_NO_SHOW_FOLLOW_UP", processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP", nextFollowUpAt: nextCallAt },
+        }),
+        prisma.leadTask.create({
+          data: {
+            leadId: appointment.leadId,
+            title: "Randevuda ulaşılamadı - tekrar randevu planla",
+            description: reason ? `Satış randevusu saatinde ulaşılamadı. Not: ${reason}` : "Satış randevusu saatinde ulaşılamadı.",
+            dueDate: nextCallAt,
+            priority: "Yüksek",
+            status: "Açık",
+            assignedUserId: user.name,
+          },
+        }),
+      ]);
     }
 
     if (parsed.data === "CANCELLED") {
@@ -540,8 +557,8 @@ export async function markLeadUnreachable(leadId: string, formData?: FormData) {
     await tx.lead.update({
       where: { id: lead.id },
       data: {
-        status: "UNREACHABLE",
-        processStatus: "UNREACHABLE",
+        status: "APPOINTMENT_CALL_UNREACHABLE",
+        processStatus: "APPOINTMENT_CALL_UNREACHABLE",
         lastContactAt: new Date(),
         nextFollowUpAt: nextCallAt,
         assignedUserId: lead.assignedUserId || user.name,
@@ -550,7 +567,7 @@ export async function markLeadUnreachable(leadId: string, formData?: FormData) {
     await tx.leadTask.create({
       data: {
         leadId: lead.id,
-        title: `Tekrar ara: ${lead.fullName}`,
+        title: `Randevu için tekrar ara: ${lead.fullName}`,
         description: reason ? `Randevu almak için ulaşılamadı. Not: ${reason}` : "Randevu almak için ulaşılamadı.",
         dueDate: nextCallAt,
         priority: "Normal",
@@ -561,7 +578,7 @@ export async function markLeadUnreachable(leadId: string, formData?: FormData) {
     await tx.leadActivity.create({
       data: {
         leadId: lead.id,
-        type: "CALL_UNREACHABLE",
+        type: "APPOINTMENT_CALL_UNREACHABLE",
         description: `${user.name} lead aramasında ulaşılamadı olarak işaretledi.${reason ? ` Not: ${reason}` : ""}`,
       },
     });

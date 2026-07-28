@@ -58,8 +58,8 @@ export const isToday = (date: string | Date) => {
 
 export function stageForLeadStatus(status: string) {
   if (["NEW", "Yeni"].includes(status)) return "Yeni Lead";
-  if (["TO_BE_CALLED", "Arandı", "UNREACHABLE", "Ulaşılamadı"].includes(status)) return "İlk Temas";
-  if (["APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "Randevu"].includes(status)) return "Görüşme Planlandı";
+  if (["TO_BE_CALLED", "Arandı", "UNREACHABLE", "APPOINTMENT_CALL_UNREACHABLE", "Ulaşılamadı"].includes(status)) return "İlk Temas";
+  if (["APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "APPOINTMENT_NO_SHOW_FOLLOW_UP", "Randevu"].includes(status)) return "Görüşme Planlandı";
   if (status === "MEETING_COMPLETED") return "Görüşme Yapıldı";
   if (["UNDER_EVALUATION", "Lokasyon Bekleniyor"].includes(status)) return "Lokasyon Analizi";
   if (["CONVERTED_TO_CANDIDATE", "Adaya Dönüştürüldü"].includes(status)) return "Açıldı";
