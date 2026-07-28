@@ -194,6 +194,7 @@ model Branch {
   healthScoreSnapshots      BranchHealthScoreSnapshot[]
   developmentPlans          BranchDevelopmentPlan[]
   operationCalendarItems    OperationCalendarItem[]
+  visits                    BranchVisit[]
   timeline                  BranchTimelineEvent[]
   externalMappings          ExternalBranchMapping[]
   deliveryIssues            DeliveryIssue[]
@@ -1427,6 +1428,28 @@ model OperationCalendarItem {
 
   @@index([branchId, startAt])
   @@index([status, startAt])
+}
+
+model BranchVisit {
+  id            String    @id @default(cuid())
+  branchId      String
+  title         String
+  visitType     String    @default("OPERATION")
+  plannedAt     DateTime
+  completedAt   DateTime?
+  status        String    @default("PLANNED")
+  visitorName   String?
+  plannedById   String?
+  completedById String?
+  notes         String?
+  resultNotes   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  branch        Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, plannedAt])
+  @@index([status, plannedAt])
+  @@index([completedAt])
 }
 
 model BranchTimelineEvent {

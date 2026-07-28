@@ -69,12 +69,17 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
       eyebrow="Ana işletme varlığı"
       title="Şubeler"
       action={
-        <Button asChild className="bg-[#17201b] text-white">
-          <Link href="/branches/new">
-            <Plus />
-            Yeni Şube Ekle
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/branches/visits">Operasyon Ziyaretleri</Link>
+          </Button>
+          <Button asChild className="bg-[#17201b] text-white">
+            <Link href="/branches/new">
+              <Plus />
+              Yeni Şube Ekle
+            </Link>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-4">

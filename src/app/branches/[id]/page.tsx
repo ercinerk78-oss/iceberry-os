@@ -26,6 +26,7 @@ const tabs = [
   "Görevler",
   "Dokümanlar",
   "Denetim Raporları",
+  "Operasyon Ziyaretleri",
   "Şube Gelişim Planları",
   "Operasyon Takvimi",
   "KPI ve Performans",
@@ -68,6 +69,7 @@ export default async function BranchDetail({
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
       audits: { orderBy: { auditDate: "desc" } },
       developmentPlans: { orderBy: { createdAt: "desc" } },
+      visits: { orderBy: [{ plannedAt: "desc" }] },
       operationCalendarItems: { orderBy: { startAt: "asc" } },
       timeline: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 },
       openings: {
@@ -145,6 +147,7 @@ export default async function BranchDetail({
             {tab === "Görevler" ? <TasksPanel tasks={branch.tasks} /> : null}
             {tab === "Dokümanlar" ? <RelatedDocumentsPanel relation="branch" relationId={id} documents={branch.documents} /> : null}
             {tab === "Denetim Raporları" ? <AuditPanel audits={branch.audits} /> : null}
+            {tab === "Operasyon Ziyaretleri" ? <BranchVisitsPanel visits={branch.visits} /> : null}
             {tab === "Şube Gelişim Planları" ? <DevelopmentPanel plans={branch.developmentPlans} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
@@ -209,6 +212,30 @@ function AuditPanel({ audits }: { audits: { title: string; status: string; score
   if (!audits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim raporu yok." />;
 
   return <List items={audits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />;
+}
+
+function BranchVisitsPanel({ visits }: { visits: { id: string; title: string; visitType: string; plannedAt: Date; completedAt: Date | null; status: string; visitorName: string | null; notes: string | null; resultNotes: string | null }[] }) {
+  if (!visits.length) return <Empty title="Operasyon Ziyaretleri" text="Bu şube için planlanan veya gerçekleşen ziyaret yok." />;
+
+  return (
+    <div className="space-y-3">
+      {visits.map((visit) => (
+        <article key={visit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge>{visit.status === "COMPLETED" ? "Gerçekleşti" : "Planlandı"}</Badge>
+            <Badge variant="secondary">{visit.visitType}</Badge>
+          </div>
+          <h3 className="mt-3 font-semibold">{visit.title}</h3>
+          <p className="mt-1 text-sm text-[#65705f]">
+            Plan: {formatDate(visit.plannedAt)}{visit.completedAt ? ` · Gerçekleşme: ${formatDate(visit.completedAt)}` : ""}
+          </p>
+          {visit.visitorName ? <p className="mt-1 text-sm text-[#65705f]">Sorumlu: {visit.visitorName}</p> : null}
+          {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
+          {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
+        </article>
+      ))}
+    </div>
+  );
 }
 
 function DevelopmentPanel({ plans }: { plans: { title: string; status: string; priority: string; dueDate: Date | null }[] }) {
