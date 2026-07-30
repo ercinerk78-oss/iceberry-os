@@ -353,9 +353,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <Badge variant="secondary">{appointmentTypeLabel(appointment.appointmentType)}</Badge>
                           <Badge variant="secondary">{leadCategoryLabel(appointment.lead.leadCategory)}</Badge>
                         </div>
-                        <Link href={`/candidates?leadId=${appointment.leadId}`} className="mt-3 block font-semibold hover:underline">
+                        <p className="mt-3 font-semibold">
                           {appointment.title}
-                        </Link>
+                        </p>
                         <p className="mt-1 text-sm text-[#65705f]">
                           {appointment.lead.fullName} · {appointment.lead.city} · {formatAppointmentRange(appointment.appointmentDate, appointment.endDateTime)}
                         </p>

@@ -181,7 +181,7 @@ export function CandidateList({
             <div>
               <CardTitle>Franchise Adayları</CardTitle>
               <p className="mt-1 text-sm text-[#65705f]">
-                {filtered.length} kayıt gösteriliyor. {candidates.length} aktif aday, {leads.length} yeni lead tek ekranda yönetiliyor.
+                {filtered.length} kayıt gösteriliyor. {candidates.length} aktif franchise adayı yönetiliyor.
               </p>
             </div>
             <Button onClick={() => setOpen(true)} className="bg-[#17201b] text-white">
