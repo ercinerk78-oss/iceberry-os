@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { CandidateList } from "@/components/candidates/candidate-list";
+import { activeCandidateWhere } from "@/lib/active-records";
 import { toCandidate } from "@/lib/candidates";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive, phoneDigits } from "@/lib/search";
@@ -24,9 +25,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
 
   const [records, concepts, tags, availableLocations] = await Promise.all([
     prisma.franchiseCandidate.findMany({
-      where: {
-        archivedAt: null,
-        branch: { is: null },
+      where: activeCandidateWhere({
         OR: q
           ? [
               { fullName: containsInsensitive(q) },
@@ -52,7 +51,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
               { tags: { some: { tag: { name: containsInsensitive(q) } } } },
             ]
           : undefined,
-      },
+      }),
       include: {
         interactions: { orderBy: { interactionDate: "desc" }, take: RELATED_ITEM_LIMIT },
         tasks: { orderBy: { dueDate: "asc" }, take: RELATED_ITEM_LIMIT },

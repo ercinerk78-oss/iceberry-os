@@ -14,7 +14,7 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeLeadWhere, unconvertedLeadWhere } from "@/lib/active-records";
+import { activeCandidateWhere, activeLeadWhere, unconvertedLeadWhere } from "@/lib/active-records";
 import { getTranslations } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 
@@ -99,14 +99,14 @@ export default async function Home() {
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "WAITING_FOR_INVESTOR" } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "IN_NEGOTIATION" } }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 1, lte: 3 } } }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 4, lte: 6 } } }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 7, lte: 8 } } }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: { gte: 9, lte: 10 } } }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: null, qualificationScore: null } }), 0),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere({ qualificationScore: { gte: 1, lte: 3 } }) }), 0),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere({ qualificationScore: { gte: 4, lte: 6 } }) }), 0),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere({ qualificationScore: { gte: 7, lte: 8 } }) }), 0),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere({ qualificationScore: { gte: 9, lte: 10 } }) }), 0),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere({ qualificationScore: null }) }), 0),
     safe(prisma.concept.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, _count: { select: { candidateConcepts: { where: { candidate: { archivedAt: null } } } } } },
+      select: { id: true, name: true, _count: { select: { candidateConcepts: { where: { candidate: activeCandidateWhere() } } } } },
       orderBy: { candidateConcepts: { _count: "desc" } },
       take: 6,
     }), []),

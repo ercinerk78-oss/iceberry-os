@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { PipelineBoard } from "@/components/pipeline/pipeline-board";
-import { activeLeadWhere } from "@/lib/active-records";
+import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
 import { toCandidate } from "@/lib/candidates";
 import { toLead } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +15,7 @@ const RECENT_DOCUMENT_LIMIT = 3;
 export default async function PipelinePage() {
   const [records, leads] = await Promise.all([
     prisma.franchiseCandidate.findMany({
-      where: { archivedAt: null },
+      where: activeCandidateWhere(),
       include: {
         interactions: { orderBy: { interactionDate: "desc" }, take: RECENT_INTERACTION_LIMIT },
         tasks: { orderBy: { dueDate: "asc" }, take: OPEN_TASK_LIMIT },
