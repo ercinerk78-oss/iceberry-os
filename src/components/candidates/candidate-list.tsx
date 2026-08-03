@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/candidates";
-import { LEAD_CATEGORIES, LEAD_CATEGORY_LABELS, LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, statusValuesForFilter, type LeadView } from "@/lib/leads";
+import { LEAD_CATEGORIES, LEAD_CATEGORY_LABELS, LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
 import { relativeTime } from "@/lib/qualification";
 import type { Candidate } from "@/types/candidate";
 
@@ -104,7 +104,6 @@ export function CandidateList({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr");
-    const statusValues = status === ALL ? [] : statusValuesForFilter(status);
     const filteredRows = rows.filter((row) => {
       const item = row.type === "candidate" ? row.candidate : row.lead;
       const task = row.type === "candidate" ? nextOpenTask(row.candidate) : nextLeadTask(row.lead);
@@ -140,7 +139,7 @@ export function CandidateList({
       return (
         (!q || text.includes(q)) &&
         (city === ALL || item.city === city) &&
-        (status === ALL || rowStatus === status || statusValues.includes(rowStatus)) &&
+        (status === ALL || rowStatus === status) &&
         (source === ALL || rowSource === source) &&
         (category === ALL || rowCategory === category) &&
         (followUp !== "overdue" || (!!nextFollowUpAt && new Date(nextFollowUpAt).getTime() < effectiveReferenceNow)) &&

@@ -100,25 +100,25 @@ async function main() {
   }
 
   const leads = [
-    ["Deniz Yalçın", "+90 532 410 22 18", "deniz.yalcin@mail.com", "İstanbul", "Instagram", "Cafe", "Yeni"],
-    ["Burcu Keleş", "+90 535 221 44 09", "burcu.keles@mail.com", "Ankara", "Facebook", "Corner", "Arandı"],
-    ["Ali Rıza Eren", "+90 544 812 16 30", "ali.eren@mail.com", "İzmir", "Web", "Self Cafe", "Ulaşılamadı"],
-    ["Gökçe Tan", "+90 533 907 55 42", "gokce.tan@mail.com", "Bursa", "WhatsApp", "Cafe", "Randevu"],
-    ["Serhat Acar", "+90 505 334 78 11", "serhat.acar@mail.com", "Antalya", "Manuel", "Corner", "Lokasyon Bekleniyor"],
-    ["Pınar Özdemir", "+90 536 188 73 20", "pinar.ozdemir@mail.com", "Muğla", "Instagram", "Self Cafe", "Yeni"],
-    ["Cemal Ergin", "+90 551 467 21 63", "cemal.ergin@mail.com", "Adana", "Web", "Cafe", "Reddedildi"],
-    ["Sibel Koç", "+90 537 653 89 14", "sibel.koc@mail.com", "Kocaeli", "Facebook", "Corner", "Arandı"],
-    ["Oğuz Karaca", "+90 542 119 45 87", "oguz.karaca@mail.com", "Samsun", "WhatsApp", "Cafe", "Randevu"],
-    ["Eylül Akın", "+90 530 772 31 96", "eylul.akin@mail.com", "Mersin", "Instagram", "Self Cafe", "Yeni"],
-    ["Volkan Işık", "+90 545 923 67 10", "volkan.isik@mail.com", "Konya", "Manuel", "Corner", "Adaya Dönüştürüldü"],
-    ["Asena Gül", "+90 539 406 28 75", "asena.gul@mail.com", "Eskişehir", "Web", "Cafe", "Adaya Dönüştürüldü"],
+    ["Deniz Yalçın", "+90 532 410 22 18", "deniz.yalcin@mail.com", "İstanbul", "Instagram", "Cafe", "NEW"],
+    ["Burcu Keleş", "+90 535 221 44 09", "burcu.keles@mail.com", "Ankara", "Facebook", "Corner", "TO_BE_CALLED"],
+    ["Ali Rıza Eren", "+90 544 812 16 30", "ali.eren@mail.com", "İzmir", "Web", "Self Cafe", "UNREACHABLE"],
+    ["Gökçe Tan", "+90 533 907 55 42", "gokce.tan@mail.com", "Bursa", "WhatsApp", "Cafe", "APPOINTMENT_SCHEDULED"],
+    ["Serhat Acar", "+90 505 334 78 11", "serhat.acar@mail.com", "Antalya", "Manuel", "Corner", "UNDER_EVALUATION"],
+    ["Pınar Özdemir", "+90 536 188 73 20", "pinar.ozdemir@mail.com", "Muğla", "Instagram", "Self Cafe", "NEW"],
+    ["Cemal Ergin", "+90 551 467 21 63", "cemal.ergin@mail.com", "Adana", "Web", "Cafe", "CLOSED"],
+    ["Sibel Koç", "+90 537 653 89 14", "sibel.koc@mail.com", "Kocaeli", "Facebook", "Corner", "TO_BE_CALLED"],
+    ["Oğuz Karaca", "+90 542 119 45 87", "oguz.karaca@mail.com", "Samsun", "WhatsApp", "Cafe", "APPOINTMENT_SCHEDULED"],
+    ["Eylül Akın", "+90 530 772 31 96", "eylul.akin@mail.com", "Mersin", "Instagram", "Self Cafe", "NEW"],
+    ["Volkan Işık", "+90 545 923 67 10", "volkan.isik@mail.com", "Konya", "Manuel", "Corner", "CONVERTED_TO_CANDIDATE"],
+    ["Asena Gül", "+90 539 406 28 75", "asena.gul@mail.com", "Eskişehir", "Web", "Cafe", "CONVERTED_TO_CANDIDATE"],
   ] as const;
   for (const [index, lead] of leads.entries()) {
     const [fullName, phone, email, city, source, requestedConcept, status] = lead;
     const leadDate = index < 3 ? new Date() : new Date(2026, 6, 13 - index, 10 + (index % 5), 15);
     await prisma.lead.create({ data: { fullName, phone, email, city, source, requestedConcept, status, leadDate, activities: { create: [
       { type: "Lead geldi", description: `${source} kaynağından yeni lead kaydı oluştu.`, createdAt: leadDate },
-      ...(status !== "Yeni" ? [{ type: "Durum değişti", description: `Lead durumu ${status} olarak güncellendi.`, createdAt: new Date(leadDate.getTime() + 3600000) }] : []),
+      ...(status !== "NEW" ? [{ type: "Durum değişti", description: `Lead durumu ${status} olarak güncellendi.`, createdAt: new Date(leadDate.getTime() + 3600000) }] : []),
     ] } } });
   }
 }

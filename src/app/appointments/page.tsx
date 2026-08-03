@@ -95,7 +95,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const appointmentTypeOptionItems = Object.entries(APPOINTMENT_TYPE_LABELS);
   const leadStatusOf = (lead: { processStatus: string | null; status: string }) => lead.processStatus || lead.status;
   const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
-  const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE", "Ulaşılamadı"]);
+  const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
   const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
   const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
   const appointmentCallUnreachableLeads = visibleLeads.filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)));

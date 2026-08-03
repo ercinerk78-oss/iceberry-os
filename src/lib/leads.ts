@@ -1,4 +1,4 @@
-import { translate, type Locale } from "@/lib/i18n/messages";
+﻿import { translate, type Locale } from "@/lib/i18n/messages";
 
 export const LEAD_SOURCES = ["Instagram", "Facebook", "Web", "WhatsApp", "Manuel"] as const;
 export const LEAD_CONCEPTS = ["Corner", "Cafe", "Self Cafe"] as const;
@@ -29,16 +29,6 @@ export const LEAD_STATUS_LABELS: Record<(typeof LEAD_STATUSES)[number], string> 
   UNDER_EVALUATION: "Değerlendiriliyor",
   CONVERTED_TO_CANDIDATE: "Adaya Dönüştürüldü",
   CLOSED: "Kapatıldı",
-};
-
-export const LEGACY_LEAD_STATUS_ALIASES: Record<string, (typeof LEAD_STATUSES)[number]> = {
-  Yeni: "NEW",
-  Arandı: "TO_BE_CALLED",
-  "Ulaşılamadı": "UNREACHABLE",
-  Randevu: "APPOINTMENT_SCHEDULED",
-  "Lokasyon Bekleniyor": "UNDER_EVALUATION",
-  Reddedildi: "CLOSED",
-  "Adaya Dönüştürüldü": "CONVERTED_TO_CANDIDATE",
 };
 
 export const LEAD_CATEGORIES = [
@@ -182,15 +172,7 @@ export function leadCategoryLabel(category?: string | null, locale?: Locale) {
 export function canonicalLeadStatus(status: string) {
   if ((LEAD_STATUSES as readonly string[]).includes(status)) return status as LeadStatus;
 
-  return LEGACY_LEAD_STATUS_ALIASES[status];
-}
-
-export function statusValuesForFilter(status: string) {
-  const legacy = Object.entries(LEGACY_LEAD_STATUS_ALIASES)
-    .filter(([, value]) => value === status)
-    .map(([key]) => key);
-
-  return [status, ...legacy];
+  return undefined;
 }
 
 type LeadRecord = {
@@ -348,3 +330,4 @@ function parseOverrideFields(value?: string | null) {
     return [];
   }
 }
+

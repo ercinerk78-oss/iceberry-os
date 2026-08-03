@@ -246,7 +246,7 @@ export async function convertCandidateToBranch(candidateId: string, _: FormState
 
       await tx.franchiseCandidate.update({
         where: { id: candidate.id },
-        data: { status: "Şubeye Dönüştürüldü", lastContactAt: new Date(), nextFollowUpAt: null },
+        data: { status: "CONVERTED_TO_BRANCH", lastContactAt: new Date(), nextFollowUpAt: null },
       });
       await tx.candidateTimelineEvent.create({
         data: {

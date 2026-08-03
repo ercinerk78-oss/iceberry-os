@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import {
   CalendarCheck2,
   CalendarClock,
@@ -29,11 +29,11 @@ async function safe<T>(operation: Promise<T>, fallback: T) {
   }
 }
 
-function leadProcessWhere(values: string[], legacyValues: string[] = values) {
+function leadProcessWhere(values: string[]) {
   return {
     OR: [
       { processStatus: { in: values } },
-      { status: { in: legacyValues } },
+      { status: { in: values } },
     ],
   };
 }
@@ -75,7 +75,7 @@ export default async function Home() {
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
-    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["NEW"], ["NEW", "Yeni"])) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["NEW"])) }), 0),
     safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["WAITING_FOR_APPOINTMENT"])) }), 0),
     safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
     safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "LONG_TERM" }) }), 0),
@@ -89,10 +89,9 @@ export default async function Home() {
     safe(prisma.lead.count({
       where: activeLeadWhere(leadProcessWhere(
         ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION"],
-        ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION", "Arandı", "Randevu"],
       )),
     }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["UNREACHABLE"], ["UNREACHABLE", "Ulaşılamadı"])) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["UNREACHABLE"])) }), 0),
     safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere() } }), 0),
     safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), status: "COMPLETED" } }), 0),
     safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], where: { lead: activeLeadWhere() }, _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
@@ -311,3 +310,4 @@ export default async function Home() {
     </AppShell>
   );
 }
+

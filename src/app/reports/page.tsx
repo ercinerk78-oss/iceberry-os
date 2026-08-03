@@ -85,7 +85,7 @@ export default async function ReportsPage() {
   const unreachableLeadIds = new Set(
     appointmentRows
       .filter((appointment) =>
-        ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE", "Ulaşılamadı", "APPOINTMENT_NO_SHOW_FOLLOW_UP"].includes(
+        ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE", "APPOINTMENT_NO_SHOW_FOLLOW_UP"].includes(
           appointment.lead.processStatus || appointment.lead.status,
         ),
       )

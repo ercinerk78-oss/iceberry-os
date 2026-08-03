@@ -1,4 +1,4 @@
-export const PIPELINE_STAGES = [
+﻿export const PIPELINE_STAGES = [
   "Yeni Lead",
   "İlk Temas",
   "Sunum Gönderildi",
@@ -57,13 +57,14 @@ export const isToday = (date: string | Date) => {
 };
 
 export function stageForLeadStatus(status: string) {
-  if (["NEW", "Yeni"].includes(status)) return "Yeni Lead";
-  if (["TO_BE_CALLED", "Arandı", "UNREACHABLE", "APPOINTMENT_CALL_UNREACHABLE", "Ulaşılamadı"].includes(status)) return "İlk Temas";
-  if (["APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "APPOINTMENT_NO_SHOW_FOLLOW_UP", "Randevu"].includes(status)) return "Görüşme Planlandı";
+  if (status === "NEW") return "Yeni Lead";
+  if (["TO_BE_CALLED", "UNREACHABLE", "APPOINTMENT_CALL_UNREACHABLE"].includes(status)) return "İlk Temas";
+  if (["APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "APPOINTMENT_NO_SHOW_FOLLOW_UP"].includes(status)) return "Görüşme Planlandı";
   if (status === "MEETING_COMPLETED") return "Görüşme Yapıldı";
-  if (["UNDER_EVALUATION", "Lokasyon Bekleniyor"].includes(status)) return "Lokasyon Analizi";
-  if (["CONVERTED_TO_CANDIDATE", "Adaya Dönüştürüldü"].includes(status)) return "Açıldı";
-  if (["CLOSED", "Reddedildi"].includes(status)) return "Kaybedildi";
+  if (status === "UNDER_EVALUATION") return "Lokasyon Analizi";
+  if (status === "CONVERTED_TO_CANDIDATE") return "Açıldı";
+  if (status === "CLOSED") return "Kaybedildi";
 
   return "Yeni Lead";
 }
+
