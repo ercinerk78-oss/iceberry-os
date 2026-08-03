@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { TaskListPage, type TaskListItem } from "@/components/tasks/task-list-page";
+import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 
@@ -12,11 +13,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const branchIds = await accessibleBranchIds();
   const [candidateTasks, leadTasks, branchTasks] = await Promise.all([
     prisma.candidateTask.findMany({
-      where: { candidate: { archivedAt: null } },
+      where: { candidate: activeCandidateWhere() },
       include: { candidate: { select: { id: true, fullName: true, city: true } } },
       orderBy: { dueDate: "asc" },
     }),
     prisma.leadTask.findMany({
+      where: { lead: activeLeadWhere() },
       include: { lead: { select: { id: true, fullName: true, city: true } } },
       orderBy: { dueDate: "asc" },
     }).catch((error) => {
