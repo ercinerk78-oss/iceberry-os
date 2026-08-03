@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { convertLead } from "@/app/leads/actions";
@@ -421,6 +422,7 @@ export async function openCandidateFromCompletedAppointment(
   void previousState;
   await requirePermission("appointments");
   const user = await requireUser();
+  let redirectHref: string | undefined;
 
   try {
     const appointment = await prisma.leadAppointment.findUnique({
@@ -470,17 +472,18 @@ export async function openCandidateFromCompletedAppointment(
       : await convertLead(appointment.leadId);
 
     refresh(appointment.leadId);
-    return {
-      success: conversion.success,
-      message: conversion.success
-        ? "Franchise adayı sayfası açılıyor."
-        : "Görüşme tamamlandı fakat adaya dönüştürme ayrıca kontrol edilmeli.",
-      redirectHref: conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined,
-    };
+    redirectHref = conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined;
   } catch (error) {
     console.error("Open candidate from appointment failed", error);
     return { success: false, message: "Franchise adayı sayfası açılamadı." };
   }
+
+  if (redirectHref) redirect(redirectHref);
+
+  return {
+    success: false,
+    message: "Görüşme tamamlandı fakat adaya dönüştürme ayrıca kontrol edilmeli.",
+  };
 }
 
 export async function changeLeadAppointmentStatus(appointmentId: string, status: string, formData?: FormData) {
