@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const activeOpeningStatuses = ["DRAFT", "PLANNING", "IN_PROGRESS", "ON_HOLD", "AT_RISK", "DELAYED", "READY_FOR_REVIEW", "READY_FOR_OPENING", "OPENED", "POST_OPENING"] as const;
-const DETAIL_RELATION_LIMIT = 75;
+const INITIAL_NOTE_LIMIT = 5;
 const detailTabs = ["general", "notes", "locations", "tasks", "timeline", "documents"] as const;
 type DetailTab = (typeof detailTabs)[number];
 
@@ -48,34 +48,9 @@ export default async function CandidateDetailPage({
         orderBy: { createdAt: "desc" },
         take: 1,
       },
-      interactions: { orderBy: { interactionDate: "desc" }, take: tab === "general" || tab === "notes" ? DETAIL_RELATION_LIMIT : 0 },
-      tasks: { orderBy: { dueDate: "asc" }, take: tab === "tasks" ? DETAIL_RELATION_LIMIT : 0 },
-      documents: { orderBy: { createdAt: "desc" }, take: tab === "documents" ? DETAIL_RELATION_LIMIT : 0 },
+      interactions: { orderBy: { interactionDate: "desc" }, take: INITIAL_NOTE_LIMIT },
       concepts: { include: { concept: true } },
       tags: { include: { tag: true } },
-      locationMatches: {
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                city: true,
-                district: true,
-                areaM2: true,
-                monthlyRent: true,
-                transferFee: true,
-                status: true,
-                documents: {
-                  where: { archivedAt: null },
-                  select: { id: true, fileName: true, documentType: true, archivedAt: true },
-                },
-              },
-            },
-          },
-          orderBy: { updatedAt: "desc" },
-          take: tab === "locations" ? DETAIL_RELATION_LIMIT : 0,
-        },
-      timelineEvents: { orderBy: { eventDate: "desc" }, take: tab === "timeline" ? DETAIL_RELATION_LIMIT : 0 },
     },
   });
   if (!record) notFound();
@@ -90,12 +65,7 @@ export default async function CandidateDetailPage({
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),
-    prisma.candidateLocation.findMany({
-      where: tab === "locations" ? { archivedAt: null } : { id: "__skip__" },
-      select: { id: true, name: true, city: true, district: true },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-    }),
+    Promise.resolve([] as { id: string; name: string; city: string; district: string | null }[]),
   ]);
   const candidate = toCandidate(record);
   const openingProject = record.branch?.openingProjects[0] ?? record.openingProjects[0] ?? null;
