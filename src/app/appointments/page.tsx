@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, Filter, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, Filter, PhoneCall, RotateCcw, Trash2, XCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import {
@@ -356,9 +356,18 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <p className="mt-3 font-semibold">
                           {appointment.title}
                         </p>
-                        <p className="mt-1 text-sm text-[#65705f]">
-                          {appointment.lead.fullName} · {appointment.lead.city} · {formatAppointmentRange(appointment.appointmentDate, appointment.endDateTime)}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#65705f]">
+                          <span>{appointment.lead.fullName}</span>
+                          <span>·</span>
+                          <a href={phoneHref(appointment.lead.phone)} className="inline-flex items-center gap-1 font-medium text-[#17201b] hover:underline">
+                            <PhoneCall className="size-3.5" />
+                            {appointment.lead.phone}
+                          </a>
+                          <span>·</span>
+                          <span>{appointment.lead.city}</span>
+                          <span>·</span>
+                          <span>{formatAppointmentRange(appointment.appointmentDate, appointment.endDateTime)}</span>
+                        </div>
                         {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
                         {appointment.meetingLink ? (
                           <Link href={appointment.meetingLink} target="_blank" className="mt-1 inline-block text-sm font-medium text-[#17201b] underline">
@@ -368,6 +377,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         {appointment.notes ? <p className="mt-2 text-sm text-[#65705f]">{appointment.notes}</p> : null}
                       </div>
                       <div className="grid gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <a href={phoneHref(appointment.lead.phone)}>
+                            <PhoneCall className="size-4" />
+                            Ara
+                          </a>
+                        </Button>
                         {appointment.status !== "COMPLETED" ? <AppointmentCompleteDialog appointmentId={appointment.id} /> : null}
                         <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "NO_SHOW")} className="flex flex-wrap gap-2">
                           <input name="reason" placeholder="Gelmedi nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
@@ -409,6 +424,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       </div>
     </AppShell>
   );
+}
+
+function phoneHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, "");
+  return `tel:${normalized || phone}`;
 }
 
 function Select({
