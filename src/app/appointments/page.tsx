@@ -31,6 +31,9 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const APPOINTMENT_LIST_LIMIT = 500;
+const LEAD_OPTION_LIMIT = 200;
+
 type Params = {
   lead?: string;
 };
@@ -50,6 +53,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       where,
       include: { lead: { select: { id: true, fullName: true, city: true, phone: true, leadCategory: true } } },
       orderBy: { appointmentDate: "asc" },
+      take: APPOINTMENT_LIST_LIMIT,
     }).catch((error) => {
       console.error("Appointments table fallback", error);
       return [];
@@ -58,7 +62,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
-      take: 200,
+      take: LEAD_OPTION_LIMIT,
     }),
     prisma.lead.findMany({
       where: leadWhere,
@@ -77,7 +81,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         nextFollowUpAt: true,
       },
       orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
-      take: 200,
+      take: LEAD_OPTION_LIMIT,
     }),
     prisma.user.findMany({
       where: { isActive: true, archivedAt: null },

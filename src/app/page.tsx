@@ -71,6 +71,7 @@ export default async function Home() {
     unscoredCandidates,
     conceptDistribution,
     branchConceptDistribution,
+    branchConceptStatusCounts,
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
@@ -111,13 +112,13 @@ export default async function Home() {
       take: 6,
     }), []),
     safe(prisma.branchConcept.findMany({
-      select: {
-        id: true,
-        name: true,
-        color: true,
-        branches: { where: { archivedAt: null }, select: { status: true } },
-      },
+      select: { id: true, name: true, color: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }), []),
+    safe(prisma.branch.groupBy({
+      by: ["conceptId", "status"],
+      where: { archivedAt: null, conceptId: { not: null } },
+      _count: { _all: true },
     }), []),
   ]);
   const number = new Intl.NumberFormat("tr-TR");
@@ -161,6 +162,16 @@ export default async function Home() {
     ["9-10", score9To10],
     ["Puansız", unscoredCandidates],
   ] as const;
+  const branchConceptCountMap = new Map<string, { total: number; active: number; opening: number }>();
+  for (const row of branchConceptStatusCounts) {
+    if (!row.conceptId) continue;
+    const current = branchConceptCountMap.get(row.conceptId) ?? { total: 0, active: 0, opening: 0 };
+    const count = row._count._all;
+    current.total += count;
+    if (row.status === "ACTIVE") current.active += count;
+    if (["PLANNED", "IN_SETUP", "READY_TO_OPEN", "CONTRACTED"].includes(row.status)) current.opening += count;
+    branchConceptCountMap.set(row.conceptId, current);
+  }
 
   return (
     <AppShell activeHref="/dashboard" eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")}>
@@ -249,8 +260,7 @@ export default async function Home() {
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {branchConceptDistribution.map((concept) => {
-              const active = concept.branches.filter((branch) => branch.status === "ACTIVE").length;
-              const opening = concept.branches.filter((branch) => ["PLANNED", "IN_SETUP", "READY_TO_OPEN", "CONTRACTED"].includes(branch.status)).length;
+              const counts = branchConceptCountMap.get(concept.id) ?? { total: 0, active: 0, opening: 0 };
 
               return (
                 <Link key={concept.id} href={`/branches?concept=${concept.id}`} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4 hover:border-[#17201b]">
@@ -258,8 +268,8 @@ export default async function Home() {
                     <span className="size-3 rounded-full" style={{ backgroundColor: concept.color }} />
                     <p className="font-semibold">{concept.name}</p>
                   </div>
-                  <p className="mt-3 text-2xl font-semibold">{number.format(concept.branches.length)}</p>
-                  <p className="mt-1 text-sm text-[#65705f]">Aktif: {number.format(active)} · Açılış: {number.format(opening)}</p>
+                  <p className="mt-3 text-2xl font-semibold">{number.format(counts.total)}</p>
+                  <p className="mt-1 text-sm text-[#65705f]">Aktif: {number.format(counts.active)} · Açılış: {number.format(counts.opening)}</p>
                 </Link>
               );
             })}

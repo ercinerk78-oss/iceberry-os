@@ -8,7 +8,8 @@ import { containsInsensitive, phoneDigits } from "@/lib/search";
 export const dynamic = "force-dynamic";
 
 const CANDIDATE_LIST_LIMIT = 250;
-const RELATED_ITEM_LIMIT = 50;
+const LIST_INTERACTION_LIMIT = 1;
+const LIST_TASK_LIMIT = 5;
 
 type Params = {
   q?: string;
@@ -53,34 +54,10 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
           : undefined,
       }),
       include: {
-        interactions: { orderBy: { interactionDate: "desc" }, take: RELATED_ITEM_LIMIT },
-        tasks: { orderBy: { dueDate: "asc" }, take: RELATED_ITEM_LIMIT },
-        documents: { orderBy: { createdAt: "desc" }, take: RELATED_ITEM_LIMIT },
+        interactions: { orderBy: { interactionDate: "desc" }, take: LIST_INTERACTION_LIMIT },
+        tasks: { orderBy: { dueDate: "asc" }, take: LIST_TASK_LIMIT },
         concepts: { include: { concept: true } },
         tags: { include: { tag: true } },
-        locationMatches: {
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                city: true,
-                district: true,
-                areaM2: true,
-                monthlyRent: true,
-                transferFee: true,
-                status: true,
-                documents: {
-                  where: { archivedAt: null },
-                  select: { id: true, fileName: true, documentType: true, archivedAt: true },
-                },
-              },
-            },
-          },
-          orderBy: { updatedAt: "desc" },
-          take: RELATED_ITEM_LIMIT,
-        },
-        timelineEvents: { orderBy: { eventDate: "desc" }, take: RELATED_ITEM_LIMIT },
       },
       orderBy: { createdAt: "desc" },
       take: CANDIDATE_LIST_LIMIT,
