@@ -268,8 +268,9 @@ export async function changeLeadCategory(leadId: string, formData: FormData) {
   }
 }
 
-export async function convertLead(leadId: string) {
+export async function convertLead(leadId: string, options: { revalidate?: boolean } = {}) {
   const user = await requireUser();
+  const shouldRevalidate = options.revalidate ?? true;
 
   try {
     const lead = await prisma.lead.findUnique({
@@ -345,9 +346,11 @@ export async function convertLead(leadId: string) {
 
       return created;
     });
-    refresh(leadId);
-    revalidatePath("/candidates");
-    revalidatePath("/pipeline");
+    if (shouldRevalidate) {
+      refresh(leadId);
+      revalidatePath("/candidates");
+      revalidatePath("/pipeline");
+    }
 
     return { success: true, message: "Lead başarıyla franchise adayına dönüştürüldü.", candidateId: candidate.id };
   } catch {

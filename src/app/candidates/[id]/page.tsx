@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const activeOpeningStatuses = ["DRAFT", "PLANNING", "IN_PROGRESS", "ON_HOLD", "AT_RISK", "DELAYED", "READY_FOR_REVIEW", "READY_FOR_OPENING", "OPENED", "POST_OPENING"] as const;
+const DETAIL_RELATION_LIMIT = 75;
 
 export default async function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,9 +39,9 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
         orderBy: { createdAt: "desc" },
         take: 1,
       },
-      interactions: { orderBy: { interactionDate: "desc" } },
-      tasks: { orderBy: { dueDate: "asc" } },
-      documents: { orderBy: { createdAt: "desc" } },
+      interactions: { orderBy: { interactionDate: "desc" }, take: DETAIL_RELATION_LIMIT },
+      tasks: { orderBy: { dueDate: "asc" }, take: DETAIL_RELATION_LIMIT },
+      documents: { orderBy: { createdAt: "desc" }, take: DETAIL_RELATION_LIMIT },
       concepts: { include: { concept: true } },
       tags: { include: { tag: true } },
       locationMatches: {
@@ -63,8 +64,9 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
           },
         },
         orderBy: { updatedAt: "desc" },
+        take: DETAIL_RELATION_LIMIT,
       },
-      timelineEvents: { orderBy: { eventDate: "desc" } },
+      timelineEvents: { orderBy: { eventDate: "desc" }, take: DETAIL_RELATION_LIMIT },
     },
   });
   if (!record) notFound();

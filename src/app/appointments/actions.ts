@@ -469,9 +469,11 @@ export async function openCandidateFromCompletedAppointment(
 
     const conversion = appointment.lead.convertedCandidateId
       ? { success: true, candidateId: appointment.lead.convertedCandidateId }
-      : await convertLead(appointment.leadId);
+      : await convertLead(appointment.leadId, { revalidate: false });
 
-    refresh(appointment.leadId);
+    revalidatePath("/appointments");
+    revalidatePath("/candidates");
+    if (conversion.success && conversion.candidateId) revalidatePath(`/candidates/${conversion.candidateId}`);
     redirectHref = conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined;
   } catch (error) {
     console.error("Open candidate from appointment failed", error);
