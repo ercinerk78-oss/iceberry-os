@@ -58,7 +58,12 @@ export function CandidateDetailTabs({
           </div>
         </CardHeader>
         <CardContent className="p-5">
-          {activeTab === "general" ? <General candidate={candidate} /> : null}
+          {activeTab === "general" ? (
+            <div className="space-y-5">
+              <General candidate={candidate} />
+              <Interactions candidate={candidate} onAdd={() => setNote(true)} compact />
+            </div>
+          ) : null}
           {activeTab === "notes" ? <Interactions candidate={candidate} onAdd={() => setNote(true)} /> : null}
           {activeTab === "locations" ? <CandidateLocations candidate={candidate} availableLocations={availableLocations} /> : null}
           {activeTab === "tasks" ? <CandidateTaskPanel candidateId={candidate.id} tasks={candidate.tasks} /> : null}
@@ -186,18 +191,23 @@ function General({ candidate }: { candidate: Candidate }) {
   );
 }
 
-function Interactions({ candidate, onAdd }: { candidate: Candidate; onAdd: () => void }) {
+function Interactions({ candidate, onAdd, compact = false }: { candidate: Candidate; onAdd: () => void; compact?: boolean }) {
+  const interactions = compact ? candidate.interactions.slice(0, 5) : candidate.interactions;
+
   return (
     <div>
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold">Görüşme Notları</h3>
-          <p className="text-sm text-[#65705f]">En yeni görüşme en üstte gösterilir.</p>
+          <h3 className="font-semibold">{compact ? "Son Görüşme Notları" : "Görüşme Notları"}</h3>
+          <p className="text-sm text-[#65705f]">{compact ? "Aday açılışında en son 5 görüşme gösterilir." : "En yeni görüşme en üstte gösterilir."}</p>
         </div>
-        <Button onClick={onAdd} className="bg-[#17201b] text-white">Yeni Not Ekle</Button>
+        <div className="flex flex-wrap gap-2">
+          {compact ? <Button asChild variant="outline"><Link href={`/candidates/${candidate.id}?tab=notes`}>Tüm Notlar</Link></Button> : null}
+          <Button onClick={onAdd} className="bg-[#17201b] text-white">Yeni Not Ekle</Button>
+        </div>
       </div>
       <div className="space-y-3">
-        {candidate.interactions.map((interaction) => (
+        {interactions.map((interaction) => (
           <div key={interaction.id} className="relative rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2"><Badge className="bg-[#17201b] text-white">{interaction.interactionType}</Badge><strong>{interaction.title}</strong></div>
@@ -208,7 +218,7 @@ function Interactions({ candidate, onAdd }: { candidate: Candidate; onAdd: () =>
             {interaction.reminderAt ? <p className="mt-1 text-sm"><strong>Hatırlatma:</strong> {formatDate(interaction.reminderAt)}</p> : null}
           </div>
         ))}
-        {candidate.interactions.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Henüz görüşme notu eklenmemiş.</p> : null}
+        {interactions.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Henüz görüşme notu eklenmemiş.</p> : null}
       </div>
     </div>
   );

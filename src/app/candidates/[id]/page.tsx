@@ -48,7 +48,7 @@ export default async function CandidateDetailPage({
         orderBy: { createdAt: "desc" },
         take: 1,
       },
-      interactions: { orderBy: { interactionDate: "desc" }, take: tab === "notes" ? DETAIL_RELATION_LIMIT : 0 },
+      interactions: { orderBy: { interactionDate: "desc" }, take: tab === "general" || tab === "notes" ? DETAIL_RELATION_LIMIT : 0 },
       tasks: { orderBy: { dueDate: "asc" }, take: tab === "tasks" ? DETAIL_RELATION_LIMIT : 0 },
       documents: { orderBy: { createdAt: "desc" }, take: tab === "documents" ? DETAIL_RELATION_LIMIT : 0 },
       concepts: { include: { concept: true } },
