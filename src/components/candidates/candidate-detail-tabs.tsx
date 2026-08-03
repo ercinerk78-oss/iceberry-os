@@ -4,11 +4,12 @@ import type React from "react";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import type { MatchStatus } from "@prisma/client";
-import { CheckSquare, Clock3, MapPinned, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
+import { CheckSquare, Clock3, FileText, MapPinned, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
 
 import { archiveCandidateWithReason, createInteraction, updateCandidate } from "@/app/candidates/actions";
 import { unlinkCandidateLocationMatch } from "@/app/locations/actions";
 import { CandidateForm } from "@/components/candidates/candidate-form";
+import { CandidateDocumentsPanel } from "@/components/documents/candidate-documents-panel";
 import { CandidateLocationLinkForm, CandidateMatchUpdateForm } from "@/components/locations/location-forms";
 import { CandidateTaskPanel } from "@/components/tasks/candidate-task-panel";
 import { Badge } from "@/components/ui/badge";
@@ -21,15 +22,17 @@ import type { Candidate } from "@/types/candidate";
 
 const initial: ActionState = { success: false, message: "" };
 const interactionTypes = ["Telefon", "WhatsApp", "E-posta", "Online toplantı", "Yüz yüze toplantı", "Lokasyon ziyareti", "Diğer"];
+type DetailTab = "general" | "notes" | "locations" | "tasks" | "timeline" | "documents";
 
 export function CandidateDetailTabs({
   candidate,
   availableLocations = [],
+  activeTab = "general",
 }: {
   candidate: Candidate;
   availableLocations?: { id: string; name: string; city: string; district: string | null }[];
+  activeTab?: DetailTab;
 }) {
-  const [tab, setTab] = useState<"general" | "notes" | "locations" | "tasks" | "timeline">("general");
   const [edit, setEdit] = useState(false);
   const [note, setNote] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -41,11 +44,12 @@ export function CandidateDetailTabs({
         <CardHeader className="border-b border-[#edf0e9]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              <TabButton active={tab === "general"} onClick={() => setTab("general")} icon={<UserRound className="size-4" />}>Genel Bilgiler</TabButton>
-              <TabButton active={tab === "notes"} onClick={() => setTab("notes")} icon={<MessageSquareText className="size-4" />}>Görüşme Notları</TabButton>
-              <TabButton active={tab === "locations"} onClick={() => setTab("locations")} icon={<MapPinned className="size-4" />}>Aday Lokasyonlar</TabButton>
-              <TabButton active={tab === "tasks"} onClick={() => setTab("tasks")} icon={<CheckSquare className="size-4" />}>Görevler</TabButton>
-              <TabButton active={tab === "timeline"} onClick={() => setTab("timeline")} icon={<Clock3 className="size-4" />}>Zaman Çizelgesi</TabButton>
+              <TabButton href={`/candidates/${candidate.id}`} active={activeTab === "general"} icon={<UserRound className="size-4" />}>Genel Bilgiler</TabButton>
+              <TabButton href={`/candidates/${candidate.id}?tab=notes`} active={activeTab === "notes"} icon={<MessageSquareText className="size-4" />}>Görüşme Notları</TabButton>
+              <TabButton href={`/candidates/${candidate.id}?tab=locations`} active={activeTab === "locations"} icon={<MapPinned className="size-4" />}>Aday Lokasyonlar</TabButton>
+              <TabButton href={`/candidates/${candidate.id}?tab=tasks`} active={activeTab === "tasks"} icon={<CheckSquare className="size-4" />}>Görevler</TabButton>
+              <TabButton href={`/candidates/${candidate.id}?tab=timeline`} active={activeTab === "timeline"} icon={<Clock3 className="size-4" />}>Zaman Çizelgesi</TabButton>
+              <TabButton href={`/candidates/${candidate.id}?tab=documents`} active={activeTab === "documents"} icon={<FileText className="size-4" />}>Lokasyon Analizi</TabButton>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="size-4" />Düzenle</Button>
@@ -54,11 +58,17 @@ export function CandidateDetailTabs({
           </div>
         </CardHeader>
         <CardContent className="p-5">
-          {tab === "general" ? <General candidate={candidate} /> : null}
-          {tab === "notes" ? <Interactions candidate={candidate} onAdd={() => setNote(true)} /> : null}
-          {tab === "locations" ? <CandidateLocations candidate={candidate} availableLocations={availableLocations} /> : null}
-          {tab === "tasks" ? <CandidateTaskPanel candidateId={candidate.id} tasks={candidate.tasks} /> : null}
-          {tab === "timeline" ? <TimelineEvents candidate={candidate} /> : null}
+          {activeTab === "general" ? <General candidate={candidate} /> : null}
+          {activeTab === "notes" ? <Interactions candidate={candidate} onAdd={() => setNote(true)} /> : null}
+          {activeTab === "locations" ? <CandidateLocations candidate={candidate} availableLocations={availableLocations} /> : null}
+          {activeTab === "tasks" ? <CandidateTaskPanel candidateId={candidate.id} tasks={candidate.tasks} /> : null}
+          {activeTab === "timeline" ? <TimelineEvents candidate={candidate} /> : null}
+          {activeTab === "documents" ? (
+            <CandidateDocumentsPanel
+              candidateId={candidate.id}
+              documents={candidate.documents.filter((document) => ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_VISUAL"].includes(document.documentType))}
+            />
+          ) : null}
         </CardContent>
       </Card>
       {edit ? (
@@ -250,8 +260,8 @@ function Field({ name, label, type = "text" }: { name: string; label: string; ty
   return <label className="grid gap-2"><span className="text-sm font-medium">{label}</span><input required={name === "title" || name === "interactionDate"} name={name} type={type} className="h-10 rounded-lg border bg-[#f8faf6] px-3" /></label>;
 }
 
-function TabButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  return <Button type="button" onClick={onClick} className={active ? "bg-[#17201b] text-white" : "bg-[#f6f7f4] text-[#65705f]"}>{icon}{children}</Button>;
+function TabButton({ active, href, icon, children }: { active: boolean; href: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return <Button asChild className={active ? "bg-[#17201b] text-white" : "bg-[#f6f7f4] text-[#65705f]"}><Link href={href}>{icon}{children}</Link></Button>;
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

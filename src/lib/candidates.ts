@@ -12,9 +12,9 @@ import type {
 import type { Candidate } from "@/types/candidate";
 
 type CandidateWithRelations = FranchiseCandidate & {
-  interactions: CandidateInteraction[];
-  tasks: CandidateTask[];
-  documents: Document[];
+  interactions?: CandidateInteraction[];
+  tasks?: CandidateTask[];
+  documents?: Document[];
   concepts?: (CandidateConcept & { concept: Concept })[];
   tags?: (CandidateTagLink & { tag: CandidateTag })[];
   locationMatches?: {
@@ -53,21 +53,21 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
     createdAt: candidate.createdAt.toISOString(),
     updatedAt: candidate.updatedAt.toISOString(),
     assignedUserId: candidate.assignedUserId ?? "",
-    interactions: candidate.interactions.map((item) => ({
+    interactions: candidate.interactions?.map((item) => ({
       ...item,
       nextAction: item.nextAction ?? "",
       reminderAt: date(item.reminderAt),
       interactionDate: item.interactionDate.toISOString(),
-    })),
-    tasks: candidate.tasks.map((task) => ({
+    })) ?? [],
+    tasks: candidate.tasks?.map((task) => ({
       ...task,
       description: task.description ?? "",
       assignedUserId: task.assignedUserId ?? "",
       dueDate: task.dueDate.toISOString(),
       completedAt: date(task.completedAt),
       createdAt: task.createdAt.toISOString(),
-    })),
-    documents: candidate.documents.map((document) => ({
+    })) ?? [],
+    documents: candidate.documents?.map((document) => ({
       ...document,
       description: document.description ?? "",
       uploadedBy: document.uploadedBy ?? "",
@@ -76,7 +76,7 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
       archivedAt: date(document.archivedAt),
       createdAt: document.createdAt.toISOString(),
       updatedAt: document.updatedAt.toISOString(),
-    })),
+    })) ?? [],
     concepts: candidate.concepts?.map((item) => ({
       id: item.concept.id,
       name: item.concept.name,

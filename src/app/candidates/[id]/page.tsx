@@ -4,7 +4,6 @@ import { ArrowLeft, CalendarClock, Flame, MapPin, Phone } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { CandidateDetailTabs } from "@/components/candidates/candidate-detail-tabs";
-import { CandidateDocumentTabs } from "@/components/documents/candidate-document-tabs";
 import { CandidateConversion } from "@/components/franchisees/candidate-conversion";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,9 +14,19 @@ export const dynamic = "force-dynamic";
 
 const activeOpeningStatuses = ["DRAFT", "PLANNING", "IN_PROGRESS", "ON_HOLD", "AT_RISK", "DELAYED", "READY_FOR_REVIEW", "READY_FOR_OPENING", "OPENED", "POST_OPENING"] as const;
 const DETAIL_RELATION_LIMIT = 75;
+const detailTabs = ["general", "notes", "locations", "tasks", "timeline", "documents"] as const;
+type DetailTab = (typeof detailTabs)[number];
 
-export default async function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CandidateDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
+  const tab = detailTabs.includes(query.tab as DetailTab) ? (query.tab as DetailTab) : "general";
   const record = await prisma.franchiseCandidate.findFirst({
     where: { id, archivedAt: null },
     include: {
@@ -39,34 +48,34 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
         orderBy: { createdAt: "desc" },
         take: 1,
       },
-      interactions: { orderBy: { interactionDate: "desc" }, take: DETAIL_RELATION_LIMIT },
-      tasks: { orderBy: { dueDate: "asc" }, take: DETAIL_RELATION_LIMIT },
-      documents: { orderBy: { createdAt: "desc" }, take: DETAIL_RELATION_LIMIT },
+      interactions: { orderBy: { interactionDate: "desc" }, take: tab === "notes" ? DETAIL_RELATION_LIMIT : 0 },
+      tasks: { orderBy: { dueDate: "asc" }, take: tab === "tasks" ? DETAIL_RELATION_LIMIT : 0 },
+      documents: { orderBy: { createdAt: "desc" }, take: tab === "documents" ? DETAIL_RELATION_LIMIT : 0 },
       concepts: { include: { concept: true } },
       tags: { include: { tag: true } },
       locationMatches: {
-        include: {
-          location: {
-            select: {
-              id: true,
-              name: true,
-              city: true,
-              district: true,
-              areaM2: true,
-              monthlyRent: true,
-              transferFee: true,
-              status: true,
-              documents: {
-                where: { archivedAt: null },
-                select: { id: true, fileName: true, documentType: true, archivedAt: true },
+          include: {
+            location: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                district: true,
+                areaM2: true,
+                monthlyRent: true,
+                transferFee: true,
+                status: true,
+                documents: {
+                  where: { archivedAt: null },
+                  select: { id: true, fileName: true, documentType: true, archivedAt: true },
+                },
               },
             },
           },
+          orderBy: { updatedAt: "desc" },
+          take: tab === "locations" ? DETAIL_RELATION_LIMIT : 0,
         },
-        orderBy: { updatedAt: "desc" },
-        take: DETAIL_RELATION_LIMIT,
-      },
-      timelineEvents: { orderBy: { eventDate: "desc" }, take: DETAIL_RELATION_LIMIT },
+      timelineEvents: { orderBy: { eventDate: "desc" }, take: tab === "timeline" ? DETAIL_RELATION_LIMIT : 0 },
     },
   });
   if (!record) notFound();
@@ -82,7 +91,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
       orderBy: { name: "asc" },
     }),
     prisma.candidateLocation.findMany({
-      where: { archivedAt: null },
+      where: tab === "locations" ? { archivedAt: null } : { id: "__skip__" },
       select: { id: true, name: true, city: true, district: true },
       orderBy: { updatedAt: "desc" },
       take: 100,
@@ -121,8 +130,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
           openingProject={openingProject}
           users={users}
         />
-        <CandidateDetailTabs candidate={candidate} availableLocations={availableLocations} />
-        <CandidateDocumentTabs candidate={candidate} />
+        <CandidateDetailTabs candidate={candidate} availableLocations={availableLocations} activeTab={tab} />
       </div>
     </AppShell>
   );
