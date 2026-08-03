@@ -414,6 +414,75 @@ export async function completeLeadAppointmentForm(appointmentId: string, formDat
   await completeLeadAppointment(appointmentId, { success: false, message: "" }, formData);
 }
 
+export async function openCandidateFromCompletedAppointment(
+  appointmentId: string,
+  previousState: AppointmentActionState,
+): Promise<AppointmentActionState> {
+  void previousState;
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  try {
+    const appointment = await prisma.leadAppointment.findUnique({
+      where: { id: appointmentId },
+      include: { lead: { select: { id: true, convertedCandidateId: true } } },
+    });
+
+    if (!appointment) return { success: false, message: "Randevu bulunamadı." };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.leadAppointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: "COMPLETED",
+          result: appointment.result || "Görüşüldü",
+          outcome: appointment.outcome || "Görüşme yapıldı. Detaylar aday sayfasında işlenecek.",
+          completedAt: appointment.completedAt ?? new Date(),
+        },
+      });
+      await tx.lead.update({
+        where: { id: appointment.leadId },
+        data: {
+          status: "MEETING_COMPLETED",
+          processStatus: "MEETING_COMPLETED",
+          lastContactAt: new Date(),
+        },
+      });
+      await tx.leadTask.updateMany({
+        where: {
+          leadId: appointment.leadId,
+          dueDate: appointment.appointmentDate,
+          status: { in: ["Açık", "Devam Ediyor"] },
+        },
+        data: { status: "Tamamlandı", completedAt: new Date() },
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId: appointment.leadId,
+          type: "APPOINTMENT_COMPLETED",
+          description: `${user.name} görüşmeyi tamamlandı olarak işaretledi. Detay girişi franchise adayı sayfasına yönlendirildi.`,
+        },
+      });
+    });
+
+    const conversion = appointment.lead.convertedCandidateId
+      ? { success: true, candidateId: appointment.lead.convertedCandidateId }
+      : await convertLead(appointment.leadId);
+
+    refresh(appointment.leadId);
+    return {
+      success: conversion.success,
+      message: conversion.success
+        ? "Franchise adayı sayfası açılıyor."
+        : "Görüşme tamamlandı fakat adaya dönüştürme ayrıca kontrol edilmeli.",
+      redirectHref: conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined,
+    };
+  } catch (error) {
+    console.error("Open candidate from appointment failed", error);
+    return { success: false, message: "Franchise adayı sayfası açılamadı." };
+  }
+}
+
 export async function changeLeadAppointmentStatus(appointmentId: string, status: string, formData?: FormData) {
   await requirePermission("appointments");
   const user = await requireUser();
