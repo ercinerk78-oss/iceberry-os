@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarClock, CheckSquare, FileText, ShieldCheck, TrendingUp } from "lucide-react";
 
-import { archiveBranch, updateBranch } from "@/app/branches/actions";
+import { updateBranch } from "@/app/branches/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
 import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
@@ -112,18 +112,7 @@ export default async function BranchDetail({
   };
 
   return (
-    <AppShell
-      activeHref="/branches"
-      eyebrow="Şube operasyon çekirdeği"
-      title={branch.branchName}
-      action={
-        <form action={archiveBranch.bind(null, id)}>
-          <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50">
-            Listeden Kaldır
-          </Button>
-        </form>
-      }
-    >
+    <AppShell activeHref="/branches" eyebrow="Şube operasyon çekirdeği" title={branch.branchName}>
       <div className="space-y-4">
         <Card className="p-5 shadow-none">
           <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">

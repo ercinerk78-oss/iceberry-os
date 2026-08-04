@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { archiveBranch, setBranchStatus } from "@/app/branches/actions";
+import { setBranchStatus } from "@/app/branches/actions";
 import { updateFranchisee } from "@/app/franchisees/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
@@ -116,11 +116,6 @@ export default async function FranchiseeDetail({
                             <form action={setBranchStatus.bind(null, branch.id, branch.status === "ACTIVE" ? "PASSIVE" : "ACTIVE")}>
                               <Button size="sm" variant="outline">
                                 {branch.status === "ACTIVE" ? "Pasife Al" : "Aktifleştir"}
-                              </Button>
-                            </form>
-                            <form action={archiveBranch.bind(null, branch.id)}>
-                              <Button size="sm" variant="outline">
-                                Arşivle
                               </Button>
                             </form>
                           </>
