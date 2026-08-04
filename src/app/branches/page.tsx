@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { Plus, Search } from "lucide-react";
 
+import { archiveBranch } from "@/app/branches/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,9 +136,16 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                       <td className="px-4 py-4">{openTasks}</td>
                       <td className="px-4 py-4">{lateTasks}</td>
                       <td className="px-4 py-4">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/branches/${branch.id}`}>Detay</Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/branches/${branch.id}`}>Detay</Link>
+                          </Button>
+                          <form action={archiveBranch.bind(null, branch.id)}>
+                            <Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50">
+                              Listeden Kaldır
+                            </Button>
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   );
