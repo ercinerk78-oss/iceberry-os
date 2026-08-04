@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { TaskListPage, type TaskListItem } from "@/components/tasks/task-list-page";
 import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
 import { accessibleBranchIds } from "@/lib/branch-access";
+import { branchTaskPriorityLabel, branchTaskStatusLabel } from "@/lib/branch-tasks";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -56,8 +57,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       title: task.title,
       description: task.description ?? "",
       dueDate: task.dueDate.toISOString(),
-      priority: task.priority,
-      status: task.status,
+      priority: branchTaskPriorityLabel(task.priority),
+      status: branchTaskStatusLabel(task.status),
       assignedUserId: task.assignedUserId ?? "Atanmadı",
       relation: {
         id: task.lead.id,

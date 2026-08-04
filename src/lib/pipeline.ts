@@ -44,7 +44,7 @@ export const LEAD_PIPELINE_STAGES = [
   "Kaybedildi",
 ] as const;
 
-export const isOpenTask = (status: string) => status === "Açık" || status === "Devam Ediyor";
+export const isOpenTask = (status: string) => ["Açık", "Devam Ediyor", "Gönderildi", "İncelemede", "Reddedildi"].includes(status);
 
 export const isOverdue = (date: string | Date, status?: string) =>
   (!status || isOpenTask(status)) && new Date(date).getTime() < Date.now();

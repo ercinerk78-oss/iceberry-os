@@ -5,6 +5,7 @@ import { CalendarClock, CheckSquare, FileText, ShieldCheck, TrendingUp } from "l
 import { updateBranch } from "@/app/branches/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
+import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
+import { currentUser } from "@/lib/auth";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
 
@@ -44,6 +46,7 @@ export default async function BranchDetail({
   const { id } = await params;
   const { tab = "Genel" } = await searchParams;
   if (!(await canAccessBranch(id))) notFound();
+  const user = await currentUser();
   const branch = await prisma.branch.findUnique({
     where: { id },
     select: {
@@ -146,7 +149,7 @@ export default async function BranchDetail({
             {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} conceptOptions={conceptOptions} /> : null}
             {tab === "Açılış Süreci" ? <OpeningPanel activeOpening={activeOpening} activeStageTitle={activeStage?.title} /> : null}
             {tab === "Kullanıcılar" ? <UsersPanel users={branch.users} /> : null}
-            {tab === "Görevler" ? <TasksPanel tasks={branch.tasks} /> : null}
+            {tab === "Görevler" ? <BranchTaskPanel branchId={id} tasks={branch.tasks} canReview={!["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF"].includes(user?.role ?? "")} /> : null}
             {tab === "Dokümanlar" ? <RelatedDocumentsPanel relation="branch" relationId={id} documents={branch.documents} /> : null}
             {tab === "Denetim Raporları" ? <AuditPanel audits={branch.audits} /> : null}
             {tab === "Operasyon Ziyaretleri" ? <BranchVisitsPanel visits={branch.visits} /> : null}
@@ -202,12 +205,6 @@ function UsersPanel({ users }: { users: { id: string; role: string; user: { name
   if (!users.length) return <Empty title="Kullanıcılar" text="Bu şubeye atanmış kullanıcı yok." />;
 
   return <List items={users.map((item) => `${item.user.name} · ${item.role} · ${item.user.email}`)} />;
-}
-
-function TasksPanel({ tasks }: { tasks: { id: string; title: string; status: string; dueDate: Date | null; evidence: unknown[] }[] }) {
-  if (!tasks.length) return <Empty title="Görevler" text="Bu şubeye atanmış görev yok." />;
-
-  return <List items={tasks.map((task) => `${task.title} · ${task.status} · ${formatDate(task.dueDate)} · Kanıt: ${task.evidence.length}`)} />;
 }
 
 function AuditPanel({ audits }: { audits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[] }) {
