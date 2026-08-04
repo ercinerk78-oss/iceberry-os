@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Building2, Coffee, CupSoda, Hotel, MapPin, PanelTop, Plane, Store } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,18 +29,28 @@ type BranchPin = {
   lastAuditScore?: number | null;
 };
 
+type Viewport = {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+  zoom: number;
+};
+
 const iconMap = { Store, PanelTop, Coffee, CupSoda, Hotel, Building2, MapPin, Plane };
-const TURKEY_BOUNDS = {
-  minLat: 35.6,
-  maxLat: 42.2,
-  minLng: 25.6,
-  maxLng: 44.9,
+const TILE_SIZE = 256;
+const MAP_ZOOM = 6;
+const MAP_VIEWPORT = {
+  width: 1100,
+  height: 620,
+  centerLat: 39.0,
+  centerLng: 35.2,
 };
 
 export function BranchMapView({ branches }: { branches: BranchPin[] }) {
   const [selectedId, setSelectedId] = useState(branches[0]?.id ?? "");
   const selected = branches.find((branch) => branch.id === selectedId) ?? branches[0];
-  const bounds = useMemo(() => calculateBounds(branches), [branches]);
+  const viewport = useMemo(() => mapViewport(), []);
 
   if (!branches.length) {
     return (
@@ -51,15 +62,17 @@ export function BranchMapView({ branches }: { branches: BranchPin[] }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-      <div className="relative min-h-[560px] overflow-hidden rounded-lg border bg-[#eef4e9]">
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,32,27,0.06)_1px,transparent_1px),linear-gradient(rgba(23,32,27,0.06)_1px,transparent_1px)] bg-[size:48px_48px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(111,190,68,0.2),transparent_30%),radial-gradient(circle_at_72%_58%,rgba(37,99,235,0.16),transparent_28%)]" />
-        <TurkeyMapBackdrop />
-        <div className="absolute left-4 top-4 rounded-lg border bg-white/90 px-3 py-2 text-xs text-[#65705f] shadow-sm">
-          Canlı şube koordinat görünümü · {branches.length} pin
+      <div className="relative min-h-[560px] overflow-hidden rounded-lg border bg-[#d8e5cf]">
+        <TileLayer viewport={viewport} />
+        <div className="absolute inset-0 bg-white/5" />
+        <div className="absolute left-4 top-4 rounded-lg border bg-white/95 px-3 py-2 text-xs text-[#65705f] shadow-sm">
+          Canlı şube haritası · {branches.length} pin
+        </div>
+        <div className="absolute bottom-3 right-3 rounded border bg-white/95 px-2 py-1 text-[11px] text-[#65705f] shadow-sm">
+          © OpenStreetMap contributors
         </div>
         {branches.map((branch) => {
-          const position = project(branch, bounds);
+          const position = projectToViewport(branch, viewport);
           const Icon = iconMap[branch.concept.icon as keyof typeof iconMap] ?? Store;
           const isSelected = selected?.id === branch.id;
 
@@ -84,7 +97,9 @@ export function BranchMapView({ branches }: { branches: BranchPin[] }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-semibold">{selected.branchName}</h2>
-                <p className="mt-1 text-sm text-[#65705f]">{selected.city}{selected.district ? ` / ${selected.district}` : ""}</p>
+                <p className="mt-1 text-sm text-[#65705f]">
+                  {selected.city}{selected.district ? ` / ${selected.district}` : ""}
+                </p>
               </div>
               <Badge style={{ borderColor: selected.concept.color, color: selected.concept.color }} variant="outline">
                 {selected.concept.name}
@@ -117,59 +132,86 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function calculateBounds(branches: BranchPin[]) {
-  const inTurkey = branches.filter((branch) =>
-    branch.latitude >= TURKEY_BOUNDS.minLat &&
-    branch.latitude <= TURKEY_BOUNDS.maxLat &&
-    branch.longitude >= TURKEY_BOUNDS.minLng &&
-    branch.longitude <= TURKEY_BOUNDS.maxLng,
-  );
+function TileLayer({ viewport }: { viewport: Viewport }) {
+  const tiles = mapTiles(viewport);
 
-  if (inTurkey.length === branches.length) return TURKEY_BOUNDS;
-
-  const latitudes = branches.map((branch) => branch.latitude);
-  const longitudes = branches.map((branch) => branch.longitude);
-  const minLat = Math.min(TURKEY_BOUNDS.minLat, ...latitudes);
-  const maxLat = Math.max(TURKEY_BOUNDS.maxLat, ...latitudes);
-  const minLng = Math.min(TURKEY_BOUNDS.minLng, ...longitudes);
-  const maxLng = Math.max(TURKEY_BOUNDS.maxLng, ...longitudes);
-  const latPadding = Math.max((maxLat - minLat) * 0.04, 0.08);
-  const lngPadding = Math.max((maxLng - minLng) * 0.04, 0.08);
-
-  return {
-    minLat: minLat - latPadding,
-    maxLat: maxLat + latPadding,
-    minLng: minLng - lngPadding,
-    maxLng: maxLng + lngPadding,
-  };
-}
-
-function project(branch: BranchPin, bounds: ReturnType<typeof calculateBounds>) {
-  const lngRange = bounds.maxLng - bounds.minLng || 1;
-  const latRange = bounds.maxLat - bounds.minLat || 1;
-
-  return {
-    x: Math.min(95, Math.max(5, ((branch.longitude - bounds.minLng) / lngRange) * 100)),
-    y: Math.min(95, Math.max(5, (1 - (branch.latitude - bounds.minLat) / latRange) * 100)),
-  };
-}
-
-function TurkeyMapBackdrop() {
   return (
-    <svg className="absolute inset-0 h-full w-full opacity-90" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
-      <path
-        d="M78 260 C118 232 168 224 216 235 C272 248 312 218 360 210 C420 199 466 217 525 204 C594 189 654 202 720 193 C790 184 845 204 912 197 C940 194 963 209 973 230 C949 252 900 251 866 269 C823 292 777 283 729 300 C665 323 620 303 560 318 C494 334 440 314 383 331 C318 351 269 333 206 344 C152 353 103 326 78 260 Z"
-        fill="#dfead6"
-        stroke="#8aa47f"
-        strokeWidth="2"
-      />
-      <path d="M122 305 C210 333 302 317 394 318 C495 319 575 299 669 300 C762 301 844 280 934 246" fill="none" stroke="#b9c8b0" strokeWidth="2" strokeDasharray="8 8" />
-      <path d="M150 258 C256 232 340 245 438 228 C540 211 636 230 736 210 C815 194 882 214 940 205" fill="none" stroke="#eef5e9" strokeWidth="18" strokeLinecap="round" opacity="0.65" />
-      <text x="135" y="386" fill="#65705f" fontSize="20" fontWeight="600">Ege</text>
-      <text x="392" y="382" fill="#65705f" fontSize="20" fontWeight="600">Ic Anadolu</text>
-      <text x="723" y="376" fill="#65705f" fontSize="20" fontWeight="600">Dogu</text>
-      <text x="430" y="168" fill="#65705f" fontSize="18" fontWeight="600">Karadeniz</text>
-      <text x="460" y="458" fill="#65705f" fontSize="18" fontWeight="600">Akdeniz</text>
-    </svg>
+    <div className="absolute inset-0">
+      {tiles.map((tile) => (
+        <Image
+          key={`${tile.x}-${tile.y}`}
+          src={`https://tile.openstreetmap.org/${viewport.zoom}/${tile.x}/${tile.y}.png`}
+          alt=""
+          width={TILE_SIZE}
+          height={TILE_SIZE}
+          unoptimized
+          className="absolute select-none"
+          draggable={false}
+          style={{
+            left: `${tile.left}%`,
+            top: `${tile.top}%`,
+            width: `${tile.width}%`,
+            height: `${tile.height}%`,
+          }}
+        />
+      ))}
+    </div>
   );
+}
+
+function mapViewport(): Viewport {
+  const center = latLngToWorld(MAP_VIEWPORT.centerLat, MAP_VIEWPORT.centerLng, MAP_ZOOM);
+
+  return {
+    originX: center.x - MAP_VIEWPORT.width / 2,
+    originY: center.y - MAP_VIEWPORT.height / 2,
+    width: MAP_VIEWPORT.width,
+    height: MAP_VIEWPORT.height,
+    zoom: MAP_ZOOM,
+  };
+}
+
+function mapTiles(viewport: Viewport) {
+  const minTileX = Math.floor(viewport.originX / TILE_SIZE);
+  const maxTileX = Math.floor((viewport.originX + viewport.width) / TILE_SIZE);
+  const minTileY = Math.floor(viewport.originY / TILE_SIZE);
+  const maxTileY = Math.floor((viewport.originY + viewport.height) / TILE_SIZE);
+  const tiles: Array<{ x: number; y: number; left: number; top: number; width: number; height: number }> = [];
+  const maxTile = 2 ** viewport.zoom;
+
+  for (let x = minTileX; x <= maxTileX; x += 1) {
+    for (let y = minTileY; y <= maxTileY; y += 1) {
+      if (y < 0 || y >= maxTile) continue;
+      const wrappedX = ((x % maxTile) + maxTile) % maxTile;
+      tiles.push({
+        x: wrappedX,
+        y,
+        left: ((x * TILE_SIZE - viewport.originX) / viewport.width) * 100,
+        top: ((y * TILE_SIZE - viewport.originY) / viewport.height) * 100,
+        width: (TILE_SIZE / viewport.width) * 100,
+        height: (TILE_SIZE / viewport.height) * 100,
+      });
+    }
+  }
+
+  return tiles;
+}
+
+function projectToViewport(branch: BranchPin, viewport: Viewport) {
+  const point = latLngToWorld(branch.latitude, branch.longitude, viewport.zoom);
+
+  return {
+    x: Math.min(96, Math.max(4, ((point.x - viewport.originX) / viewport.width) * 100)),
+    y: Math.min(96, Math.max(4, ((point.y - viewport.originY) / viewport.height) * 100)),
+  };
+}
+
+function latLngToWorld(latitude: number, longitude: number, zoom: number) {
+  const sinLat = Math.sin((Math.min(85.05112878, Math.max(-85.05112878, latitude)) * Math.PI) / 180);
+  const scale = TILE_SIZE * 2 ** zoom;
+
+  return {
+    x: ((longitude + 180) / 360) * scale,
+    y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale,
+  };
 }

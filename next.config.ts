@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "30mb",
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "tile.openstreetmap.org",
+      },
+    ],
+  },
   turbopack: {
     root,
   },
