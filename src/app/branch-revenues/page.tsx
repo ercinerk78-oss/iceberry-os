@@ -3,17 +3,16 @@ import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Download, LineChart, Search } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
-import { approveRevenue, createBranchRevenue, lockRevenue, rejectRevenue } from "@/app/branch-revenues/actions";
+import { approveRevenue, lockRevenue, rejectRevenue } from "@/app/branch-revenues/actions";
 import { AppShell } from "@/components/app-shell";
+import { BranchRevenueForm } from "@/components/branch-revenues/branch-revenue-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import {
   FINAL_REVENUE_STATUSES,
-  REVENUE_CURRENCIES,
   REVENUE_SOURCE_LABELS,
-  REVENUE_SOURCES,
   REVENUE_STATUS_LABELS,
   formatMoney,
   formatPercent,
@@ -50,7 +49,7 @@ type RevenueRowData = {
 };
 
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] : "");
-const finalStatuses = [...FINAL_REVENUE_STATUSES];
+const visibleRevenueStatuses = ["DRAFT", "SUBMITTED", ...FINAL_REVENUE_STATUSES];
 
 export default async function BranchRevenuesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
@@ -100,7 +99,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
       include: { enteredBy: { select: { name: true } } },
     }),
     safeFindBranchRevenueRecords({
-      where: { periodType: "MONTHLY", year, branch: branchWhere, status: { in: finalStatuses } },
+      where: { periodType: "MONTHLY", year, branch: branchWhere, status: { in: visibleRevenueStatuses } },
       include: { enteredBy: { select: { name: true } } },
       orderBy: { periodStart: "asc" },
     }),
@@ -113,8 +112,8 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const rows = branches.map((branch) => {
     const current = currentByBranch.get(branch.id);
     const previous = previousByBranch.get(branch.id);
-    const actual = current && finalStatuses.includes(current.status as typeof finalStatuses[number]) ? current.grossRevenue : 0;
-    const previousActual = previous && finalStatuses.includes(previous.status as typeof finalStatuses[number]) ? previous.grossRevenue : 0;
+    const actual = current && visibleRevenueStatuses.includes(current.status) ? current.grossRevenue : 0;
+    const previousActual = previous && visibleRevenueStatuses.includes(previous.status) ? previous.grossRevenue : 0;
     const change = actual - previousActual;
     const targetRate = realizationRate(actual, current?.targetRevenue);
 
@@ -128,12 +127,12 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
     return true;
   });
 
-  const finalCurrent = currentRecords.filter((record) => finalStatuses.includes(record.status as typeof finalStatuses[number]));
+  const finalCurrent = currentRecords.filter((record) => visibleRevenueStatuses.includes(record.status));
   const totalsByCurrency = groupTotal(finalCurrent);
   const avgByCurrency = Object.fromEntries(Object.entries(totalsByCurrency).map(([currency, total]) => [currency, total / Math.max(1, branches.length)]));
   const best = [...rows].sort((a, b) => b.actual - a.actual)[0];
   const worst = [...rows].filter((row) => row.current).sort((a, b) => a.actual - b.actual)[0];
-  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => finalStatuses.includes(record.status as typeof finalStatuses[number])));
+  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => visibleRevenueStatuses.includes(record.status)));
   const targetMet = rows.filter((row) => row.targetRate != null && row.targetRate >= 100).length;
   const targetMissed = rows.filter((row) => row.current?.targetRevenue && (row.targetRate ?? 0) < 100).length;
   const missing = rows.filter((row) => !row.current).length;
@@ -212,23 +211,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
         <Card className="shadow-none">
           <CardHeader><CardTitle>Manuel Ciro Girişi</CardTitle></CardHeader>
           <CardContent>
-            <form action={createBranchRevenue} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Select name="branchId" current="" first="Şube seç" options={branches.map((branch) => [branch.id, branch.branchName])} />
-              <input name="year" type="number" defaultValue={year} className="h-10 rounded-lg border px-3" />
-              <input name="month" type="number" min={1} max={12} defaultValue={month} className="h-10 rounded-lg border px-3" />
-              <input name="grossRevenue" required type="number" min={0} step="0.01" placeholder="Gerçekleşen ciro" className="h-10 rounded-lg border px-3" />
-              <input name="targetRevenue" type="number" min={0} step="0.01" placeholder="Ciro hedefi" className="h-10 rounded-lg border px-3" />
-              <Select name="currency" current="TRY" first="" options={REVENUE_CURRENCIES.map((item) => [item, item])} />
-              <input name="transactionCount" type="number" min={0} placeholder="İşlem sayısı" className="h-10 rounded-lg border px-3" />
-              <input name="averageTicket" type="number" min={0} step="0.01" placeholder="Ortalama sepet" className="h-10 rounded-lg border px-3" />
-              <Select name="source" current="MANUAL" first="" options={REVENUE_SOURCES.map((item) => [item, REVENUE_SOURCE_LABELS[item]])} />
-              <input name="supportFile" type="file" className="h-10 rounded-lg border px-3 py-2 text-sm md:col-span-2" />
-              <input name="notes" placeholder="Açıklama" className="h-10 rounded-lg border px-3 xl:col-span-2" />
-              <div className="flex gap-2 md:col-span-2 xl:col-span-6">
-                <Button name="submit" value="">Taslak Kaydet</Button>
-                <Button name="submit" value="1" className="bg-[#17201b] text-white">Onaya Gönder</Button>
-              </div>
-            </form>
+            <BranchRevenueForm branches={branches} year={year} month={month} />
           </CardContent>
         </Card>
 

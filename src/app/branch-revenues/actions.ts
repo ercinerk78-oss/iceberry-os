@@ -136,8 +136,8 @@ export async function upsertBranchRevenue(_: BranchRevenueState, formData: FormD
   }
 }
 
-export async function createBranchRevenue(formData: FormData): Promise<void> {
-  await upsertBranchRevenue({ success: false, message: "" }, formData);
+export async function createBranchRevenue(state: BranchRevenueState, formData: FormData): Promise<BranchRevenueState> {
+  return upsertBranchRevenue(state, formData);
 }
 
 export async function approveRevenue(id: string, formData: FormData) {
