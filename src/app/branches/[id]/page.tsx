@@ -54,6 +54,8 @@ export default async function BranchDetail({
       city: true,
       district: true,
       address: true,
+      latitude: true,
+      longitude: true,
       concept: true,
       conceptRelation: true,
       locationType: true,

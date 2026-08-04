@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { MapPinned } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { geocodeMissingBranchLocations } from "@/app/branch-map/actions";
 import { BranchMapView } from "@/components/branches/branch-map-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export default async function BranchMapPage({ searchParams }: { searchParams: Pr
   const status = value(params, "status");
   const city = value(params, "city");
   const ownershipType = value(params, "ownershipType");
+  const geocoded = value(params, "geocoded");
+  const geocodeFailed = value(params, "geocodeFailed");
   const scope = await branchScopeWhere();
   const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
 
@@ -95,6 +98,13 @@ export default async function BranchMapPage({ searchParams }: { searchParams: Pr
   return (
     <AppShell activeHref="/branch-map" eyebrow="Şube ağı görünümü" title="Şube Haritası">
       <div className="space-y-5">
+        {geocoded || geocodeFailed ? (
+          <Card className="border-[#cfe8c1] bg-[#f8faf6] p-4 text-sm text-[#2f5f20] shadow-none">
+            Konum tamamlama sonucu: {Number(geocoded || 0).toLocaleString("tr-TR")} şube haritaya eklendi,
+            {" "}{Number(geocodeFailed || 0).toLocaleString("tr-TR")} şube için konum bulunamadı.
+          </Card>
+        ) : null}
+
         <Card className="p-4 shadow-none">
           <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <MultiConceptFilter concepts={concepts} selected={conceptIds} />
@@ -121,10 +131,15 @@ export default async function BranchMapPage({ searchParams }: { searchParams: Pr
 
         {missingLocation.length ? (
           <Card className="p-4 shadow-none">
+            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
             <h2 className="flex items-center gap-2 font-semibold">
               <MapPinned className="size-5" />
               Konumu eksik şubeler
             </h2>
+              <form action={geocodeMissingBranchLocations}>
+                <Button className="bg-[#17201b] text-white">Eksik Konumları Tamamla</Button>
+              </form>
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {missingLocation.map((branch) => (
                 <Badge key={branch.id} variant="outline">

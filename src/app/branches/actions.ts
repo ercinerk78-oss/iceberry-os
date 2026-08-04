@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { audit, requirePermission } from "@/lib/auth";
 import { BRANCH_STATUSES } from "@/lib/franchise";
 import { activeProjectStatuses, OpeningProjectService } from "@/lib/opening-project-service";
+import { geocodeAddress } from "@/lib/geocoding";
 import { prisma } from "@/lib/prisma";
 import { branchSchema, type FormState } from "@/lib/validations/franchise";
 
@@ -14,6 +15,8 @@ const fields = [
   "city",
   "district",
   "address",
+  "latitude",
+  "longitude",
   "conceptId",
   "concept",
   "locationType",
@@ -47,12 +50,20 @@ async function conceptForWrite(conceptId: string, options?: { currentConceptId?:
 }
 
 async function toData(data: ReturnType<typeof branchSchema.parse>, concept: Awaited<ReturnType<typeof conceptForWrite>>) {
+  const manualLatitude = number(data.latitude);
+  const manualLongitude = number(data.longitude);
+  const geocoded = manualLatitude == null || manualLongitude == null
+    ? await geocodeAddress({ address: data.address, district: data.district, city: data.city })
+    : null;
+
   return {
     franchiseeId: empty(data.franchiseeId),
     branchName: data.branchName,
     city: data.city,
     district: empty(data.district),
     address: empty(data.address),
+    latitude: manualLatitude ?? geocoded?.latitude ?? null,
+    longitude: manualLongitude ?? geocoded?.longitude ?? null,
     conceptId: concept.id,
     concept: concept.code,
     conceptType: concept.code,

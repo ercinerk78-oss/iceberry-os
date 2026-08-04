@@ -3,6 +3,8 @@ import { z } from "zod";
 import { BRANCH_STATUSES, FRANCHISEE_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
 
 const optional = z.string().trim().optional().or(z.literal(""));
+const latitude = optional.refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= -90 && Number(value) <= 90), "Enlem -90 ile 90 arasinda olmalidir.");
+const longitude = optional.refine((value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= -180 && Number(value) <= 180), "Boylam -180 ile 180 arasinda olmalidir.");
 const date = optional.refine((value) => !value || !Number.isNaN(Date.parse(value)), "Geçerli bir tarih girin.");
 const rate = optional.refine(
   (value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100),
@@ -36,6 +38,8 @@ export const branchSchema = z.object({
   district: optional,
   address: optional,
   conceptId: z.string().trim().min(1, "Konsept seçin."),
+  latitude,
+  longitude,
   concept: optional,
   locationType: z.enum(Object.keys(LOCATION_TYPES) as [keyof typeof LOCATION_TYPES, ...(keyof typeof LOCATION_TYPES)[]]),
   openingDate: date,

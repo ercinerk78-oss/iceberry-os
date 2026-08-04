@@ -49,6 +49,12 @@ export function BranchForm({
       <Field name="city" label="Şehir" value={values.city} required />
       <Field name="district" label="İlçe" value={values.district} />
       <Area name="address" label="Adres" value={values.address} />
+      <Section title="Harita Konumu" />
+      <Field name="latitude" label="Enlem" type="number" value={values.latitude} />
+      <Field name="longitude" label="Boylam" type="number" value={values.longitude} />
+      <p className="text-sm text-[#65705f] md:col-span-2">
+        Boş bırakırsanız sistem şehir, ilçe ve adres bilgisinden konumu otomatik bulmaya çalışır.
+      </p>
 
       <Section title="Operasyon" />
       <Field name="plannedOpeningDate" label="Planlanan Açılış" type="date" value={dateValue(values.plannedOpeningDate)} />
@@ -110,8 +116,8 @@ function Field({
         required={required}
         name={name}
         type={type}
-        step={type === "number" ? "0.01" : undefined}
-        min={type === "number" ? 0 : undefined}
+        step={type === "number" ? (["latitude", "longitude"].includes(name) ? "0.000001" : "0.01") : undefined}
+        min={type === "number" && !["latitude", "longitude"].includes(name) ? 0 : undefined}
         defaultValue={String(value ?? "")}
         className="h-10 rounded-lg border bg-[#f8faf6] px-3"
       />
