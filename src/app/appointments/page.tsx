@@ -163,6 +163,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone}</p>
                         </div>
                         <div className="grid shrink-0 gap-2">
+                          <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
@@ -213,6 +214,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                         </div>
                         <div className="grid shrink-0 gap-2">
+                          <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
@@ -257,6 +259,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                         </div>
                         <div className="grid shrink-0 gap-2">
+                          <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
@@ -375,4 +378,15 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
 function phoneHref(phone: string) {
   const normalized = phone.replace(/[^\d+]/g, "");
   return `tel:${normalized || phone}`;
+}
+
+function CallButton({ phone }: { phone: string }) {
+  return (
+    <Button asChild size="sm" variant="outline">
+      <a href={phoneHref(phone)}>
+        <PhoneCall className="size-4" />
+        Ara
+      </a>
+    </Button>
+  );
 }
