@@ -53,7 +53,7 @@ async function toData(data: ReturnType<typeof branchSchema.parse>, concept: Awai
   const manualLatitude = number(data.latitude);
   const manualLongitude = number(data.longitude);
   const geocoded = manualLatitude == null || manualLongitude == null
-    ? await geocodeAddress({ address: data.address, district: data.district, city: data.city })
+    ? await geocodeAddress({ name: data.branchName, address: data.address, district: data.district, city: data.city })
     : null;
 
   return {

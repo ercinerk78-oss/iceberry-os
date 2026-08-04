@@ -34,6 +34,7 @@ export default async function BranchMapPage({ searchParams }: { searchParams: Pr
   const ownershipType = value(params, "ownershipType");
   const geocoded = value(params, "geocoded");
   const geocodeFailed = value(params, "geocodeFailed");
+  const manualReview = values(params, "manualReview").flatMap((item) => item.split("|").filter(Boolean));
   const scope = await branchScopeWhere();
   const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
 
@@ -102,6 +103,11 @@ export default async function BranchMapPage({ searchParams }: { searchParams: Pr
           <Card className="border-[#cfe8c1] bg-[#f8faf6] p-4 text-sm text-[#2f5f20] shadow-none">
             Konum tamamlama sonucu: {Number(geocoded || 0).toLocaleString("tr-TR")} şube haritaya eklendi,
             {" "}{Number(geocodeFailed || 0).toLocaleString("tr-TR")} şube için konum bulunamadı.
+            {manualReview.length ? (
+              <p className="mt-2 text-[#65705f]">
+                Manuel kontrol gerekenler: {manualReview.join(", ")}. Bu kayitlarda adresi netlestirip Enlem/Boylam alanini elle girebiliriz.
+              </p>
+            ) : null}
           </Card>
         ) : null}
 

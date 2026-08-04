@@ -9,6 +9,7 @@ import { geocodeAddress } from "@/lib/geocoding";
 import { prisma } from "@/lib/prisma";
 
 const BACKFILL_LIMIT = 5;
+const MANUAL_REVIEW_LIMIT = 5;
 
 export async function geocodeMissingBranchLocations() {
   await requirePermission("branches");
@@ -30,11 +31,13 @@ export async function geocodeMissingBranchLocations() {
 
   let updated = 0;
   let failed = 0;
+  const manualReview: string[] = [];
 
   for (const branch of branches) {
-    const result = await geocodeAddress({ address: branch.address, district: branch.district, city: branch.city });
+    const result = await geocodeAddress({ name: branch.branchName, address: branch.address, district: branch.district, city: branch.city });
     if (!result) {
       failed += 1;
+      if (manualReview.length < MANUAL_REVIEW_LIMIT) manualReview.push(branch.branchName);
       continue;
     }
 
@@ -47,5 +50,10 @@ export async function geocodeMissingBranchLocations() {
 
   revalidatePath("/branch-map");
   revalidatePath("/branches");
-  redirect(`/branch-map?geocoded=${updated}&geocodeFailed=${failed}`);
+  const params = new URLSearchParams({
+    geocoded: String(updated),
+    geocodeFailed: String(failed),
+  });
+  if (manualReview.length) params.set("manualReview", manualReview.join("|"));
+  redirect(`/branch-map?${params.toString()}`);
 }
