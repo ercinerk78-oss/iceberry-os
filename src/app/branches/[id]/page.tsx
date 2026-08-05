@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { branchConceptLabel } from "@/lib/branch-concepts";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
-import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
+import { VISIBLE_REVENUE_STATUSES, formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
 import { currentUser } from "@/lib/auth";
@@ -276,7 +276,8 @@ function RevenuePerformance({
   activePlanCount: number;
   lastAuditScore: number | null | undefined;
 }) {
-  const finalRecords = records.filter((record) => ["APPROVED", "LOCKED"].includes(record.status)).sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+  const visibleRecords = records.filter((record) => (VISIBLE_REVENUE_STATUSES as readonly string[]).includes(record.status)).sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+  const finalRecords = visibleRecords;
   const current = finalRecords.at(-1);
   const previous = finalRecords.at(-2);
   const lastYearSameMonth = current ? finalRecords.find((record) => record.year === current.year - 1 && record.month === current.month) : undefined;

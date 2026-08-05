@@ -2,6 +2,7 @@ export const REVENUE_PERIOD_TYPES = ["DAILY", "MONTHLY"] as const;
 export const REVENUE_SOURCES = ["MANUAL", "POS", "TICIMAX", "PARASUT", "IMPORT", "API"] as const;
 export const REVENUE_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "LOCKED"] as const;
 export const REVENUE_CURRENCIES = ["TRY", "EUR", "USD", "IQD", "IRR"] as const;
+export const VISIBLE_REVENUE_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "LOCKED"] as const;
 export const FINAL_REVENUE_STATUSES = ["APPROVED", "LOCKED"] as const;
 
 export const REVENUE_STATUS_LABELS: Record<(typeof REVENUE_STATUSES)[number], string> = {

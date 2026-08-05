@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeLeadWhere } from "@/lib/active-records";
 import { appointmentStatusLabel } from "@/lib/appointments";
 import { requirePermission } from "@/lib/auth";
+import { VISIBLE_REVENUE_STATUSES } from "@/lib/branch-revenue";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -54,8 +55,8 @@ export default async function ReportsPage() {
     safe(prisma.openingProject.count({ where: { archivedAt: null } }), 0),
     safe(
       prisma.branchRevenueRecord.findMany({
-        where: { periodStart: { gte: new Date(now.getFullYear(), now.getMonth(), 1) } },
-        select: { netRevenue: true },
+        where: { periodStart: { gte: new Date(now.getFullYear(), now.getMonth(), 1) }, status: { in: [...VISIBLE_REVENUE_STATUSES] } },
+        select: { grossRevenue: true, netRevenue: true },
       }),
       [],
     ),
@@ -110,7 +111,7 @@ export default async function ReportsPage() {
   const lowScoreCandidates = scoredCandidates.filter((candidate) => (candidate.qualificationScore ?? 0) > 0 && (candidate.qualificationScore ?? 0) <= 4);
   const unscoredCompletedCandidates = scoredCandidates.filter((candidate) => !candidate.qualificationScore);
   const latestCompleted = completedAppointments.slice(0, 6);
-  const revenueTotal = revenueRows.reduce((sum, row) => sum + (row.netRevenue ?? 0), 0);
+  const revenueTotal = revenueRows.reduce((sum, row) => sum + (row.netRevenue ?? row.grossRevenue), 0);
   const cards = [
     { title: "Lead Raporu", value: activeLeadCount, href: "/candidates", icon: Target, note: "Franchise adayları içinde lead ve randevu dönüşümü" },
     { title: "Randevu Raporu", value: appointmentRows.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },

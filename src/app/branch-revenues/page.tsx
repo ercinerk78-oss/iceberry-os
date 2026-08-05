@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import {
-  FINAL_REVENUE_STATUSES,
   REVENUE_SOURCE_LABELS,
   REVENUE_STATUS_LABELS,
+  VISIBLE_REVENUE_STATUSES,
   formatMoney,
   formatPercent,
   monthPeriod,
@@ -50,7 +50,7 @@ type RevenueRowData = {
 };
 
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] : "");
-const visibleRevenueStatuses = ["DRAFT", "SUBMITTED", ...FINAL_REVENUE_STATUSES];
+const visibleRevenueStatuses: string[] = [...VISIBLE_REVENUE_STATUSES];
 
 export default async function BranchRevenuesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
