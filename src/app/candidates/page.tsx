@@ -63,7 +63,17 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
       take: CANDIDATE_LIST_LIMIT,
     }),
     prisma.concept.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.candidateTag.findMany({ orderBy: { name: "asc" }, take: 100 }),
+    prisma.candidateTag.findMany({
+      where: {
+        candidates: {
+          some: {
+            candidate: activeCandidateWhere(),
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
     prisma.candidateLocation.findMany({
       where: { archivedAt: null },
       select: { id: true, name: true, city: true, district: true },
