@@ -124,11 +124,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       ),
     },
     {
-      title: "Gelmeyenler",
-      icon: RotateCcw,
-      items: appointments.filter((item) => item.status === "NO_SHOW"),
-    },
-    {
       title: "Ertelenen Randevular",
       icon: RotateCcw,
       items: appointments.filter((item) => item.status === "RESCHEDULED"),
