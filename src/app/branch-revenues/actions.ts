@@ -28,6 +28,49 @@ function canApprove(role: string) {
   return ["GENERAL_MANAGER", "OPERATIONS_MANAGER"].includes(role);
 }
 
+function editableByStatus(status: string, role: string) {
+  if (["DRAFT", "REJECTED"].includes(status)) return true;
+  if (["SUBMITTED", "APPROVED"].includes(status)) return canApprove(role);
+  if (status === "LOCKED") return role === "GENERAL_MANAGER";
+
+  return false;
+}
+
+function nextCorrectionStatus(currentStatus: string, submit?: string) {
+  if (currentStatus === "LOCKED") return "LOCKED";
+  if (["APPROVED", "SUBMITTED"].includes(currentStatus)) return "SUBMITTED";
+
+  return submit ? "SUBMITTED" : "DRAFT";
+}
+
+function revenueSnapshot(record: {
+  year: number;
+  month: number;
+  grossRevenue: number;
+  netRevenue: number | null;
+  targetRevenue: number | null;
+  transactionCount: number | null;
+  averageTicket: number | null;
+  currency: string;
+  source: string;
+  status: string;
+  notes: string | null;
+}) {
+  return JSON.stringify({
+    year: record.year,
+    month: record.month,
+    grossRevenue: record.grossRevenue,
+    netRevenue: record.netRevenue,
+    targetRevenue: record.targetRevenue,
+    transactionCount: record.transactionCount,
+    averageTicket: record.averageTicket,
+    currency: record.currency,
+    source: record.source,
+    status: record.status,
+    notes: record.notes,
+  });
+}
+
 async function maybeStoreSupportDocument(branchId: string, file: File | null, userName: string) {
   if (!file || file.size === 0) return null;
   const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
@@ -138,6 +181,107 @@ export async function upsertBranchRevenue(_: BranchRevenueState, formData: FormD
 
 export async function createBranchRevenue(state: BranchRevenueState, formData: FormData): Promise<BranchRevenueState> {
   return upsertBranchRevenue(state, formData);
+}
+
+export async function updateBranchRevenue(id: string, _: BranchRevenueState, formData: FormData): Promise<BranchRevenueState> {
+  await requirePermission("branch_revenue");
+  const user = await requireUser();
+  const parsed = branchRevenueSchema.safeParse(Object.fromEntries(formData));
+  const correctionReason = String(formData.get("correctionReason") ?? "").trim();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Formu kontrol edin." };
+  if (correctionReason.length < 5) return { success: false, message: "Düzeltme açıklaması en az 5 karakter olmalı." };
+  if (!(await canAccessBranch(parsed.data.branchId))) return { success: false, message: "Bu şubenin cirosuna erişim yetkiniz yok." };
+
+  const { periodStart, periodEnd } = monthPeriod(parsed.data.year, parsed.data.month);
+  const file = formData.get("supportFile") instanceof File ? formData.get("supportFile") as File : null;
+
+  try {
+    const current = await prisma.branchRevenueRecord.findUnique({ where: { id } });
+    if (!current) return { success: false, message: "Ciro kaydı bulunamadı." };
+    if (!(await canAccessBranch(current.branchId))) return { success: false, message: "Bu ciro kaydına erişim yetkiniz yok." };
+    if (!editableByStatus(current.status, user.role)) {
+      return { success: false, message: "Bu durumdaki ciro kaydını düzeltme yetkiniz yok." };
+    }
+
+    const conflict = await prisma.branchRevenueRecord.findFirst({
+      where: {
+        id: { not: id },
+        branchId: parsed.data.branchId,
+        periodType: "MONTHLY",
+        periodStart,
+      },
+      select: { id: true },
+    });
+    if (conflict) return { success: false, message: "Seçilen şube ve ay için başka bir ciro kaydı zaten var.", id: conflict.id };
+
+    const document = await maybeStoreSupportDocument(parsed.data.branchId, file, user.name);
+    const nextStatus = nextCorrectionStatus(current.status, parsed.data.submit);
+    const record = await prisma.$transaction(async (tx) => {
+      const updated = await tx.branchRevenueRecord.update({
+        where: { id },
+        data: {
+          branchId: parsed.data.branchId,
+          periodStart,
+          periodEnd,
+          year: parsed.data.year,
+          month: parsed.data.month,
+          grossRevenue: parsed.data.grossRevenue,
+          netRevenue: nullableNumber(parsed.data.netRevenue),
+          targetRevenue: nullableNumber(parsed.data.targetRevenue),
+          transactionCount: parsed.data.transactionCount ? Number(parsed.data.transactionCount) : null,
+          averageTicket: nullableNumber(parsed.data.averageTicket),
+          currency: parsed.data.currency,
+          source: parsed.data.source,
+          status: nextStatus,
+          notes: parsed.data.notes || null,
+          supportDocumentId: document?.id ?? current.supportDocumentId,
+          approvedById: ["APPROVED", "LOCKED"].includes(nextStatus) ? current.approvedById : null,
+          approvedAt: ["APPROVED", "LOCKED"].includes(nextStatus) ? current.approvedAt : null,
+          lockedAt: nextStatus === "LOCKED" ? current.lockedAt : null,
+          rejectionReason: null,
+          enteredById: user.id,
+        },
+      });
+      await tx.branchTimelineEvent.create({
+        data: {
+          branchId: updated.branchId,
+          userId: user.id,
+          action: "REVENUE_CORRECTED",
+          entityType: "BranchRevenueRecord",
+          entityId: updated.id,
+          oldValue: revenueSnapshot(current),
+          newValue: revenueSnapshot(updated),
+          description: `Ciro kaydı düzeltildi: ${correctionReason}`,
+        },
+      });
+      if (document) {
+        await tx.branchTimelineEvent.create({
+          data: {
+            branchId: updated.branchId,
+            userId: user.id,
+            action: "REVENUE_DOCUMENT_ATTACHED",
+            entityType: "BranchRevenueRecord",
+            entityId: updated.id,
+            newValue: document.originalFileName,
+            description: "Düzeltme sırasında yeni destekleyici doküman eklendi.",
+          },
+        });
+      }
+
+      return updated;
+    });
+    await audit("REVENUE_CORRECTED", "BranchRevenueRecord", record.id, `Şube ciro kaydı düzeltildi: ${correctionReason}`, user.id);
+    refresh(record.branchId, record.id);
+
+    return { success: true, message: nextStatus === "SUBMITTED" ? "Ciro kaydı düzeltildi ve onaya alındı." : "Ciro kaydı düzeltildi.", id: record.id };
+  } catch (error) {
+    if (isMissingRevenueTableError(error)) {
+      return { success: false, message: "Ciro tablosu production veritabanında henüz hazır değil. DIRECT_URL tanımlandıktan sonra migration uygulanmalı." };
+    }
+
+    return { success: false, message: isUniqueError(error) ? "Seçilen şube ve ay için başka bir ciro kaydı zaten var." : error instanceof Error ? error.message : "Ciro kaydı düzeltilemedi." };
+  }
 }
 
 export async function approveRevenue(id: string, formData: FormData) {

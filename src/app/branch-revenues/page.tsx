@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 
 import { approveRevenue, lockRevenue, rejectRevenue } from "@/app/branch-revenues/actions";
 import { AppShell } from "@/components/app-shell";
+import { BranchRevenueEditForm } from "@/components/branch-revenues/branch-revenue-edit-form";
 import { BranchRevenueForm } from "@/components/branch-revenues/branch-revenue-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -215,13 +216,13 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
           </CardContent>
         </Card>
 
-        <RevenueTable rows={rows} />
+        <RevenueTable rows={rows} branches={branches} />
       </div>
     </AppShell>
   );
 }
 
-function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
+function RevenueTable({ rows, branches }: { rows: RevenueRowData[]; branches: RevenueBranch[] }) {
   return (
     <Card className="overflow-hidden shadow-none">
       <div className="hidden overflow-x-auto lg:block">
@@ -230,7 +231,7 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
             <tr>{["Şube", "Şehir", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Kaynak", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row) => <RevenueRow key={row.branch.id} row={row} />)}
+            {rows.map((row) => <RevenueRow key={row.branch.id} row={row} branches={branches} />)}
           </tbody>
         </table>
       </div>
@@ -247,7 +248,7 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
   );
 }
 
-function RevenueRow({ row }: { row: RevenueRowData }) {
+function RevenueRow({ row, branches }: { row: RevenueRowData; branches: RevenueBranch[] }) {
   const current = row.current;
   const days = current ? Math.max(1, Math.ceil((current.periodEnd.getTime() - current.periodStart.getTime()) / 86400000) + 1) : 1;
   const trendIcon = row.change >= 0 ? <ArrowUpRight className="size-4 text-emerald-700" /> : <ArrowDownRight className="size-4 text-rose-700" />;
@@ -273,6 +274,10 @@ function RevenueRow({ row }: { row: RevenueRowData }) {
             {current.status === "SUBMITTED" ? <form action={approveRevenue.bind(null, current.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
             {current.status === "SUBMITTED" ? <form action={rejectRevenue.bind(null, current.id)} className="flex gap-1"><input name="rejectionReason" placeholder="Ret nedeni" className="h-7 w-28 rounded border px-2 text-xs" /><Button size="sm" variant="outline">Reddet</Button></form> : null}
             {current.status === "APPROVED" ? <form action={lockRevenue.bind(null, current.id)}><Button size="sm" variant="outline">Kilitle</Button></form> : null}
+            <details className="w-full">
+              <summary className="cursor-pointer rounded border px-2 py-1 text-xs font-medium hover:bg-[#f8faf6]">Düzelt</summary>
+              <BranchRevenueEditForm record={current} branches={branches} />
+            </details>
           </div>
         ) : "—"}
       </td>
