@@ -100,28 +100,23 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
   const appointmentCallUnreachableLeads = visibleLeads.filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)));
   const appointmentNoShowFollowUpLeads = visibleLeads.filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)));
+  const activeAppointments = appointments.filter((item) => item.status === "SCHEDULED");
 
   const groups = [
     {
       title: "Bugünkü Randevular",
       icon: CalendarClock,
-      items: appointments.filter((item) => item.appointmentDate >= startOfDay && item.appointmentDate < endOfDay),
+      items: activeAppointments.filter((item) => item.appointmentDate >= startOfDay && item.appointmentDate < endOfDay),
     },
     {
       title: "Yaklaşan Randevular",
       icon: CalendarClock,
-      items: appointments.filter(
-        (item) =>
-          item.appointmentDate >= endOfDay &&
-          !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status),
-      ),
+      items: activeAppointments.filter((item) => item.appointmentDate >= endOfDay),
     },
     {
       title: "Geciken Randevular",
       icon: XCircle,
-      items: appointments.filter(
-        (item) => item.appointmentDate < startOfDay && !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status),
-      ),
+      items: activeAppointments.filter((item) => item.appointmentDate < startOfDay),
     },
     {
       title: "Ertelenen Randevular",
