@@ -14,7 +14,7 @@ export function OpeningForm({
   templates,
   users,
 }: {
-  branches: { id: string; branchName: string; city: string }[];
+  branches: { id: string; branchName: string; city: string; qualificationScore: number | null }[];
   templates: { id: string; name: string; version: number }[];
   users: { id: string; name: string; role: string }[];
 }) {
@@ -28,7 +28,7 @@ export function OpeningForm({
           <option value="">Şube seçin</option>
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
-              {branch.branchName} · {branch.city}
+              {branch.branchName} · {branch.city} · Puan: {branch.qualificationScore ? `${branch.qualificationScore}/10` : "Puansız"}
             </option>
           ))}
         </select>
