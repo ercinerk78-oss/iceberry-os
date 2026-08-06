@@ -233,6 +233,9 @@ function RevenueTable({ rows, branches }: { rows: RevenueRowData[]; branches: Re
           <tbody className="divide-y">
             {rows.map((row) => <RevenueRow key={row.branch.id} row={row} branches={branches} />)}
           </tbody>
+          <tfoot className="border-t-2 border-[#17201b] bg-[#f8faf6]">
+            <RevenueTotalRow rows={rows} />
+          </tfoot>
         </table>
       </div>
       <div className="grid gap-3 p-3 lg:hidden">
@@ -243,8 +246,46 @@ function RevenueTable({ rows, branches }: { rows: RevenueRowData[]; branches: Re
             <p className="text-sm text-[#65705f]">Değişim {formatPercent(row.changeRate)} · Hedef {formatPercent(row.targetRate)}</p>
           </div>
         ))}
+        <RevenueTotalCard rows={rows} />
       </div>
     </Card>
+  );
+}
+
+function RevenueTotalRow({ rows }: { rows: RevenueRowData[] }) {
+  const totals = revenueTotals(rows);
+  const trendIcon = totals.overallChange >= 0 ? <ArrowUpRight className="size-4 text-emerald-700" /> : <ArrowDownRight className="size-4 text-rose-700" />;
+
+  return (
+    <tr className="font-semibold">
+      <td className="px-4 py-4">Tüm Türkiye</td>
+      <td className="px-4 py-4">Tüm şehirler</td>
+      <td className="px-4 py-4">Tüm konseptler</td>
+      <td className="px-4 py-4">{moneyList(totals.actual)}</td>
+      <td className="px-4 py-4">{moneyList(totals.previous)}</td>
+      <td className="px-4 py-4">{moneyList(totals.change)}</td>
+      <td className="px-4 py-4"><span className="inline-flex items-center gap-1">{trendIcon}{percentList(totals.changeRate)}</span></td>
+      <td className="px-4 py-4">{moneyList(totals.target)}</td>
+      <td className="px-4 py-4">{percentList(totals.targetRate)}</td>
+      <td className="px-4 py-4">{moneyList(totals.dailyAverage)}</td>
+      <td className="px-4 py-4">Toplam</td>
+      <td className="px-4 py-4">Seçili dönem</td>
+      <td className="px-4 py-4"><Badge variant="outline">{rows.filter((row) => row.current).length} şube</Badge></td>
+      <td className="px-4 py-4">—</td>
+    </tr>
+  );
+}
+
+function RevenueTotalCard({ rows }: { rows: RevenueRowData[] }) {
+  const totals = revenueTotals(rows);
+
+  return (
+    <div className="rounded-lg border-2 border-[#17201b] bg-white p-4">
+      <div className="flex justify-between gap-3"><b>Tüm Türkiye</b><Badge>{rows.filter((row) => row.current).length} şube</Badge></div>
+      <div className="mt-3 text-xl font-semibold">{moneyList(totals.actual)}</div>
+      <p className="mt-2 text-sm text-[#65705f]">Değişim {percentList(totals.changeRate)} · Hedef {percentList(totals.targetRate)}</p>
+      <p className="mt-1 text-sm text-[#65705f]">Günlük ortalama {moneyList(totals.dailyAverage)}</p>
+    </div>
   );
 }
 
@@ -312,11 +353,54 @@ function groupTotal(records: BranchRevenueRecordWithUser[]) {
   }, {});
 }
 
+function revenueTotals(rows: RevenueRowData[]) {
+  const totals = rows.reduce(
+    (acc, row) => {
+      const currency = row.current?.currency ?? row.previous?.currency ?? "TRY";
+      const days = row.current ? Math.max(1, Math.ceil((row.current.periodEnd.getTime() - row.current.periodStart.getTime()) / 86400000) + 1) : 1;
+      const target = row.current?.targetRevenue ?? 0;
+
+      acc.actual[currency] = (acc.actual[currency] ?? 0) + row.actual;
+      acc.previous[currency] = (acc.previous[currency] ?? 0) + row.previousActual;
+      acc.change[currency] = (acc.change[currency] ?? 0) + row.change;
+      acc.target[currency] = (acc.target[currency] ?? 0) + target;
+      acc.dailyAverage[currency] = (acc.dailyAverage[currency] ?? 0) + (row.current ? row.actual / days : 0);
+      acc.overallChange += row.change;
+
+      return acc;
+    },
+    {
+      actual: {} as Record<string, number>,
+      previous: {} as Record<string, number>,
+      change: {} as Record<string, number>,
+      target: {} as Record<string, number>,
+      dailyAverage: {} as Record<string, number>,
+      changeRate: {} as Record<string, number>,
+      targetRate: {} as Record<string, number | null>,
+      overallChange: 0,
+    },
+  );
+
+  for (const currency of Array.from(new Set([...Object.keys(totals.actual), ...Object.keys(totals.previous), ...Object.keys(totals.target)]))) {
+    totals.changeRate[currency] = percentChange(totals.actual[currency] ?? 0, totals.previous[currency] ?? 0);
+    totals.targetRate[currency] = realizationRate(totals.actual[currency] ?? 0, totals.target[currency] ?? 0);
+  }
+
+  return totals;
+}
+
 function moneyList(values: Record<string, number>) {
   const entries = Object.entries(values);
   if (!entries.length) return "—";
 
   return <div className="space-y-1">{entries.map(([currency, value]) => <p key={currency}>{formatMoney(value, currency)}</p>)}</div>;
+}
+
+function percentList(values: Record<string, number | null>) {
+  const entries = Object.entries(values);
+  if (!entries.length) return "â€”";
+
+  return <div className="space-y-1">{entries.map(([currency, value]) => <p key={currency}>{currency}: {formatPercent(value)}</p>)}</div>;
 }
 
 function growthList(current: Record<string, number>, previous: Record<string, number>) {
