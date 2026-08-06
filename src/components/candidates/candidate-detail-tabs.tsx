@@ -4,7 +4,7 @@ import type React from "react";
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import type { MatchStatus } from "@prisma/client";
-import { CheckSquare, Clock3, FileText, MapPinned, MessageSquareText, Pencil, Trash2, UserRound, X } from "lucide-react";
+import { Archive, CheckSquare, Clock3, FileText, MapPinned, MessageSquareText, Pencil, UserRound, X } from "lucide-react";
 
 import { archiveCandidateWithReason, createInteraction, updateCandidate } from "@/app/candidates/actions";
 import { unlinkCandidateLocationMatch } from "@/app/locations/actions";
@@ -95,8 +95,14 @@ export function CandidateDetailTabs({
               <TabButton tab="documents" active={selectedTab === "documents"} onSelect={changeTab} icon={<FileText className="size-4" />}>Lokasyon Analizi</TabButton>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="size-4" />Düzenle</Button>
-              <Button variant="outline" onClick={() => setArchiveOpen(true)} className="text-rose-700"><Trash2 className="size-4" />Adayı Sil</Button>
+              {candidate.archivedAt ? (
+                <Badge variant="outline">Pasif Aday</Badge>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="size-4" />Düzenle</Button>
+                  <Button variant="outline" onClick={() => setArchiveOpen(true)} className="text-amber-700"><Archive className="size-4" />Pasife Al</Button>
+                </>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -136,7 +142,7 @@ export function CandidateDetailTabs({
         </Modal>
       ) : null}
       {archiveOpen ? (
-        <Modal title="Adayı Sil" onClose={() => setArchiveOpen(false)}>
+        <Modal title="Adayı Pasife Al" onClose={() => setArchiveOpen(false)}>
           <ArchiveCandidateForm candidate={candidate} onClose={() => setArchiveOpen(false)} />
         </Modal>
       ) : null}
@@ -200,19 +206,19 @@ function ArchiveCandidateForm({ candidate, onClose }: { candidate: Candidate; on
   return (
     <form action={action} className="grid gap-4 p-5">
       <p className="text-sm leading-6 text-[#65705f]">
-        {candidate.fullName} varsayılan aday listelerinden kaldırılacak. Şube veya açılış projesi bağlantısı varsa işlem engellenir.
+        {candidate.fullName} ana aday listesinden çıkarılacak ve Pasif Adaylar alanında saklanacak. Şube veya açılış projesi bağlantısı varsa işlem engellenir.
       </p>
       <label className="grid gap-2">
-        <span className="text-sm font-medium">Silme nedeni</span>
-        <textarea name="reason" required minLength={5} rows={4} placeholder="Neden silindiğini yazın" className="rounded-lg border bg-[#f8faf6] p-3" />
+        <span className="text-sm font-medium">Pasife alma nedeni</span>
+        <textarea name="reason" required minLength={5} rows={4} placeholder="Neden pasife alındığını yazın" className="rounded-lg border bg-[#f8faf6] p-3" />
       </label>
       {state.message ? <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onClose}>Vazgeç</Button>
         {state.success ? (
-          <Button asChild className="bg-[#17201b] text-white"><Link href="/candidates">Aday Listesine Dön</Link></Button>
+          <Button asChild className="bg-[#17201b] text-white"><Link href="/candidates">Aktif Aday Listesine Dön</Link></Button>
         ) : (
-          <Button disabled={pending} variant="destructive">{pending ? "İşleniyor..." : "Adayı Sil"}</Button>
+          <Button disabled={pending} className="bg-[#17201b] text-white">{pending ? "İşleniyor..." : "Adayı Pasife Al"}</Button>
         )}
       </div>
     </form>

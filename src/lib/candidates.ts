@@ -48,6 +48,7 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
     qualificationScore: candidate.qualificationScore,
     generalNotes: candidate.generalNotes ?? "",
     lostReason: candidate.lostReason ?? "",
+    archivedAt: date(candidate.archivedAt),
     nextFollowUpAt: date(candidate.nextFollowUpAt),
     lastContactAt: date(candidate.lastContactAt),
     createdAt: candidate.createdAt.toISOString(),

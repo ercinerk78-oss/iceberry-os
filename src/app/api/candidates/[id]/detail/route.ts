@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const [record, availableLocations] = await Promise.all([
     prisma.franchiseCandidate.findFirst({
-      where: { id, archivedAt: null },
+      where: { id },
       include: {
         interactions: { orderBy: { interactionDate: "desc" }, take: tab === "notes" ? DETAIL_RELATION_LIMIT : 0 },
         tasks: { orderBy: { dueDate: "asc" }, take: tab === "tasks" ? DETAIL_RELATION_LIMIT : 0 },

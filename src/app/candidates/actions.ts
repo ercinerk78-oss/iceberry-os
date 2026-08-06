@@ -124,9 +124,9 @@ export async function archiveCandidate(id: string): Promise<ActionState> {
   try {
     await prisma.franchiseCandidate.update({ where: { id }, data: { archivedAt: new Date() } });
     refreshCandidate(id);
-    return { success: true, message: "Aday arşivlendi." };
+    return { success: true, message: "Aday pasife alındı." };
   } catch {
-    return { success: false, message: "Aday arşivlenemedi." };
+    return { success: false, message: "Aday pasife alınamadı." };
   }
 }
 
@@ -135,7 +135,7 @@ export async function archiveCandidateWithReason(id: string, _: ActionState, for
   const reason = String(formData.get("reason") ?? "").trim();
 
   if (reason.length < 5) {
-    return { success: false, message: "Silme nedeni en az 5 karakter olmalıdır." };
+    return { success: false, message: "Pasife alma nedeni en az 5 karakter olmalıdır." };
   }
 
   try {
@@ -151,13 +151,13 @@ export async function archiveCandidateWithReason(id: string, _: ActionState, for
     });
 
     if (!candidate) {
-      return { success: false, message: "Aday bulunamadı veya daha önce arşivlendi." };
+      return { success: false, message: "Aday bulunamadı veya daha önce pasife alındı." };
     }
 
     if (candidate.branch || candidate.franchisee || candidate.openingProjects.length) {
       return {
         success: false,
-        message: "Bu aday şubeye veya açılış projesine bağlı olduğu için silinemez. Arşivleyebilirsiniz.",
+        message: "Bu aday şubeye veya açılış projesine bağlı olduğu için pasife alınamaz.",
       };
     }
 
@@ -166,8 +166,8 @@ export async function archiveCandidateWithReason(id: string, _: ActionState, for
         data: {
           candidateId: id,
           eventType: "CANDIDATE_ARCHIVED",
-          title: "Aday silindi",
-          description: `Silme nedeni: ${reason}`,
+          title: "Aday pasife alındı",
+          description: `Pasife alma nedeni: ${reason}`,
           actorName: user.name,
         },
       }),
@@ -175,9 +175,9 @@ export async function archiveCandidateWithReason(id: string, _: ActionState, for
     ]);
 
     refreshCandidate(id);
-    return { success: true, message: `${candidate.fullName} varsayılan listeden kaldırıldı.` };
+    return { success: true, message: `${candidate.fullName} pasif adaylara taşındı.` };
   } catch {
-    return { success: false, message: "Aday silinemedi. Lütfen tekrar deneyin." };
+    return { success: false, message: "Aday pasife alınamadı. Lütfen tekrar deneyin." };
   }
 }
 

@@ -28,7 +28,7 @@ export default async function CandidateDetailPage({
   const query = await searchParams;
   const tab = detailTabs.includes(query.tab as DetailTab) ? (query.tab as DetailTab) : "general";
   const record = await prisma.franchiseCandidate.findFirst({
-    where: { id, archivedAt: null },
+    where: { id },
     include: {
       branch: {
         select: {
@@ -69,13 +69,14 @@ export default async function CandidateDetailPage({
   ]);
   const candidate = toCandidate(record);
   const openingProject = record.branch?.openingProjects[0] ?? record.openingProjects[0] ?? null;
+  const backHref = candidate.archivedAt ? "/candidates?view=passive" : "/candidates";
 
   return (
     <AppShell activeHref="/candidates" eyebrow="Franchise aday detayı" title={candidate.fullName}>
       <div className="space-y-4">
-        <Link href="/candidates" className="inline-flex items-center gap-2 text-sm font-medium text-[#65705f] hover:text-[#17201b]">
+        <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-medium text-[#65705f] hover:text-[#17201b]">
           <ArrowLeft className="size-4" />
-          Aday listesine dön
+          {candidate.archivedAt ? "Pasif aday listesine dön" : "Aday listesine dön"}
         </Link>
         <Card className="rounded-lg border-[#dfe4dc] bg-white shadow-none">
           <CardContent className="grid gap-4 p-5 xl:grid-cols-[1fr_auto] xl:items-center">
@@ -83,6 +84,7 @@ export default async function CandidateDetailPage({
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-[#ecfbdc] text-[#2f5f20]">{candidate.status}</Badge>
                 <Badge className="bg-rose-100 text-rose-800">{candidate.temperature}</Badge>
+                {candidate.archivedAt ? <Badge variant="outline">Pasif Aday</Badge> : null}
               </div>
               <h1 className="mt-4 text-2xl font-semibold md:text-3xl">{candidate.fullName}</h1>
               <div className="mt-3 flex flex-wrap gap-3 text-sm text-[#65705f]">
@@ -94,12 +96,14 @@ export default async function CandidateDetailPage({
             </div>
           </CardContent>
         </Card>
-        <CandidateConversion
-          candidate={candidate}
-          branch={record.branch ? { id: record.branch.id, branchName: record.branch.branchName } : null}
-          openingProject={openingProject}
-          users={users}
-        />
+        {candidate.archivedAt ? null : (
+          <CandidateConversion
+            candidate={candidate}
+            branch={record.branch ? { id: record.branch.id, branchName: record.branch.branchName } : null}
+            openingProject={openingProject}
+            users={users}
+          />
+        )}
         <CandidateDetailTabs candidate={candidate} availableLocations={availableLocations} activeTab={tab} />
       </div>
     </AppShell>

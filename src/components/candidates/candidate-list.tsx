@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/candidates";
-import { LEAD_CATEGORIES, LEAD_CATEGORY_LABELS, LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
+import { LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
 import { relativeTime } from "@/lib/qualification";
 import type { Candidate } from "@/types/candidate";
 
@@ -27,9 +27,11 @@ type CandidateListProps = {
   initialQuery?: string;
   initialLeadId?: string;
   initialStatus?: string;
-  initialCategory?: string;
   initialFollowUp?: string;
   referenceNow?: number;
+  view?: "active" | "passive";
+  activeCount?: number;
+  passiveCount?: number;
 };
 
 type UnifiedRow =
@@ -45,20 +47,20 @@ export function CandidateList({
   initialQuery = "",
   initialLeadId,
   initialStatus,
-  initialCategory,
   initialFollowUp,
   referenceNow,
+  view = "active",
+  activeCount = candidates.length,
+  passiveCount = 0,
 }: CandidateListProps) {
   const [query, setQuery] = useState(initialQuery);
   const [city, setCity] = useState(ALL);
   const [status, setStatus] = useState(initialStatus || ALL);
   const [source, setSource] = useState(ALL);
-  const [category, setCategory] = useState(initialCategory || ALL);
   const [followUp, setFollowUp] = useState(initialFollowUp || ALL);
   const [selectedConcepts, setSelectedConcepts] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [temperature, setTemperature] = useState(ALL);
-  const [score, setScore] = useState(ALL);
   const [sort, setSort] = useState("Güncel");
   const [open, setOpen] = useState(false);
   const effectiveReferenceNow = referenceNow ?? 0;
@@ -111,9 +113,7 @@ export function CandidateList({
       const primaryConcept = row.type === "candidate" ? row.candidate.interestedConcept : row.lead.requestedConcept;
       const rowStatus = row.type === "candidate" ? row.candidate.status : row.lead.processStatus || row.lead.status;
       const rowSource = row.type === "candidate" ? row.candidate.source : row.lead.source;
-      const rowCategory = row.type === "lead" ? row.lead.leadCategory : "";
       const rowTemperature = row.type === "candidate" ? row.candidate.temperature : "";
-      const rowScore = row.type === "candidate" ? row.candidate.qualificationScore : null;
       const rowTags = row.type === "candidate" ? row.candidate.tags.map((tag) => tag.name) : [];
       const nextFollowUpAt = row.type === "candidate" ? row.candidate.nextFollowUpAt : row.lead.nextFollowUpAt;
       const text = [
@@ -141,34 +141,29 @@ export function CandidateList({
         (city === ALL || item.city === city) &&
         (status === ALL || rowStatus === status) &&
         (source === ALL || rowSource === source) &&
-        (category === ALL || rowCategory === category) &&
         (followUp !== "overdue" || (!!nextFollowUpAt && new Date(nextFollowUpAt).getTime() < effectiveReferenceNow)) &&
         (!selectedConcepts.length || selectedConcepts.some((concept) => concepts.includes(concept) || primaryConcept === concept)) &&
         (!selectedTags.length || selectedTags.some((tag) => rowTags.includes(tag))) &&
-        (temperature === ALL || rowTemperature === temperature) &&
-        matchesScore(rowScore, score)
+        (temperature === ALL || rowTemperature === temperature)
       );
     });
 
     return filteredRows.sort((a, b) => {
-      if (sort === "Puan yüksek") return rowScore(b) - rowScore(a);
-      if (sort === "Puan düşük") return emptyLastScore(a) - emptyLastScore(b);
+      if (sort === "Görüşme yeni") return contactDateValue(b) - contactDateValue(a) || rowScore(b) - rowScore(a);
       if (sort === "Takip yakın") return dateValue(rowFollowUp(a)) - dateValue(rowFollowUp(b));
       return dateValue(b.date) - dateValue(a.date);
     });
-  }, [category, city, effectiveReferenceNow, followUp, query, rows, score, selectedConcepts, selectedTags, sort, source, status, temperature]);
+  }, [city, effectiveReferenceNow, followUp, query, rows, selectedConcepts, selectedTags, sort, source, status, temperature]);
 
   const reset = () => {
     setQuery("");
     setCity(ALL);
     setStatus(ALL);
     setSource(ALL);
-    setCategory(ALL);
     setFollowUp(ALL);
     setSelectedConcepts([]);
     setSelectedTags([]);
     setTemperature(ALL);
-    setScore(ALL);
     setSort("Güncel");
   };
 
@@ -178,19 +173,29 @@ export function CandidateList({
         <CardHeader>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <CardTitle>Franchise Adayları</CardTitle>
+              <CardTitle>{view === "passive" ? "Pasif Franchise Adayları" : "Franchise Adayları"}</CardTitle>
               <p className="mt-1 text-sm text-[#65705f]">
-                {filtered.length} kayıt gösteriliyor. {candidates.length} aktif franchise adayı yönetiliyor.
+                {filtered.length} kayıt gösteriliyor. {view === "passive" ? `${passiveCount} pasif aday arşivde tutuluyor.` : `${activeCount} aktif franchise adayı yönetiliyor.`}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button asChild size="sm" variant={view === "active" ? "default" : "outline"} className={view === "active" ? "bg-[#17201b] text-white" : ""}>
+                  <Link href="/candidates">Aktif Adaylar ({activeCount})</Link>
+                </Button>
+                <Button asChild size="sm" variant={view === "passive" ? "default" : "outline"} className={view === "passive" ? "bg-[#17201b] text-white" : ""}>
+                  <Link href="/candidates?view=passive">Pasif Adaylar ({passiveCount})</Link>
+                </Button>
+              </div>
             </div>
-            <Button onClick={() => setOpen(true)} className="bg-[#17201b] text-white">
-              <Plus className="size-4" />
-              Yeni Aday Ekle
-            </Button>
+            {view === "active" ? (
+              <Button onClick={() => setOpen(true)} className="bg-[#17201b] text-white">
+                <Plus className="size-4" />
+                Yeni Aday Ekle
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 xl:grid-cols-[1.3fr_repeat(5,0.8fr)_auto]">
+          <div className="grid gap-3 xl:grid-cols-[1.3fr_repeat(4,0.8fr)_auto]">
             <label className="flex h-11 items-center gap-2 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3">
               <Search className="size-4" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="İsim, not, etiket, konsept veya telefon ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
@@ -198,9 +203,7 @@ export function CandidateList({
             <Select value={city} set={setCity} items={cityOptions} label="Şehir" />
             <Select value={status} set={setStatus} items={statusOptions} label="Durum" />
             <Select value={source} set={setSource} items={sourceOptions} label="Kaynak" />
-            <Select value={category} set={setCategory} items={LEAD_CATEGORIES.map((item) => item)} labels={LEAD_CATEGORY_LABELS} label="Kategori" />
-            <Select value={score} set={setScore} items={["1-3", "4-6", "7-8", "9-10", "Puansız"]} label="Puan" />
-            <Select value={sort} set={setSort} items={["Güncel", "Puan yüksek", "Puan düşük", "Takip yakın"]} label="Sıralama" includeAll={false} />
+            <Select value={sort} set={setSort} items={["Güncel", "Görüşme yeni", "Takip yakın"]} label="Sıralama" includeAll={false} />
             <Button variant="outline" onClick={reset}>
               <Filter className="size-4" />
               Sıfırla
@@ -270,6 +273,7 @@ function UnifiedTableRow({ row, onOpenLead }: { row: UnifiedRow; onOpenLead: (le
         )}
         <div className="mt-1 flex flex-wrap gap-1">
           <Badge className={isLead ? "bg-sky-100 text-sky-800" : "bg-emerald-100 text-emerald-800"}>{isLead ? "Lead" : "Aday"}</Badge>
+          {!isLead && row.candidate.archivedAt ? <Badge variant="outline">Pasif</Badge> : null}
           <span className="text-xs text-[#65705f]">{item.source}</span>
           {!isLead ? row.candidate.tags.slice(0, 3).map((tag) => <Badge key={tag.id || tag.name} variant="secondary" className="text-[11px]">{tag.name}</Badge>) : null}
         </div>
@@ -324,16 +328,6 @@ function Select({ value, set, items, label, includeAll = true, labels }: { value
   );
 }
 
-function matchesScore(value: number | null, filter: string) {
-  if (filter === ALL) return true;
-  if (filter === "Puansız") return value == null;
-  if (!value) return false;
-  if (filter === "1-3") return value >= 1 && value <= 3;
-  if (filter === "4-6") return value >= 4 && value <= 6;
-  if (filter === "7-8") return value >= 7 && value <= 8;
-  return value >= 9 && value <= 10;
-}
-
 function scoreTone(value: number | null) {
   if (!value) return "bg-[#eef2ea] text-[#65705f]";
   if (value >= 8) return "bg-emerald-100 text-emerald-800";
@@ -367,12 +361,20 @@ function rowScore(row: UnifiedRow) {
   return row.type === "candidate" ? row.candidate.qualificationScore ?? 0 : 0;
 }
 
-function emptyLastScore(row: UnifiedRow) {
-  return row.type === "candidate" ? row.candidate.qualificationScore ?? 99 : 99;
-}
-
 function rowFollowUp(row: UnifiedRow) {
   return row.type === "candidate" ? row.candidate.nextFollowUpAt : row.lead.nextFollowUpAt;
+}
+
+function rowContactDate(row: UnifiedRow) {
+  if (row.type === "candidate") return row.candidate.interactions[0]?.interactionDate || row.candidate.lastContactAt;
+  return row.lead.activities[0]?.createdAt || row.lead.lastContactAt;
+}
+
+function contactDateValue(row: UnifiedRow) {
+  const value = rowContactDate(row);
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function dateValue(value?: string) {

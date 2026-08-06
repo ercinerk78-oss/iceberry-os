@@ -97,6 +97,7 @@ export type Candidate = {
   nextFollowUpAt: string;
   lastContactAt: string;
   lostReason: string;
+  archivedAt: string;
   createdAt: string;
   updatedAt: string;
   assignedUserId: string;
