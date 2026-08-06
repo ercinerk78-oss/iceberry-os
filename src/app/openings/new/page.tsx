@@ -31,19 +31,14 @@ export default async function NewOpening() {
 
 async function loadOpeningFormData() {
   try {
-    const [branchRecords, templates, users] = await Promise.all([
+    const [branches, templates, users] = await Promise.all([
       prisma.branch.findMany({
         where: {
           archivedAt: null,
           status: { in: ["PLANNED", "SETUP", "IN_SETUP", "CONTRACTED"] },
           openingProjects: { none: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } },
         },
-        select: {
-          id: true,
-          branchName: true,
-          city: true,
-          candidate: { select: { qualificationScore: true } },
-        },
+        select: { id: true, branchName: true, city: true },
         orderBy: { branchName: "asc" },
       }),
       prisma.openingProjectTemplate.findMany({
@@ -57,10 +52,6 @@ async function loadOpeningFormData() {
         orderBy: { name: "asc" },
       }),
     ]);
-
-    const branches = branchRecords
-      .map((branch) => ({ ...branch, qualificationScore: branch.candidate?.qualificationScore ?? null }))
-      .sort((a, b) => (b.qualificationScore ?? -1) - (a.qualificationScore ?? -1) || a.branchName.localeCompare(b.branchName, "tr"));
 
     return { branches, templates, users, setupError: null };
   } catch (error) {

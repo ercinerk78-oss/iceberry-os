@@ -61,7 +61,7 @@ export function CandidateList({
   const [selectedConcepts, setSelectedConcepts] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [temperature, setTemperature] = useState(ALL);
-  const [sort, setSort] = useState("Güncel");
+  const [sort, setSort] = useState("Puan öncelikli");
   const [open, setOpen] = useState(false);
   const effectiveReferenceNow = referenceNow ?? 0;
 
@@ -149,6 +149,7 @@ export function CandidateList({
     });
 
     return filteredRows.sort((a, b) => {
+      if (sort === "Puan öncelikli") return rowScore(b) - rowScore(a) || contactDateValue(b) - contactDateValue(a) || dateValue(b.date) - dateValue(a.date);
       if (sort === "Görüşme yeni") return contactDateValue(b) - contactDateValue(a) || rowScore(b) - rowScore(a);
       if (sort === "Takip yakın") return dateValue(rowFollowUp(a)) - dateValue(rowFollowUp(b));
       return dateValue(b.date) - dateValue(a.date);
@@ -164,7 +165,7 @@ export function CandidateList({
     setSelectedConcepts([]);
     setSelectedTags([]);
     setTemperature(ALL);
-    setSort("Güncel");
+    setSort("Puan öncelikli");
   };
 
   return (
@@ -203,7 +204,7 @@ export function CandidateList({
             <Select value={city} set={setCity} items={cityOptions} label="Şehir" />
             <Select value={status} set={setStatus} items={statusOptions} label="Durum" />
             <Select value={source} set={setSource} items={sourceOptions} label="Kaynak" />
-            <Select value={sort} set={setSort} items={["Güncel", "Görüşme yeni", "Takip yakın"]} label="Sıralama" includeAll={false} />
+            <Select value={sort} set={setSort} items={["Puan öncelikli", "Görüşme yeni", "Takip yakın"]} label="Sıralama" includeAll={false} />
             <Button variant="outline" onClick={reset}>
               <Filter className="size-4" />
               Sıfırla
