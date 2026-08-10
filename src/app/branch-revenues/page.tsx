@@ -120,23 +120,26 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
 
     return { branch, current, previous, actual, previousActual, change, changeRate: percentChange(actual, previousActual), targetRate };
   }).filter((row) => {
-    if (filter === "missing") return !row.current;
-    if (filter === "target-met") return row.targetRate != null && row.targetRate >= 100;
-    if (filter === "target-missed") return row.current?.targetRevenue && (row.targetRate ?? 0) < 100;
+    const hasCurrentRevenue = hasVisibleCurrentRevenue(row);
+    if (filter === "missing") return !hasCurrentRevenue;
+    if (filter === "target-met") return hasCurrentRevenue && row.targetRate != null && row.targetRate >= 100;
+    if (filter === "target-missed") return hasCurrentRevenue && row.current?.targetRevenue && (row.targetRate ?? 0) < 100;
     if (filter === "increased") return row.change > 0;
     if (filter === "decreased") return row.change < 0;
     return true;
   });
 
   const finalCurrent = currentRecords.filter((record) => visibleRevenueStatuses.includes(record.status));
+  const finalCurrentBranchIds = new Set(finalCurrent.map((record) => record.branchId));
   const totalsByCurrency = groupTotal(finalCurrent);
-  const avgByCurrency = Object.fromEntries(Object.entries(totalsByCurrency).map(([currency, total]) => [currency, total / Math.max(1, branches.length)]));
-  const best = [...rows].sort((a, b) => b.actual - a.actual)[0];
-  const worst = [...rows].filter((row) => row.current).sort((a, b) => a.actual - b.actual)[0];
-  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => visibleRevenueStatuses.includes(record.status)));
-  const targetMet = rows.filter((row) => row.targetRate != null && row.targetRate >= 100).length;
-  const targetMissed = rows.filter((row) => row.current?.targetRevenue && (row.targetRate ?? 0) < 100).length;
-  const missing = rows.filter((row) => !row.current).length;
+  const avgByCurrency = groupAverage(finalCurrent);
+  const rowsWithCurrentRevenue = rows.filter(hasVisibleCurrentRevenue);
+  const best = [...rowsWithCurrentRevenue].sort((a, b) => b.actual - a.actual)[0];
+  const worst = [...rowsWithCurrentRevenue].sort((a, b) => a.actual - b.actual)[0];
+  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => visibleRevenueStatuses.includes(record.status) && finalCurrentBranchIds.has(record.branchId)));
+  const targetMet = rowsWithCurrentRevenue.filter((row) => row.targetRate != null && row.targetRate >= 100).length;
+  const targetMissed = rowsWithCurrentRevenue.filter((row) => row.current?.targetRevenue && (row.targetRate ?? 0) < 100).length;
+  const missing = rows.filter((row) => !hasVisibleCurrentRevenue(row)).length;
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => {
     const monthNo = index + 1;
     const records = yearRecords.filter((record) => record.month === monthNo);
@@ -270,7 +273,7 @@ function RevenueTotalRow({ rows }: { rows: RevenueRowData[] }) {
       <td className="px-4 py-4">{moneyList(totals.dailyAverage)}</td>
       <td className="px-4 py-4">Toplam</td>
       <td className="px-4 py-4">Seçili dönem</td>
-      <td className="px-4 py-4"><Badge variant="outline">{rows.filter((row) => row.current).length} şube</Badge></td>
+      <td className="px-4 py-4"><Badge variant="outline">{rows.filter(hasVisibleCurrentRevenue).length} şube</Badge></td>
       <td className="px-4 py-4">—</td>
     </tr>
   );
@@ -281,7 +284,7 @@ function RevenueTotalCard({ rows }: { rows: RevenueRowData[] }) {
 
   return (
     <div className="rounded-lg border-2 border-[#17201b] bg-white p-4">
-      <div className="flex justify-between gap-3"><b>Tüm Türkiye</b><Badge>{rows.filter((row) => row.current).length} şube</Badge></div>
+      <div className="flex justify-between gap-3"><b>Tüm Türkiye</b><Badge>{rows.filter(hasVisibleCurrentRevenue).length} şube</Badge></div>
       <div className="mt-3 text-xl font-semibold">{moneyList(totals.actual)}</div>
       <p className="mt-2 text-sm text-[#65705f]">Değişim {percentList(totals.changeRate)} · Hedef {percentList(totals.targetRate)}</p>
       <p className="mt-1 text-sm text-[#65705f]">Günlük ortalama {moneyList(totals.dailyAverage)}</p>
@@ -353,10 +356,25 @@ function groupTotal(records: BranchRevenueRecordWithUser[]) {
   }, {});
 }
 
+function groupAverage(records: BranchRevenueRecordWithUser[]) {
+  const totals = groupTotal(records);
+  const counts = records.reduce<Record<string, number>>((acc, record) => {
+    acc[record.currency] = (acc[record.currency] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.fromEntries(Object.entries(totals).map(([currency, total]) => [currency, total / Math.max(1, counts[currency] ?? 0)]));
+}
+
+function hasVisibleCurrentRevenue(row: RevenueRowData) {
+  return !!row.current && visibleRevenueStatuses.includes(row.current.status);
+}
+
 function revenueTotals(rows: RevenueRowData[]) {
-  const totals = rows.reduce(
+  const rowsWithCurrentRevenue = rows.filter(hasVisibleCurrentRevenue);
+  const totals = rowsWithCurrentRevenue.reduce(
     (acc, row) => {
-      const currency = row.current?.currency ?? row.previous?.currency ?? "TRY";
+      const currency = row.current?.currency ?? "TRY";
       const days = row.current ? Math.max(1, Math.ceil((row.current.periodEnd.getTime() - row.current.periodStart.getTime()) / 86400000) + 1) : 1;
       const target = row.current?.targetRevenue ?? 0;
 
