@@ -27,6 +27,7 @@ type BranchTask = {
   minimumVideoCount: number;
   minimumFileCount: number;
   requiresApproval: boolean;
+  sourceType: string | null;
   evidence: { id: string; evidenceType: string; fileName: string | null; description: string | null }[];
 };
 
@@ -34,7 +35,8 @@ const initialState: BranchTaskState = { success: false, message: "" };
 const finalStatuses = new Set(["COMPLETED", "CANCELLED", "APPROVED"]);
 
 export function BranchTaskPanel({ branchId, tasks, canReview }: { branchId: string; tasks: BranchTask[]; canReview: boolean }) {
-  const [showCreate, setShowCreate] = useState(false);
+  const [createMode, setCreateMode] = useState<"standard" | "center" | null>(null);
+  const sortedTasks = [...tasks].sort((a, b) => Number(isCenterTask(b)) - Number(isCenterTask(a)) || new Date(b.dueDate ?? 0).getTime() - new Date(a.dueDate ?? 0).getTime());
 
   return (
     <div className="space-y-4">
@@ -43,16 +45,22 @@ export function BranchTaskPanel({ branchId, tasks, canReview }: { branchId: stri
           <h3 className="font-semibold">Şube Görevleri</h3>
           <p className="text-sm text-[#65705f]">Bayi kanıt yükler, görevi gönderir; merkez gerekirse onaylayarak kapatır.</p>
         </div>
-        <Button type="button" onClick={() => setShowCreate((value) => !value)} className="bg-[#17201b] text-white">
-          <Plus className="size-4" />
-          Yeni Görev
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => setCreateMode((value) => (value === "center" ? null : "center"))}>
+            <Plus className="size-4" />
+            Merkez Görevi Ekle
+          </Button>
+          <Button type="button" onClick={() => setCreateMode((value) => (value === "standard" ? null : "standard"))} className="bg-[#17201b] text-white">
+            <Plus className="size-4" />
+            Yeni Görev
+          </Button>
+        </div>
       </div>
 
-      {showCreate ? <CreateTaskForm branchId={branchId} onDone={() => setShowCreate(false)} /> : null}
+      {createMode ? <CreateTaskForm branchId={branchId} mode={createMode} onDone={() => setCreateMode(null)} /> : null}
 
       <div className="space-y-3">
-        {tasks.map((task) => (
+        {sortedTasks.map((task) => (
           <TaskCard key={task.id} task={task} canReview={canReview} />
         ))}
         {!tasks.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Bu şubeye atanmış görev yok.</p> : null}
@@ -61,8 +69,9 @@ export function BranchTaskPanel({ branchId, tasks, canReview }: { branchId: stri
   );
 }
 
-function CreateTaskForm({ branchId, onDone }: { branchId: string; onDone: () => void }) {
+function CreateTaskForm({ branchId, mode, onDone }: { branchId: string; mode: "standard" | "center"; onDone: () => void }) {
   const [state, formAction, pending] = useActionState(createBranchTask, initialState);
+  const isCenterMode = mode === "center";
 
   useEffect(() => {
     if (state.success) onDone();
@@ -71,6 +80,12 @@ function CreateTaskForm({ branchId, onDone }: { branchId: string; onDone: () => 
   return (
     <form action={formAction} className="grid gap-3 rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4 md:grid-cols-2">
       <input type="hidden" name="branchId" value={branchId} />
+      <input type="hidden" name="taskKind" value={isCenterMode ? "CENTER" : "STANDARD"} />
+      {isCenterMode ? <input type="hidden" name="requiresApproval" value="off" /> : null}
+      <div className="md:col-span-2">
+        <Badge variant={isCenterMode ? "default" : "secondary"}>{isCenterMode ? "Merkez Görevi" : "Standart Görev"}</Badge>
+        {isCenterMode ? <p className="mt-2 text-sm text-[#65705f]">Bu görev bayi yöneticisi tarafından takip edilir, kanıt istemez ve kapatıldığında akışta tamamlandı olarak görünür.</p> : null}
+      </div>
       <Field name="title" label="Görev Başlığı" required />
       <Field name="dueDate" label="Bitiş Tarihi" type="datetime-local" />
       <Select name="priority" label="Öncelik" options={[["NORMAL", "Normal"], ["LOW", "Düşük"], ["HIGH", "Yüksek"], ["URGENT", "Acil"]]} />
@@ -79,13 +94,15 @@ function CreateTaskForm({ branchId, onDone }: { branchId: string; onDone: () => 
         <span>Açıklama</span>
         <textarea name="description" rows={3} className="rounded-lg border bg-white p-3" />
       </label>
-      <div className="grid gap-2 text-sm md:col-span-2 md:grid-cols-3">
-        <input type="hidden" name="requiresApproval" value="off" />
-        <CheckField name="requiresDescription" label="Açıklama zorunlu" />
-        <CheckField name="requiresPhoto" label="Fotoğraf zorunlu" />
-        <CheckField name="requiresFile" label="Dosya zorunlu" />
-        <CheckField name="requiresApproval" label="Merkez onayı gerekli" defaultChecked />
-      </div>
+      {!isCenterMode ? (
+        <div className="grid gap-2 text-sm md:col-span-2 md:grid-cols-3">
+          <input type="hidden" name="requiresApproval" value="off" />
+          <CheckField name="requiresDescription" label="Açıklama zorunlu" />
+          <CheckField name="requiresPhoto" label="Fotoğraf zorunlu" />
+          <CheckField name="requiresFile" label="Dosya zorunlu" />
+          <CheckField name="requiresApproval" label="Merkez onayı gerekli" defaultChecked />
+        </div>
+      ) : null}
       {state.message ? <p className={`text-sm md:col-span-2 ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
       <div className="flex justify-end gap-2 md:col-span-2">
         <Button type="button" variant="outline" onClick={onDone}>Vazgeç</Button>
@@ -97,6 +114,7 @@ function CreateTaskForm({ branchId, onDone }: { branchId: string; onDone: () => 
 
 function TaskCard({ task, canReview }: { task: BranchTask; canReview: boolean }) {
   const [message, setMessage] = useState("");
+  const centerTask = isCenterTask(task);
   const canWork = !finalStatuses.has(task.status);
   const canSubmit = ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status);
   const waitingReview = ["SUBMITTED", "UNDER_REVIEW"].includes(task.status);
@@ -118,18 +136,19 @@ function TaskCard({ task, canReview }: { task: BranchTask; canReview: boolean })
           <div className="flex flex-wrap gap-2">
             <Badge>{branchTaskStatusLabel(task.status)}</Badge>
             <Badge variant="secondary">{branchTaskPriorityLabel(task.priority)}</Badge>
+            {centerTask ? <Badge variant="outline">Merkez Görevi</Badge> : null}
             {task.requiresApproval ? <Badge variant="outline">Merkez Onayı</Badge> : null}
           </div>
           <h4 className="mt-3 font-semibold">{task.title}</h4>
           {task.description ? <p className="mt-1 text-sm text-[#65705f]">{task.description}</p> : null}
           <p className="mt-2 text-sm text-[#65705f]">Bitiş: {formatDate(task.dueDate)} · Sorumlu: {task.assignedRole || task.assignedUserId || "Atanmadı"}</p>
-          <p className="mt-2 text-xs text-[#65705f]">Kanıt: {task.evidence.length} · Gereksinim: {requirements(task)}</p>
+          {!centerTask ? <p className="mt-2 text-xs text-[#65705f]">Kanıt: {task.evidence.length} · Gereksinim: {requirements(task)}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {canSubmit ? (
             <Button type="button" size="sm" variant="outline" onClick={() => run(() => submitBranchTask(task.id, new FormData()))}>
-              <Send className="size-4" />
-              Gönder
+              {centerTask ? <Check className="size-4" /> : <Send className="size-4" />}
+              {centerTask ? "Kapat" : "Gönder"}
             </Button>
           ) : null}
           {canReview && waitingReview ? (
@@ -141,7 +160,7 @@ function TaskCard({ task, canReview }: { task: BranchTask; canReview: boolean })
         </div>
       </div>
 
-      {canWork ? <EvidenceForm taskId={task.id} /> : null}
+      {canWork && !centerTask ? <EvidenceForm taskId={task.id} /> : null}
       {canReview && waitingReview ? <RejectForm taskId={task.id} onDone={setMessage} /> : null}
       {message ? <p className="mt-3 rounded-lg bg-white p-3 text-sm text-[#2f5f20]">{message}</p> : null}
     </article>
@@ -200,6 +219,10 @@ function requirements(task: BranchTask) {
   ].filter(Boolean);
 
   return items.length ? items.join(", ") : "zorunlu kanıt yok";
+}
+
+function isCenterTask(task: Pick<BranchTask, "sourceType">) {
+  return task.sourceType === "CENTER_TASK";
 }
 
 function Field({ name, label, type = "text", required = false, placeholder = "" }: { name: string; label: string; type?: string; required?: boolean; placeholder?: string }) {

@@ -29,6 +29,7 @@ const taskSchema = z.object({
   minimumVideoCount: z.string().optional(),
   minimumFileCount: z.string().optional(),
   requiresApproval: z.string().optional(),
+  taskKind: z.enum(["STANDARD", "CENTER"]).optional(),
 });
 
 function refresh(branchId?: string) {
@@ -49,6 +50,7 @@ export async function createBranchTask(_: BranchTaskState, formData: FormData): 
   if (!(await canAccessBranch(parsed.data.branchId))) return { success: false, message: "Bu şubeye görev oluşturma yetkiniz yok." };
 
   try {
+    const isCenterTask = parsed.data.taskKind === "CENTER";
     const task = await prisma.$transaction(async (tx) => {
       const created = await tx.branchTask.create({
         data: {
@@ -56,34 +58,35 @@ export async function createBranchTask(_: BranchTaskState, formData: FormData): 
           title: parsed.data.title,
           description: parsed.data.description || null,
           assignedUserId: parsed.data.assignedUserId || null,
-          assignedRole: parsed.data.assignedRole || null,
+          assignedRole: parsed.data.assignedRole || (isCenterTask ? "BRANCH_MANAGER" : null),
           createdById: user.id,
           priority: parsed.data.priority,
           dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-          requiresPhoto: bool(parsed.data.requiresPhoto),
-          requiresVideo: bool(parsed.data.requiresVideo),
-          requiresFile: bool(parsed.data.requiresFile),
-          requiresDescription: bool(parsed.data.requiresDescription),
-          requiresResultNote: bool(parsed.data.requiresResultNote),
-          minimumPhotoCount: count(parsed.data.minimumPhotoCount),
-          minimumVideoCount: count(parsed.data.minimumVideoCount),
-          minimumFileCount: count(parsed.data.minimumFileCount),
-          requiresApproval: parsed.data.requiresApproval !== "off",
+          requiresPhoto: isCenterTask ? false : bool(parsed.data.requiresPhoto),
+          requiresVideo: isCenterTask ? false : bool(parsed.data.requiresVideo),
+          requiresFile: isCenterTask ? false : bool(parsed.data.requiresFile),
+          requiresDescription: isCenterTask ? false : bool(parsed.data.requiresDescription),
+          requiresResultNote: isCenterTask ? false : bool(parsed.data.requiresResultNote),
+          minimumPhotoCount: isCenterTask ? 0 : count(parsed.data.minimumPhotoCount),
+          minimumVideoCount: isCenterTask ? 0 : count(parsed.data.minimumVideoCount),
+          minimumFileCount: isCenterTask ? 0 : count(parsed.data.minimumFileCount),
+          requiresApproval: isCenterTask ? false : parsed.data.requiresApproval !== "off",
+          sourceType: isCenterTask ? "CENTER_TASK" : null,
         },
       });
       await tx.branchTimelineEvent.create({
         data: {
           branchId: parsed.data.branchId,
           userId: user.id,
-          action: "TASK_CREATED",
+          action: isCenterTask ? "CENTER_TASK_CREATED" : "TASK_CREATED",
           entityType: "BranchTask",
           entityId: created.id,
-          description: `${created.title} görevi oluşturuldu.`,
+          description: isCenterTask ? `${created.title} merkez görevi oluşturuldu.` : `${created.title} görevi oluşturuldu.`,
         },
       });
       return created;
     });
-    await audit("TASK_CREATED", "BranchTask", task.id, "Şube görevi oluşturuldu.", user.id);
+    await audit(isCenterTask ? "CENTER_TASK_CREATED" : "TASK_CREATED", "BranchTask", task.id, isCenterTask ? "Merkez görevi oluşturuldu." : "Şube görevi oluşturuldu.", user.id);
     refresh(task.branchId);
 
     return { success: true, message: "Görev oluşturuldu." };
