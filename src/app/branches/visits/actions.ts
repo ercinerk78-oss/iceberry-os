@@ -44,27 +44,45 @@ export async function createBranchVisit(formData: FormData) {
 
   if (!branch) return;
 
-  const visit = await prisma.branchVisit.create({
-    data: {
-      branchId: branch.id,
-      title: data.title || `${branch.branchName} operasyon ziyareti`,
-      visitType: data.visitType || "OPERATION",
-      plannedAt,
-      visitorName: data.visitorName || user.name,
-      plannedById: user.id,
-      notes: data.notes || null,
-    },
-  });
+  const title = data.title || `${branch.branchName} operasyon ziyareti`;
+  const visitType = data.visitType || "OPERATION";
 
-  await prisma.branchTimelineEvent.create({
-    data: {
-      branchId: branch.id,
-      userId: user.id,
-      action: "BRANCH_VISIT_PLANNED",
-      entityType: "BranchVisit",
-      entityId: visit.id,
-      description: `${branch.branchName} için merkez operasyon ziyareti planlandı.`,
-    },
+  await prisma.$transaction(async (tx) => {
+    const visit = await tx.branchVisit.create({
+      data: {
+        branchId: branch.id,
+        title,
+        visitType,
+        plannedAt,
+        visitorName: data.visitorName || user.name,
+        plannedById: user.id,
+        notes: data.notes || null,
+      },
+    });
+
+    await tx.operationCalendarItem.create({
+      data: {
+        branchId: branch.id,
+        title,
+        description: data.notes || "Operasyon ziyareti planlandı.",
+        eventType: "BRANCH_VISIT",
+        startAt: plannedAt,
+        status: "PLANNED",
+        taskId: visit.id,
+        createdById: user.id,
+      },
+    });
+
+    await tx.branchTimelineEvent.create({
+      data: {
+        branchId: branch.id,
+        userId: user.id,
+        action: "BRANCH_VISIT_PLANNED",
+        entityType: "BranchVisit",
+        entityId: visit.id,
+        description: `${branch.branchName} için merkez operasyon ziyareti planlandı.`,
+      },
+    });
   });
 
   refresh(branch.id);
@@ -94,6 +112,13 @@ export async function completeBranchVisit(visitId: string, formData: FormData) {
         completedAt,
         completedById: user.id,
         resultNotes: parsed.data.resultNotes || null,
+      },
+    }),
+    prisma.operationCalendarItem.updateMany({
+      where: { branchId: visit.branchId, taskId: visit.id },
+      data: {
+        status: "COMPLETED",
+        description: parsed.data.resultNotes || visit.notes || "Operasyon ziyareti gerçekleşti.",
       },
     }),
     prisma.branchTimelineEvent.create({

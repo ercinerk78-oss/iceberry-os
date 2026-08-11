@@ -174,6 +174,59 @@ export async function updateBranch(id: string, _: FormState, formData: FormData)
   }
 }
 
+export async function updateBranchNotes(branchId: string, formData: FormData) {
+  const user = await requirePermission("branches");
+  const notes = String(formData.get("generalNotes") ?? "").trim();
+  const branch = await prisma.branch.findFirst({ where: { id: branchId, archivedAt: null }, select: { id: true, branchName: true, generalNotes: true } });
+
+  if (!branch) return;
+
+  await prisma.$transaction([
+    prisma.branch.update({ where: { id: branch.id }, data: { generalNotes: notes || null } }),
+    prisma.branchTimelineEvent.create({
+      data: {
+        branchId: branch.id,
+        userId: user.id,
+        action: "BRANCH_NOTES_UPDATED",
+        entityType: "Branch",
+        entityId: branch.id,
+        oldValue: branch.generalNotes,
+        newValue: notes || null,
+        description: `${branch.branchName} şube notları güncellendi.`,
+      },
+    }),
+  ]);
+
+  refresh(branch.id);
+}
+
+export async function completeOperationCalendarItem(itemId: string, formData: FormData) {
+  void formData;
+  const user = await requirePermission("branches");
+  const item = await prisma.operationCalendarItem.findUnique({
+    where: { id: itemId },
+    include: { branch: { select: { id: true, branchName: true } } },
+  });
+
+  if (!item || item.status === "COMPLETED") return;
+
+  await prisma.$transaction([
+    prisma.operationCalendarItem.update({ where: { id: item.id }, data: { status: "COMPLETED" } }),
+    prisma.branchTimelineEvent.create({
+      data: {
+        branchId: item.branchId,
+        userId: user.id,
+        action: "OPERATION_CALENDAR_COMPLETED",
+        entityType: "OperationCalendarItem",
+        entityId: item.id,
+        description: `${item.branch.branchName} operasyon takvimi işi tamamlandı: ${item.title}`,
+      },
+    }),
+  ]);
+
+  refresh(item.branchId);
+}
+
 export async function convertCandidateToBranch(candidateId: string, _: FormState, formData: FormData): Promise<FormState> {
   const user = await requirePermission("branches");
   await requirePermission("openings");
