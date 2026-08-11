@@ -33,5 +33,18 @@ export const ALLOWED_MIME_TYPES=[
   "application/zip",
   "application/x-zip-compressed",
 ] as const;
+export const ALLOWED_FILE_EXTENSIONS = [
+  ".pdf",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+] as const;
 export const formatFileSize=(size:number)=>size<1024*1024?`${Math.max(1,Math.ceil(size/1024))} KB`:`${(size/1024/1024).toLocaleString("tr-TR",{maximumFractionDigits:1})} MB`;
 export const documentTypeLabel=(type:string)=>DOCUMENT_TYPES[type as DocumentType]??type;

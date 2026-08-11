@@ -17,6 +17,15 @@ const schema = z.object({
   description: z.string().trim().max(500, "Açıklama en fazla 500 karakter olabilir.").optional().or(z.literal("")),
 });
 
+function uploadErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("BLOB_READ_WRITE_TOKEN") || message.includes("Kalıcı dosya depolama")) {
+    return "Dosya yükleme için kalıcı depolama yapılandırılmamış. Vercel Production ortamında BLOB_READ_WRITE_TOKEN tanımlanmalıdır.";
+  }
+
+  return fallback;
+}
+
 function refreshDocumentPaths(document?: { candidateId?: string | null; branchId?: string | null; franchiseeId?: string | null; openingId?: string | null; openingProjectId?: string | null }) {
   if (document?.candidateId) revalidatePath(`/candidates/${document.candidateId}`);
   if (document?.branchId) revalidatePath(`/branches/${document.branchId}`);
@@ -58,9 +67,9 @@ export async function uploadCandidateDocuments(candidateId: string, requestedTyp
         uploadedBy: "Sistem Kullanıcısı",
       },
     })));
-  } catch {
+  } catch (error) {
     await Promise.all(stored.map((file) => storage.remove(file.filePath)));
-    return { success: false, message: "Dosyalar yüklenemedi. Lütfen tekrar deneyin." };
+    return { success: false, message: uploadErrorMessage(error, "Dosyalar yüklenemedi. Lütfen tekrar deneyin.") };
   }
   refresh(candidateId);
   return { success: true, message: `${files.length} dosya başarıyla yüklendi.` };
@@ -107,9 +116,9 @@ export async function uploadRelatedDocuments(relation: "franchisee" | "branch" |
         uploadedBy: "Sistem Kullanıcısı",
       },
     })));
-  } catch {
+  } catch (error) {
     await Promise.all(stored.map((file) => storage.remove(file.filePath)));
-    return { success: false, message: "Dosya yüklenemedi." };
+    return { success: false, message: uploadErrorMessage(error, "Dosya yüklenemedi.") };
   }
   revalidatePath(`/${relation === "franchisee" ? "franchisees" : relation === "branch" ? "branches" : "openings"}/${relationId}`);
   revalidatePath("/documents");

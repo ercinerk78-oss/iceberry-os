@@ -8,7 +8,7 @@ function createStorage(): StorageService {
   if (process.env.VERCEL_ENV === "production") {
     return {
       async save() {
-        throw new Error("Production dosya yukleme icin BLOB_READ_WRITE_TOKEN tanimlanmalidir.");
+        throw new Error("Kalıcı dosya depolama yapılandırılmamış. Production dosya yükleme için Vercel Blob BLOB_READ_WRITE_TOKEN tanımlanmalıdır.");
       },
       async read(filePath: string) {
         return new LocalStorageService().read(filePath);

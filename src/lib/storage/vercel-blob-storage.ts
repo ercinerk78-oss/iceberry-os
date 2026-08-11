@@ -9,7 +9,8 @@ export class VercelBlobStorageService implements StorageService {
   async save(file: File): Promise<StoredFile> {
     const extension = path.extname(file.name).toLowerCase();
     const fileName = `${randomUUID()}${extension}`;
-    const pathname = `academy/${new Date().getUTCFullYear()}/${fileName}`;
+    const now = new Date();
+    const pathname = `documents/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${fileName}`;
     const blob = await put(pathname, file, {
       access: "public",
       addRandomSuffix: false,
