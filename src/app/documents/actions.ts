@@ -19,8 +19,8 @@ const schema = z.object({
 
 function uploadErrorMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : "";
-  if (message.includes("BLOB_READ_WRITE_TOKEN") || message.includes("Kalıcı dosya depolama")) {
-    return "Dosya yükleme için kalıcı depolama yapılandırılmamış. Vercel Production ortamında BLOB_READ_WRITE_TOKEN tanımlanmalıdır.";
+  if (message.includes("BLOB_READ_WRITE_TOKEN") || message.includes("BLOB_STORE_ID") || message.includes("Kalıcı dosya depolama") || message.includes("No blob credentials found")) {
+    return "Dosya yükleme için kalıcı depolama yapılandırılmamış. Vercel Production ortamında Blob store bağlantısı kontrol edilmelidir.";
   }
 
   return fallback;
