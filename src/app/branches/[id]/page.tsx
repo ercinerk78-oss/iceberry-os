@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CalendarClock, Check, CheckSquare, FileText, ShieldCheck, TrendingUp } from "lucide-react";
 
 import { completeOperationCalendarItem, updateBranch, updateBranchNotes } from "@/app/branches/actions";
-import { completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
+import { cancelBranchVisit, completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
 import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
@@ -240,7 +240,7 @@ function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { i
         {visits.map((visit) => (
           <article key={visit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
             <div className="flex flex-wrap gap-2">
-              <Badge>{visit.status === "COMPLETED" ? "Gerçekleşti" : "Planlandı"}</Badge>
+              <Badge>{visit.status === "COMPLETED" ? "Gerçekleşti" : visit.status === "CANCELLED" ? "İptal Edildi" : "Planlandı"}</Badge>
               <Badge variant="secondary">{visit.visitType}</Badge>
             </div>
             <h3 className="mt-3 font-semibold">{visit.title}</h3>
@@ -250,12 +250,18 @@ function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { i
             {visit.visitorName ? <p className="mt-1 text-sm text-[#65705f]">Sorumlu: {visit.visitorName}</p> : null}
             {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
             {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
-            {visit.status !== "COMPLETED" ? (
+            {visit.status === "PLANNED" ? (
+              <>
               <form action={completeBranchVisit.bind(null, visit.id)} className="mt-4 grid gap-2 md:grid-cols-[1fr_2fr_auto]">
                 <input type="datetime-local" name="completedAt" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                 <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                 <Button variant="outline"><Check className="size-4" />Gerçekleşti</Button>
               </form>
+              <form action={cancelBranchVisit.bind(null, visit.id)} className="mt-3 grid gap-2 rounded-lg border border-rose-200 bg-white p-2 md:grid-cols-[1fr_auto]">
+                <input name="cancellationReason" required placeholder="İptal nedeni" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <Button variant="destructive">İptal Et</Button>
+              </form>
+              </>
             ) : null}
           </article>
         ))}
@@ -275,14 +281,14 @@ function CalendarPanel({ items }: { items: { id: string; title: string; descript
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap gap-2">
-                <Badge>{item.status === "COMPLETED" ? "Tamamlandı" : "Planlandı"}</Badge>
+                <Badge>{item.status === "COMPLETED" ? "Tamamlandı" : item.status === "CANCELLED" ? "İptal Edildi" : "Planlandı"}</Badge>
                 <Badge variant="secondary">{item.eventType}</Badge>
               </div>
               <h3 className="mt-3 font-semibold">{item.title}</h3>
               <p className="mt-1 text-sm text-[#65705f]">{formatDate(item.startAt)}</p>
               {item.description ? <p className="mt-2 text-sm">{item.description}</p> : null}
             </div>
-            {item.status !== "COMPLETED" ? (
+            {item.status === "PLANNED" ? (
               <form action={completeOperationCalendarItem.bind(null, item.id)}>
                 <Button size="sm" variant="outline"><Check className="size-4" />Tamamlandı</Button>
               </form>

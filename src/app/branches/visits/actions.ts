@@ -20,6 +20,10 @@ const completeVisitSchema = z.object({
   resultNotes: z.string().trim().optional(),
 });
 
+const cancelVisitSchema = z.object({
+  cancellationReason: z.string().trim().min(2, "İptal nedeni yazın."),
+});
+
 function refresh(branchId?: string) {
   revalidatePath("/branches");
   revalidatePath("/branches/visits");
@@ -129,6 +133,52 @@ export async function completeBranchVisit(visitId: string, formData: FormData) {
         entityType: "BranchVisit",
         entityId: visit.id,
         description: `${visit.branch.branchName} merkez operasyon ziyareti gerçekleşti olarak işaretlendi.`,
+      },
+    }),
+  ]);
+
+  refresh(visit.branchId);
+}
+
+export async function cancelBranchVisit(visitId: string, formData: FormData) {
+  const user = await requirePermission("branches");
+  const parsed = cancelVisitSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const visit = await prisma.branchVisit.findUnique({
+    where: { id: visitId },
+    include: { branch: { select: { id: true, branchName: true } } },
+  });
+
+  if (!visit || visit.status !== "PLANNED") return;
+
+  const reason = parsed.data.cancellationReason;
+  const description = `İptal nedeni: ${reason}`;
+
+  await prisma.$transaction([
+    prisma.branchVisit.update({
+      where: { id: visit.id },
+      data: {
+        status: "CANCELLED",
+        resultNotes: description,
+      },
+    }),
+    prisma.operationCalendarItem.updateMany({
+      where: { branchId: visit.branchId, taskId: visit.id },
+      data: {
+        status: "CANCELLED",
+        description,
+      },
+    }),
+    prisma.branchTimelineEvent.create({
+      data: {
+        branchId: visit.branchId,
+        userId: user.id,
+        action: "BRANCH_VISIT_CANCELLED",
+        entityType: "BranchVisit",
+        entityId: visit.id,
+        description: `${visit.branch.branchName} merkez operasyon ziyareti iptal edildi. ${description}`,
       },
     }),
   ]);

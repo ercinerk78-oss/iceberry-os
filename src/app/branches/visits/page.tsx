@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { CalendarCheck, CalendarClock, ClipboardCheck, Store } from "lucide-react";
+import { CalendarCheck, CalendarClock, ClipboardCheck, Store, XCircle } from "lucide-react";
 
-import { completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
+import { cancelBranchVisit, completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +89,7 @@ export default async function BranchVisitsPage() {
 
   const plannedVisits = visits.filter((visit) => visit.status === "PLANNED");
   const completedVisits = visits.filter((visit) => visit.status === "COMPLETED");
+  const cancelledVisits = visits.filter((visit) => visit.status === "CANCELLED");
   const thisMonthCompleted = completedVisits.filter((visit) => visit.completedAt && visit.completedAt >= monthStart && visit.completedAt < monthEnd).length;
   const monthBuckets = new Map<string, number>();
   for (const visit of monthlyCompleted) {
@@ -101,11 +102,12 @@ export default async function BranchVisitsPage() {
   return (
     <AppShell activeHref="/branches" eyebrow="Merkez operasyon ziyaretleri" title="Şube Ziyaretleri">
       <div className="space-y-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <Metric label="Toplam Şube" value={branches.length} icon={Store} />
           <Metric label="Planlanan Ziyaret" value={plannedVisits.length} icon={CalendarClock} />
           <Metric label="Bu Ay Gerçekleşen" value={thisMonthCompleted} icon={CalendarCheck} />
           <Metric label="Aylık Ortalama" value={monthlyAverage ? monthlyAverage.toFixed(1) : "0"} icon={ClipboardCheck} />
+          <Metric label="İptal Edilen" value={cancelledVisits.length} icon={XCircle} />
         </div>
 
         <Card className="shadow-none">
@@ -157,8 +159,9 @@ export default async function BranchVisitsPage() {
         </Card>
 
         <div className="grid gap-4 xl:grid-cols-2">
-          <VisitList title="Planlanan Ziyaretler" visits={plannedVisits} showCompleteAction />
+          <VisitList title="Planlanan Ziyaretler" visits={plannedVisits} showCompleteAction showCancelAction />
           <VisitList title="Geçmiş / Gerçekleşen Ziyaretler" visits={completedVisits} />
+          <VisitList title="İptal Edilen Ziyaretler" visits={cancelledVisits} />
         </div>
       </div>
     </AppShell>
@@ -169,10 +172,12 @@ function VisitList({
   title,
   visits,
   showCompleteAction = false,
+  showCancelAction = false,
 }: {
   title: string;
   visits: VisitWithBranch[];
   showCompleteAction?: boolean;
+  showCancelAction?: boolean;
 }) {
   return (
     <Card className="shadow-none">
@@ -204,12 +209,22 @@ function VisitList({
                   {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
                   {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
                 </div>
-                {showCompleteAction ? (
-                  <form action={completeBranchVisit.bind(null, visit.id)} className="grid shrink-0 gap-2">
-                    <input name="completedAt" type="datetime-local" className="h-10 rounded-lg border bg-white px-3 text-sm" />
-                    <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
-                    <Button size="sm" className="bg-[#17201b] text-white">Gerçekleşti</Button>
-                  </form>
+                {showCompleteAction || showCancelAction ? (
+                  <div className="grid shrink-0 gap-3">
+                    {showCompleteAction ? (
+                      <form action={completeBranchVisit.bind(null, visit.id)} className="grid gap-2">
+                        <input name="completedAt" type="datetime-local" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                        <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                        <Button size="sm" className="bg-[#17201b] text-white">Gerçekleşti</Button>
+                      </form>
+                    ) : null}
+                    {showCancelAction ? (
+                      <form action={cancelBranchVisit.bind(null, visit.id)} className="grid gap-2 rounded-lg border border-rose-200 bg-white p-2">
+                        <input name="cancellationReason" required placeholder="İptal nedeni" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                        <Button size="sm" variant="destructive">İptal Et</Button>
+                      </form>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </article>
