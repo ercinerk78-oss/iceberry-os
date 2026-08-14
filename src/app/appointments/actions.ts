@@ -19,7 +19,6 @@ import { prisma } from "@/lib/prisma";
 import { parseMultiValue, replaceLeadConcepts } from "@/lib/qualification";
 import { normalizeEmail, normalizePhone } from "@/lib/search";
 import { leadSchema, type LeadActionState } from "@/lib/validations/lead";
-import { storage } from "@/lib/storage";
 
 const createAppointmentSchema = z.object({
   leadId: z.string().min(1),
@@ -53,9 +52,17 @@ const unreachableLeadSchema = z.object({
   reason: z.string().trim().optional(),
 });
 
-const deleteLeadSchema = z.object({
+const passiveLeadSchema = z.object({
   reason: z.enum(["WITHDREW", "WRONG_APPLICATION", "NOT_ELIGIBLE", "UNREACHABLE", "OTHER"]),
 });
+
+const passiveLeadReasonLabels: Record<z.infer<typeof passiveLeadSchema>["reason"], string> = {
+  WITHDREW: "Vazgeçti",
+  WRONG_APPLICATION: "Yanlış başvuru",
+  NOT_ELIGIBLE: "Yapamıyor / uygun değil",
+  UNREACHABLE: "Ulaşılamıyor",
+  OTHER: "Diğer",
+};
 
 const manualLeadAppointmentSchema = leadSchema.extend({
   leadCategory: z.enum(LEAD_CATEGORIES).optional().or(z.literal("")),
@@ -675,82 +682,61 @@ export async function markLeadUnreachableForm(leadId: string, formData: FormData
   await markLeadUnreachable(leadId, formData);
 }
 
-export async function deleteLeadAndCandidate(leadId: string, formData: FormData) {
+export async function deactivateAppointmentLead(leadId: string, formData: FormData) {
   await requirePermission("appointments");
+  const parsed = passiveLeadSchema.safeParse(Object.fromEntries(formData));
 
-  if (!deleteLeadSchema.safeParse(Object.fromEntries(formData)).success) return;
+  if (!parsed.success) return;
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     select: {
       id: true,
-      convertedCandidateId: true,
+      fullName: true,
     },
   });
 
   if (!lead) return;
 
-  const candidate = lead.convertedCandidateId
-    ? await prisma.franchiseCandidate.findUnique({
-        where: { id: lead.convertedCandidateId },
-        select: {
-          id: true,
-          branch: { select: { id: true } },
-          franchisee: { select: { id: true } },
-          openingProjects: { where: { archivedAt: null }, select: { id: true }, take: 1 },
-        },
-      })
-    : null;
-
-  if (candidate?.branch || candidate?.franchisee || candidate?.openingProjects.length) {
-    return;
-  }
-
-  const linkedBranch = await prisma.branch.findFirst({
-    where: { sourceLeadId: lead.id, archivedAt: null },
-    select: { id: true },
-  });
-
-  if (linkedBranch) return;
-
-  const candidateDocumentPaths = candidate
-    ? await prisma.document.findMany({
-        where: { candidateId: candidate.id },
-        select: { filePath: true },
-      })
-    : [];
+  const reasonLabel = passiveLeadReasonLabels[parsed.data.reason];
 
   await prisma.$transaction(async (tx) => {
-    if (candidate) {
-      await tx.lead.updateMany({
-        where: { convertedCandidateId: candidate.id },
-        data: { convertedCandidateId: null },
-      });
-      await tx.candidateLocationMatch.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.candidateTimelineEvent.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.candidateTagLink.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.candidateConcept.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.candidateTask.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.candidateInteraction.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.document.deleteMany({ where: { candidateId: candidate.id } });
-      await tx.franchiseCandidate.delete({ where: { id: candidate.id } });
-    }
-
-    await tx.leadConcept.deleteMany({ where: { leadId: lead.id } });
-    await tx.leadCandidateLocation.deleteMany({ where: { leadId: lead.id } });
-    await tx.leadTask.deleteMany({ where: { leadId: lead.id } });
-    await tx.leadAppointment.deleteMany({ where: { leadId: lead.id } });
-    await tx.leadActivity.deleteMany({ where: { leadId: lead.id } });
-    await tx.lead.delete({ where: { id: lead.id } });
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "CLOSED",
+        processStatus: "CLOSED",
+        invalidReason: "OTHER",
+        invalidReasonDetail: reasonLabel,
+        nextFollowUpAt: null,
+      },
+    });
+    await tx.leadAppointment.updateMany({
+      where: { leadId: lead.id, status: { in: ["SCHEDULED", "RESCHEDULED"] } },
+      data: {
+        status: "CANCELLED",
+        cancellationReason: `Lead pasife alındı: ${reasonLabel}`,
+        cancelledAt: new Date(),
+      },
+    });
+    await tx.leadTask.updateMany({
+      where: { leadId: lead.id, status: { in: ["Açık", "Devam Ediyor"] } },
+      data: { status: "İptal Edildi", completedAt: new Date() },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "LEAD_PASSIVE",
+        description: `${lead.fullName} randevu akışından pasife alındı. Sebep: ${reasonLabel}.`,
+      },
+    });
   });
-
-  await Promise.all(candidateDocumentPaths.map((document) => storage.remove(document.filePath)));
 
   refresh(lead.id);
 }
 
-export async function deleteLeadAndCandidateForm(leadId: string, formData: FormData) {
-  await deleteLeadAndCandidate(leadId, formData);
+export async function deactivateAppointmentLeadForm(leadId: string, formData: FormData) {
+  await deactivateAppointmentLead(leadId, formData);
 }
 
 export async function rescheduleLeadAppointment(appointmentId: string, formData: FormData) {
