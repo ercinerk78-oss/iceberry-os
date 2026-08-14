@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import { BarChart3, CalendarCheck2, FileText, LineChart, PhoneOff, Star, Store, Target, UsersRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
@@ -12,6 +13,8 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const APPOINTMENT_CALL_UNREACHABLE_STATUSES = ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"] as const;
+const APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES = ["APPOINTMENT_NO_SHOW_FOLLOW_UP"] as const;
 export default async function ReportsPage() {
   await requirePermission("reports");
 
@@ -19,7 +22,7 @@ export default async function ReportsPage() {
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const [
     activeLeadCount,
-    totalLeadCount,
+    leadRows,
     appointmentRows,
     branchCount,
     openingCount,
@@ -28,7 +31,21 @@ export default async function ReportsPage() {
     branchConcepts,
   ] = await Promise.all([
     safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
-    safe(prisma.lead.count(), 0),
+    safe(
+      prisma.lead.findMany({
+        select: {
+          id: true,
+          fullName: true,
+          city: true,
+          status: true,
+          processStatus: true,
+          leadCategory: true,
+          convertedCandidateId: true,
+          leadDate: true,
+        },
+      }),
+      [],
+    ),
     safe(
       prisma.leadAppointment.findMany({
         select: {
@@ -36,6 +53,7 @@ export default async function ReportsPage() {
           leadId: true,
           status: true,
           appointmentDate: true,
+          cancellationReason: true,
           lead: {
             select: {
               id: true,
@@ -75,25 +93,37 @@ export default async function ReportsPage() {
     ),
   ]);
 
+  const totalLeadCount = leadRows.length;
+  const convertedLeadCount = leadRows.filter((lead) => !!lead.convertedCandidateId || isStatus(lead, "CONVERTED_TO_CANDIDATE")).length;
+  const closedLeadCount = leadRows.filter((lead) => isStatus(lead, "CLOSED")).length;
+  const invalidLeadCount = leadRows.filter((lead) => lead.leadCategory === "INVALID_FORM").length;
   const appointmentLeadIds = new Set(appointmentRows.map((appointment) => appointment.leadId));
   const completedAppointments = appointmentRows.filter((appointment) => appointment.status === "COMPLETED");
   const noShowAppointments = appointmentRows.filter((appointment) => appointment.status === "NO_SHOW");
   const cancelledAppointments = appointmentRows.filter((appointment) => appointment.status === "CANCELLED");
   const rescheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "RESCHEDULED");
   const scheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "SCHEDULED");
+
   const completedLeadIds = new Set(completedAppointments.map((appointment) => appointment.leadId));
-  const noShowLeadIds = new Set(noShowAppointments.map((appointment) => appointment.leadId));
-  const unreachableLeadIds = new Set(
-    appointmentRows
-      .filter((appointment) =>
-        ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE", "APPOINTMENT_NO_SHOW_FOLLOW_UP"].includes(
-          appointment.lead.processStatus || appointment.lead.status,
-        ),
-      )
-      .map((appointment) => appointment.leadId),
+  const appointmentCallUnreachableLeadIds = new Set(
+    leadRows
+      .filter((lead) => APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isStatus(lead, status)))
+      .map((lead) => lead.id),
   );
+  const appointmentNoShowFollowUpLeadIds = new Set([
+    ...noShowAppointments.map((appointment) => appointment.leadId),
+    ...leadRows
+      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isStatus(lead, status)))
+      .map((lead) => lead.id),
+  ]);
+  const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
+  const closedWithoutConversionCount = leadRows.filter((lead) => isStatus(lead, "CLOSED") && !lead.convertedCandidateId).length;
+
   const convertedCandidateIds = Array.from(
-    new Set(completedAppointments.map((appointment) => appointment.lead.convertedCandidateId).filter(Boolean)),
+    new Set([
+      ...completedAppointments.map((appointment) => appointment.lead.convertedCandidateId),
+      ...leadRows.map((lead) => lead.convertedCandidateId),
+    ].filter(Boolean)),
   ) as string[];
   const scoredCandidates = await safe(
     convertedCandidateIds.length
@@ -111,9 +141,10 @@ export default async function ReportsPage() {
   const lowScoreCandidates = scoredCandidates.filter((candidate) => (candidate.qualificationScore ?? 0) > 0 && (candidate.qualificationScore ?? 0) <= 4);
   const unscoredCompletedCandidates = scoredCandidates.filter((candidate) => !candidate.qualificationScore);
   const latestCompleted = completedAppointments.slice(0, 6);
-  const revenueTotal = revenueRows.reduce((sum, row) => sum + (row.netRevenue ?? row.grossRevenue), 0);
+  const revenueTotal = revenueRows.reduce((sum, row) => sum + Number(row.netRevenue ?? row.grossRevenue), 0);
+
   const cards = [
-    { title: "Lead Raporu", value: activeLeadCount, href: "/candidates", icon: Target, note: "Franchise adayları içinde lead ve randevu dönüşümü" },
+    { title: "Lead Raporu", value: totalLeadCount, href: "#lead-raporu", icon: Target, note: "Toplam, aktif, pasif ve dönüşen lead görünümü" },
     { title: "Randevu Raporu", value: appointmentRows.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },
     { title: "Şube Raporu", value: branchCount, href: "/branches", icon: Store, note: "Aktif ve toplam şube görünümü" },
     { title: "Açılış Raporu", value: openingCount, href: "/openings", icon: BarChart3, note: "Kurulum projeleri ve aşamalar" },
@@ -145,8 +176,29 @@ export default async function ReportsPage() {
       </div>
 
       <Card className="mt-5 p-4 text-sm text-[#65705f] shadow-none">
-        Rapor sekmesi canlı modüllere bağlandı.
+        Rapor sekmesi canlı modüllere bağlıdır.
         <span className="ml-2">Gün başlangıcı: {startOfDay.toLocaleDateString("tr-TR")}</span>
+      </Card>
+
+      <Card id="lead-raporu" className="mt-5 scroll-mt-24 shadow-none">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Target className="size-5 text-[#2f5f20]" />
+            Lead Raporu
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <ReportMetric title="Toplam Lead" value={totalLeadCount} note="Sisteme gelen tüm lead kayıtları" icon={Target} />
+            <ReportMetric title="Aktif Lead" value={activeLeadCount} note="Pasif ve adaya dönüşenler hariç takipteki lead" icon={Target} />
+            <ReportMetric title="Adaya Dönüşen" value={convertedLeadCount} note="Franchise adayına çevrilen lead" icon={UsersRound} />
+            <ReportMetric title="Pasife Alınan" value={closedLeadCount} note="Kapatıldı/pasif durumundaki lead" icon={PhoneOff} />
+            <ReportMetric title="Hatalı Form" value={invalidLeadCount} note="Hatalı/geçersiz başvuru kategorisindeki lead" icon={PhoneOff} />
+            <ReportMetric title="Randevu İçin Ulaşılamayan" value={appointmentCallUnreachableLeadIds.size} note="Randevu almak için arandı ama ulaşılamadı" icon={PhoneOff} />
+            <ReportMetric title="Randevuda Ulaşılamayan" value={appointmentNoShowFollowUpLeadIds.size} note="Randevu saatinde ulaşılamayan lead" icon={PhoneOff} />
+            <ReportMetric title="Dönüşsüz Kapanan" value={closedWithoutConversionCount} note="Adaya dönüşmeden kapatılan lead" icon={PhoneOff} />
+          </div>
+        </CardContent>
       </Card>
 
       <Card id="randevu-raporu" className="mt-5 scroll-mt-24 shadow-none">
@@ -158,12 +210,12 @@ export default async function ReportsPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReportMetric title="Toplam Lead" value={totalLeadCount} note="Sisteme gelen tüm lead kayıtları" icon={Target} />
-            <ReportMetric title="Randevu Alınan Lead" value={appointmentLeadIds.size} note="En az bir randevu kaydı olan lead" icon={CalendarCheck2} />
-            <ReportMetric title="Görüşülen Lead" value={completedLeadIds.size} note="Tamamlandı durumundaki görüşmeler" icon={UsersRound} />
-            <ReportMetric title="Görüşülemeyen Lead" value={noShowLeadIds.size + unreachableLeadIds.size} note="Gelmedi veya ulaşılamadı takibindeki lead" icon={PhoneOff} />
-            <ReportMetric title="Planlı Randevu" value={scheduledAppointments.length} note="Henüz tamamlanmamış randevular" icon={CalendarCheck2} />
-            <ReportMetric title="Gelmedi" value={noShowAppointments.length} note="Randevu saatinde ulaşılamayanlar" icon={PhoneOff} />
+            <ReportMetric title="Randevu Kaydı" value={appointmentRows.length} note="Sistemdeki toplam randevu kaydı" icon={CalendarCheck2} />
+            <ReportMetric title="Randevu Alınan Lead" value={appointmentLeadIds.size} note="En az bir randevu kaydı olan tekil lead" icon={CalendarCheck2} />
+            <ReportMetric title="Görüşülen Lead" value={completedLeadIds.size} note="Tamamlandı durumundaki tekil lead" icon={UsersRound} />
+            <ReportMetric title="Görüşülemeyen Lead" value={unreachableLeadIds.size} note="Ulaşılamayan ve randevuda ulaşılamayan tekil lead" icon={PhoneOff} />
+            <ReportMetric title="Planlı Randevu" value={scheduledAppointments.length} note="Henüz tamamlanmamış aktif randevular" icon={CalendarCheck2} />
+            <ReportMetric title="Randevuda Ulaşılamadı" value={noShowAppointments.length} note="NO_SHOW durumundaki randevu kayıtları" icon={PhoneOff} />
             <ReportMetric title="İptal" value={cancelledAppointments.length} note="İptal edilen randevular" icon={PhoneOff} />
             <ReportMetric title="Ertelenen" value={rescheduledAppointments.length} note="Yeni zamana alınan randevular" icon={CalendarCheck2} />
           </div>
@@ -237,6 +289,10 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
+function isStatus(lead: { status: string; processStatus: string }, status: string) {
+  return lead.status === status || lead.processStatus === status;
+}
+
 function ReportMetric({
   title,
   value,
@@ -246,7 +302,7 @@ function ReportMetric({
   title: string;
   value: number;
   note: string;
-  icon: typeof Target;
+  icon: LucideIcon;
 }) {
   return (
     <div className="rounded-lg border border-[#edf0e9] bg-white p-4">
