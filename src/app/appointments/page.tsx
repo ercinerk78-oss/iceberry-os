@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import {
   changeLeadAppointmentStatusForm,
+  deleteLeadAndCandidateForm,
   deleteLeadAppointmentForm,
   markLeadUnreachableForm,
   rescheduleLeadAppointment,
@@ -167,6 +168,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                               Ulaşılamadı
                             </AppointmentSubmitButton>
                           </form>
+                          <DeleteLeadForm leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -212,6 +214,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             appointmentTypes={appointmentTypeOptionItems}
                             initialLeadId={lead.id}
                           />
+                          <DeleteLeadForm leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -258,6 +261,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />
+                          <DeleteLeadForm leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -378,5 +382,23 @@ function CallButton({ phone }: { phone: string }) {
         Ara
       </a>
     </Button>
+  );
+}
+
+function DeleteLeadForm({ leadId }: { leadId: string }) {
+  return (
+    <form action={deleteLeadAndCandidateForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-rose-200 bg-white p-2">
+      <select name="reason" defaultValue="WITHDREW" className="h-9 rounded-lg border px-2 text-sm">
+        <option value="WITHDREW">Vazgeçti</option>
+        <option value="WRONG_APPLICATION">Yanlış başvuru</option>
+        <option value="NOT_ELIGIBLE">Yapamıyor / uygun değil</option>
+        <option value="UNREACHABLE">Ulaşılamıyor</option>
+        <option value="OTHER">Diğer</option>
+      </select>
+      <AppointmentSubmitButton size="sm" variant="destructive" pendingLabel="Siliniyor...">
+        <Trash2 className="size-4" />
+        Lead/Aday Sil
+      </AppointmentSubmitButton>
+    </form>
   );
 }
