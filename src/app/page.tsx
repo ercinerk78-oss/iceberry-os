@@ -2,7 +2,6 @@
 import {
   CalendarCheck2,
   CalendarClock,
-  Clock3,
   LineChart,
   MapPinned,
   MessageSquareText,
@@ -14,11 +13,14 @@ import {
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeCandidateWhere, activeLeadWhere, unconvertedLeadWhere } from "@/lib/active-records";
+import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
 import { getTranslations } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+const APPOINTMENT_CALL_UNREACHABLE_STATUSES = ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"] as const;
+const APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES = ["APPOINTMENT_NO_SHOW_FOLLOW_UP"] as const;
 
 async function safe<T>(operation: Promise<T>, fallback: T) {
   try {
@@ -29,13 +31,8 @@ async function safe<T>(operation: Promise<T>, fallback: T) {
   }
 }
 
-function leadProcessWhere(values: string[]) {
-  return {
-    OR: [
-      { processStatus: { in: values } },
-      { status: { in: values } },
-    ],
-  };
+function isStatus(lead: { status: string; processStatus: string | null }, status: string) {
+  return lead.status === status || lead.processStatus === status;
 }
 
 export default async function Home() {
@@ -46,19 +43,12 @@ export default async function Home() {
   const [
     activeBranches,
     totalBranches,
-    newLeads,
-    waitingAppointmentLeads,
+    activeLeadCount,
+    leadRows,
+    appointmentRows,
     todayAppointments,
-    longTermLeads,
-    unproductiveLeads,
-    invalidFormLeads,
     overdueLeadFollowUps,
     overdueLeadTasks,
-    totalLeads,
-    calledLeads,
-    unreachableLeads,
-    appointmentCount,
-    attendedAppointments,
     staffAppointments,
     newLocationOpportunities,
     readyLocationReports,
@@ -75,25 +65,35 @@ export default async function Home() {
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
-    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["NEW"])) }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["WAITING_FOR_APPOINTMENT"])) }), 0),
-    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "LONG_TERM" }) }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere({ leadCategory: "UNPRODUCTIVE" }) }), 0),
-    safe(prisma.lead.count({ where: unconvertedLeadWhere({ leadCategory: "INVALID_FORM" }) }), 0),
+    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
+    safe(
+      prisma.lead.findMany({
+        select: {
+          id: true,
+          status: true,
+          processStatus: true,
+          leadCategory: true,
+          convertedCandidateId: true,
+        },
+      }),
+      [],
+    ),
+    safe(
+      prisma.leadAppointment.findMany({
+        select: {
+          id: true,
+          leadId: true,
+          status: true,
+          appointmentDate: true,
+        },
+      }),
+      [],
+    ),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), status: { not: "CANCELLED" }, appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
     safe(prisma.lead.count({
       where: activeLeadWhere({ nextFollowUpAt: { lt: startOfDay } }),
     }), 0),
     safe(prisma.leadTask.count({ where: { lead: activeLeadWhere(), dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
-    safe(prisma.lead.count({
-      where: activeLeadWhere(leadProcessWhere(
-        ["TO_BE_CALLED", "APPOINTMENT_SCHEDULED", "WAITING_FOR_APPOINTMENT", "MEETING_COMPLETED", "UNDER_EVALUATION"],
-      )),
-    }), 0),
-    safe(prisma.lead.count({ where: activeLeadWhere(leadProcessWhere(["UNREACHABLE"])) }), 0),
-    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere() } }), 0),
-    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), status: "COMPLETED" } }), 0),
     safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], where: { lead: activeLeadWhere() }, _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "NEW_OPPORTUNITY" } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
@@ -122,31 +122,62 @@ export default async function Home() {
   ]);
   const number = new Intl.NumberFormat("tr-TR");
   const overdueFollowUps = overdueLeadFollowUps + overdueLeadTasks;
+  const totalLeads = leadRows.length;
+  const newLeads = leadRows.filter((lead) => isStatus(lead, "NEW") && !lead.convertedCandidateId).length;
+  const waitingAppointmentLeads = leadRows.filter((lead) => isStatus(lead, "WAITING_FOR_APPOINTMENT") && !lead.convertedCandidateId).length;
+  const convertedLeadCount = leadRows.filter((lead) => !!lead.convertedCandidateId || isStatus(lead, "CONVERTED_TO_CANDIDATE")).length;
+  const closedLeadCount = leadRows.filter((lead) => isStatus(lead, "CLOSED")).length;
+  const invalidFormLeads = leadRows.filter((lead) => lead.leadCategory === "INVALID_FORM").length;
+  const appointmentCount = appointmentRows.length;
+  const appointmentLeadIds = new Set(appointmentRows.map((appointment) => appointment.leadId));
+  const completedAppointments = appointmentRows.filter((appointment) => appointment.status === "COMPLETED");
+  const scheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "SCHEDULED");
+  const completedLeadIds = new Set(completedAppointments.map((appointment) => appointment.leadId));
+  const appointmentCallUnreachableLeadIds = new Set(
+    leadRows
+      .filter((lead) => APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isStatus(lead, status)))
+      .map((lead) => lead.id),
+  );
+  const appointmentNoShowFollowUpLeadIds = new Set([
+    ...appointmentRows.filter((appointment) => appointment.status === "NO_SHOW").map((appointment) => appointment.leadId),
+    ...leadRows
+      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isStatus(lead, status)))
+      .map((lead) => lead.id),
+  ]);
+  const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
+  const closedWithoutConversionCount = leadRows.filter((lead) => isStatus(lead, "CLOSED") && !lead.convertedCandidateId).length;
   const validLeads = Math.max(totalLeads - invalidFormLeads, 0);
-  const conversionRate = validLeads ? Math.round((appointmentCount / validLeads) * 100) : 0;
-  const attendanceRate = appointmentCount ? Math.round((attendedAppointments / appointmentCount) * 100) : 0;
-  const unproductiveRate = validLeads ? Math.round((unproductiveLeads / validLeads) * 100) : 0;
+  const conversionRate = validLeads ? Math.round((appointmentLeadIds.size / validLeads) * 100) : 0;
+  const attendanceRate = appointmentLeadIds.size ? Math.round((completedLeadIds.size / appointmentLeadIds.size) * 100) : 0;
+  const unreachableRate = validLeads ? Math.round((unreachableLeadIds.size / validLeads) * 100) : 0;
   const metrics = [
     { title: t("dashboard.activeBranches"), value: activeBranches, href: "/branches?status=ACTIVE", change: t("dashboard.active"), description: t("dashboard.activeBranchesDesc"), icon: Store, tone: "bg-teal-50 text-teal-700 ring-teal-200" },
     { title: t("dashboard.totalBranches"), value: totalBranches, href: "/branches", change: t("dashboard.live"), description: t("dashboard.totalBranchesDesc"), icon: Store, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
-    { title: t("dashboard.newLeads"), value: newLeads, href: "/candidates?status=NEW", change: t("leadStatus.NEW"), description: t("dashboard.newLeadsDesc"), icon: MessageSquareText, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
-    { title: t("dashboard.waitingAppointmentLeads"), value: waitingAppointmentLeads, href: "/candidates?status=WAITING_FOR_APPOINTMENT", change: t("dashboard.appointment"), description: t("dashboard.waitingAppointmentDesc"), icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
+    { title: t("dashboard.newLeads"), value: newLeads, href: "/leads?status=NEW", change: t("leadStatus.NEW"), description: t("dashboard.newLeadsDesc"), icon: MessageSquareText, tone: "bg-sky-50 text-sky-700 ring-sky-200" },
+    { title: t("dashboard.waitingAppointmentLeads"), value: waitingAppointmentLeads, href: "/appointments", change: t("dashboard.appointment"), description: t("dashboard.waitingAppointmentDesc"), icon: CalendarClock, tone: "bg-amber-50 text-amber-700 ring-amber-200" },
     { title: t("dashboard.todayAppointments"), value: todayAppointments, href: "/appointments?date=today", change: t("dashboard.today"), description: t("dashboard.todayAppointmentsDesc"), icon: CalendarCheck2, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    { title: t("dashboard.longTermLeads"), value: longTermLeads, href: "/candidates?leadCategory=LONG_TERM", change: t("dashboard.longTerm"), description: t("dashboard.longTermDesc"), icon: Clock3, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
-    { title: t("dashboard.unproductiveLeads"), value: unproductiveLeads, href: "/candidates?leadCategory=UNPRODUCTIVE", change: `% ${unproductiveRate}`, description: t("dashboard.unproductiveDesc"), icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
-    { title: "Hatalı Form", value: invalidFormLeads, href: "/candidates?leadCategory=INVALID_FORM", change: "Hariç", description: "Rapor oranlarından hariç tutulan geçersiz başvurular.", icon: XCircle, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
+    { title: "Adaya Dönüşen Lead", value: convertedLeadCount, href: "/candidates", change: "Dönüşüm", description: "Franchise adayına çevrilen lead kayıtları.", icon: Target, tone: "bg-cyan-50 text-cyan-700 ring-cyan-200" },
+    { title: "Randevuda Ulaşılamayan", value: appointmentNoShowFollowUpLeadIds.size, href: "/appointments", change: "Takip", description: "Randevu saatinde ulaşılamayan tekil leadler.", icon: XCircle, tone: "bg-rose-50 text-rose-700 ring-rose-200" },
+    { title: "Hatalı Form", value: invalidFormLeads, href: "/reports#lead-raporu", change: "Hariç", description: "Rapor oranlarından hariç tutulan geçersiz başvurular.", icon: XCircle, tone: "bg-zinc-50 text-zinc-700 ring-zinc-200" },
     { title: t("dashboard.overdueFollowUps"), value: overdueFollowUps, href: "/tasks?filter=overdue", change: t("dashboard.delay"), description: t("dashboard.overdueDesc"), icon: CalendarClock, tone: "bg-orange-50 text-orange-700 ring-orange-200" },
   ];
   const reporting = [
-    [t("dashboard.incomingLeadCount"), totalLeads],
-    ["Geçerli Lead Sayısı", validLeads],
+    ["Toplam Lead", totalLeads],
+    ["Aktif Lead", activeLeadCount],
+    ["Adaya Dönüşen", convertedLeadCount],
+    ["Pasife Alınan", closedLeadCount],
     ["Hatalı Form / Geçersiz", invalidFormLeads],
-    [t("dashboard.calledLeadCount"), calledLeads],
-    [t("dashboard.unreachableLeadCount"), unreachableLeads],
-    [t("dashboard.appointmentCount"), appointmentCount],
+    ["Randevu İçin Ulaşılamayan", appointmentCallUnreachableLeadIds.size],
+    ["Randevuda Ulaşılamayan", appointmentNoShowFollowUpLeadIds.size],
+    ["Görüşülemeyen Lead", unreachableLeadIds.size],
+    ["Dönüşsüz Kapanan", closedWithoutConversionCount],
+    ["Randevu Kaydı", appointmentCount],
+    ["Randevu Alınan Lead", appointmentLeadIds.size],
+    ["Görüşülen Lead", completedLeadIds.size],
+    ["Planlı Randevu", scheduledAppointments.length],
     [t("dashboard.appointmentConversionRate"), `%${conversionRate}`],
     [t("dashboard.attendanceRate"), `%${attendanceRate}`],
-    [t("dashboard.unproductiveLeadRate"), `%${unproductiveRate}`],
+    ["Ulaşılamama Oranı", `%${unreachableRate}`],
   ];
   const locationOpportunities = [
     ["Yeni Fırsatlar", newLocationOpportunities, "/locations?status=NEW_OPPORTUNITY"],
