@@ -71,7 +71,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
       action={
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link href="/branches/visits">Operasyon Ziyaretleri</Link>
+            <Link href="/branch-visits">Bayi Ziyaretleri</Link>
           </Button>
           <Button asChild className="bg-[#17201b] text-white">
             <Link href="/branches/new">

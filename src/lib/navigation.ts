@@ -71,6 +71,7 @@ export const navigationGroups: NavigationGroup[] = [
     icon: "Store",
     children: [
       item("branches", "navigation.branches", "/branches", "Store"),
+      item("branchVisits", "navigation.branchVisits", "/branch-visits", "CalendarCheck2"),
       item("branchPortal", "navigation.branchPortal", "/branch-portal", "CheckSquare"),
       item("branchRevenues", "navigation.branchRevenues", "/branch-revenues", "LineChart"),
       item("operations", "navigation.operations", "/operations", "ShieldCheck"),

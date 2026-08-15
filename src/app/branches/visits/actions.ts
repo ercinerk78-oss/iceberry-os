@@ -13,6 +13,11 @@ const createVisitSchema = z.object({
   visitType: z.string().trim().optional(),
   title: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  status: z.enum(["PLANNED", "COMPLETED", "CANCELLED"]).optional(),
+});
+
+const updateVisitSchema = createVisitSchema.extend({
+  status: z.enum(["PLANNED", "COMPLETED", "CANCELLED"]),
 });
 
 const completeVisitSchema = z.object({
@@ -24,9 +29,14 @@ const cancelVisitSchema = z.object({
   cancellationReason: z.string().trim().min(2, "İptal nedeni yazın."),
 });
 
+const noteVisitSchema = z.object({
+  note: z.string().trim().min(2, "Not yazın."),
+});
+
 function refresh(branchId?: string) {
   revalidatePath("/branches");
   revalidatePath("/branches/visits");
+  revalidatePath("/branch-visits");
   revalidatePath("/operations");
   if (branchId) revalidatePath(`/branches/${branchId}`);
 }
@@ -50,6 +60,7 @@ export async function createBranchVisit(formData: FormData) {
 
   const title = data.title || `${branch.branchName} operasyon ziyareti`;
   const visitType = data.visitType || "OPERATION";
+  const status = data.status || "PLANNED";
 
   await prisma.$transaction(async (tx) => {
     const visit = await tx.branchVisit.create({
@@ -58,8 +69,12 @@ export async function createBranchVisit(formData: FormData) {
         title,
         visitType,
         plannedAt,
+        status,
         visitorName: data.visitorName || user.name,
         plannedById: user.id,
+        completedAt: status === "COMPLETED" ? plannedAt : null,
+        completedById: status === "COMPLETED" ? user.id : null,
+        resultNotes: status === "CANCELLED" ? "İptal edildi." : null,
         notes: data.notes || null,
       },
     });
@@ -71,7 +86,7 @@ export async function createBranchVisit(formData: FormData) {
         description: data.notes || "Operasyon ziyareti planlandı.",
         eventType: "BRANCH_VISIT",
         startAt: plannedAt,
-        status: "PLANNED",
+        status,
         taskId: visit.id,
         createdById: user.id,
       },
@@ -90,6 +105,74 @@ export async function createBranchVisit(formData: FormData) {
   });
 
   refresh(branch.id);
+}
+
+export async function updateBranchVisit(visitId: string, formData: FormData) {
+  const user = await requirePermission("branches");
+  const parsed = updateVisitSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const data = parsed.data;
+  const plannedAt = new Date(data.plannedAt);
+  if (Number.isNaN(plannedAt.getTime())) return;
+
+  const [visit, branch] = await Promise.all([
+    prisma.branchVisit.findUnique({
+      where: { id: visitId },
+      select: { id: true, branchId: true, completedAt: true, completedById: true },
+    }),
+    prisma.branch.findFirst({
+      where: { id: data.branchId, archivedAt: null },
+      select: { id: true, branchName: true },
+    }),
+  ]);
+
+  if (!visit || !branch) return;
+
+  const title = data.title || `${branch.branchName} operasyon ziyareti`;
+  const resultNotes = data.status === "CANCELLED" ? "İptal edildi." : undefined;
+
+  await prisma.$transaction([
+    prisma.branchVisit.update({
+      where: { id: visit.id },
+      data: {
+        branchId: branch.id,
+        title,
+        visitType: data.visitType || "OPERATION",
+        plannedAt,
+        status: data.status,
+        visitorName: data.visitorName || user.name,
+        completedAt: data.status === "COMPLETED" ? visit.completedAt ?? plannedAt : visit.completedAt,
+        completedById: data.status === "COMPLETED" ? visit.completedById ?? user.id : visit.completedById,
+        ...(resultNotes ? { resultNotes } : {}),
+        notes: data.notes || null,
+      },
+    }),
+    prisma.operationCalendarItem.updateMany({
+      where: { taskId: visit.id },
+      data: {
+        branchId: branch.id,
+        title,
+        description: data.notes || "Operasyon ziyareti güncellendi.",
+        startAt: plannedAt,
+        status: data.status,
+      },
+    }),
+    prisma.branchTimelineEvent.create({
+      data: {
+        branchId: branch.id,
+        userId: user.id,
+        action: "BRANCH_VISIT_UPDATED",
+        entityType: "BranchVisit",
+        entityId: visit.id,
+        description: `${branch.branchName} operasyon ziyareti güncellendi.`,
+      },
+    }),
+  ]);
+
+  refresh(branch.id);
+  if (visit.branchId !== branch.id) refresh(visit.branchId);
 }
 
 export async function completeBranchVisit(visitId: string, formData: FormData) {
@@ -179,6 +262,46 @@ export async function cancelBranchVisit(visitId: string, formData: FormData) {
         entityType: "BranchVisit",
         entityId: visit.id,
         description: `${visit.branch.branchName} merkez operasyon ziyareti iptal edildi. ${description}`,
+      },
+    }),
+  ]);
+
+  refresh(visit.branchId);
+}
+
+export async function addBranchVisitNote(visitId: string, formData: FormData) {
+  const user = await requirePermission("branches");
+  const parsed = noteVisitSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const visit = await prisma.branchVisit.findUnique({
+    where: { id: visitId },
+    include: { branch: { select: { id: true, branchName: true } } },
+  });
+
+  if (!visit) return;
+
+  const note = `${new Date().toLocaleString("tr-TR")} - ${user.name}: ${parsed.data.note}`;
+  const resultNotes = [visit.resultNotes, note].filter(Boolean).join("\n");
+
+  await prisma.$transaction([
+    prisma.branchVisit.update({
+      where: { id: visit.id },
+      data: { resultNotes },
+    }),
+    prisma.operationCalendarItem.updateMany({
+      where: { branchId: visit.branchId, taskId: visit.id },
+      data: { description: resultNotes },
+    }),
+    prisma.branchTimelineEvent.create({
+      data: {
+        branchId: visit.branchId,
+        userId: user.id,
+        action: "BRANCH_VISIT_NOTE_ADDED",
+        entityType: "BranchVisit",
+        entityId: visit.id,
+        description: `${visit.branch.branchName} operasyon ziyaretine not eklendi.`,
       },
     }),
   ]);

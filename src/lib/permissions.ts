@@ -157,6 +157,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/locations")) return "locations.view";
   if (path.startsWith("/settings")) return "settings";
   if (path.startsWith("/leads")) return "leads";
+  if (path.startsWith("/branch-visits")) return "branches";
   if (path.startsWith("/branch-portal")) return "branch_portal";
   if (path.startsWith("/appointments")) return "appointments";
   if (path.startsWith("/candidates")) return "candidates";
