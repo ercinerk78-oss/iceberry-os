@@ -222,7 +222,7 @@ export function BranchVisitCalendar({
 
       {createOpen ? (
         <VisitModal title="Yeni Ziyaret Planla" onClose={() => setCreateOpen(false)}>
-          <VisitForm branches={branches} userOptions={userOptions} action={createBranchVisit} />
+          <VisitForm branches={branches} userOptions={userOptions} action={createBranchVisit} onSuccess={() => setCreateOpen(false)} />
         </VisitModal>
       ) : null}
 
@@ -292,14 +292,21 @@ function VisitForm({
   userOptions,
   visit,
   action,
+  onSuccess,
 }: {
   branches: BranchVisitCalendarBranch[];
   userOptions: [string, string][];
   visit?: BranchVisitCalendarItem;
   action: (formData: FormData) => void | Promise<void>;
+  onSuccess?: () => void;
 }) {
+  async function handleSubmit(formData: FormData) {
+    await action(formData);
+    onSuccess?.();
+  }
+
   return (
-    <form action={action} className="grid gap-3 md:grid-cols-2">
+    <form action={handleSubmit} className="grid gap-3 md:grid-cols-2">
       <Select name="branchId" current={visit?.branchId ?? ""} first="Şube seç" options={branches.map((branch) => [branch.id, `${branch.branchName} · ${branch.city}`])} required />
       <input name="plannedAt" type="datetime-local" required defaultValue={visit?.plannedAtInput} className="h-10 rounded-lg border px-3 text-sm" />
       <Select name="visitorName" current={visit?.visitorName ?? ""} first="Sorumlu kullanıcı" options={userOptions} />
