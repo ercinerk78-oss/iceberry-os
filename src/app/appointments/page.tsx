@@ -3,6 +3,7 @@ import { PhoneCall, XCircle } from "lucide-react";
 import {
   deactivateAppointmentLeadForm,
   markLeadUnreachableForm,
+  markAppointmentSequentialMessageSentForm,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentLeadEditDialog } from "@/components/appointments/appointment-lead-edit-dialog";
@@ -20,6 +21,12 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const LEAD_OPTION_LIMIT = 200;
+const UNREACHABLE_ACTIVITY_TYPES = new Set(["APPOINTMENT_CALL_UNREACHABLE", "APPOINTMENT_NO_SHOW"]);
+const PASSIVE_WARNING_TYPES = [
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_1",
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_2",
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_3",
+] as const;
 
 type Params = {
   lead?: string;
@@ -51,10 +58,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         processStatus: true,
         status: true,
         nextFollowUpAt: true,
+        invalidReasonDetail: true,
         activities: {
           select: { id: true, type: true, description: true, createdAt: true },
           orderBy: { createdAt: "desc" },
-          take: 3,
+          take: 30,
         },
       },
       orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
@@ -74,11 +82,15 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
   const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
   const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
+  const sequentialMessageLeads = visibleLeads
+    .filter((lead) => (appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5)
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const sequentialMessageLeadIds = new Set(sequentialMessageLeads.map((lead) => lead.id));
   const appointmentCallUnreachableLeads = visibleLeads
-    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)))
+    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const appointmentNoShowFollowUpLeads = visibleLeads
-    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)))
+    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
 
   return (
@@ -169,7 +181,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             users={userOptionItems}
                             initialLeadId={lead.id}
                           />
-                          <PassiveLeadForm leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -216,7 +227,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />
-                          <PassiveLeadForm leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -228,6 +238,48 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               </CardContent>
             </details>
           </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Sıralı Mesaj</span>
+                    <Badge variant="secondary">{sequentialMessageLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {sequentialMessageLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                            <Badge variant="outline">{unreachableAttemptCount(lead)} ulaşılamadı</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Sonraki takip: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                          <LeadCardNotes lead={lead} />
+                        </div>
+                        <div className="grid shrink-0 gap-2">
+                          <CallButton phone={lead.phone} />
+                          <SequentialMessageButtons leadId={lead.id} lead={lead} />
+                          {allSequentialMessagesSent(lead) ? <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" /> : null}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {!sequentialMessageLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">5 kez ulaşılamayan ve mesaj sürecine alınacak aday yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
         </div>
 
       </div>
@@ -258,6 +310,47 @@ function latestActionTime(lead: {
   return lead.activities[0]?.createdAt.getTime() ?? lead.nextFollowUpAt?.getTime() ?? 0;
 }
 
+function unreachableAttemptCount(lead: { activities: { type: string }[] }) {
+  return lead.activities.filter((activity) => UNREACHABLE_ACTIVITY_TYPES.has(activity.type)).length;
+}
+
+function sequentialMessageSent(lead: { activities: { type: string }[] }, step: number) {
+  return lead.activities.some((activity) => activity.type === PASSIVE_WARNING_TYPES[step - 1]);
+}
+
+function allSequentialMessagesSent(lead: { activities: { type: string }[] }) {
+  return PASSIVE_WARNING_TYPES.every((type) => lead.activities.some((activity) => activity.type === type));
+}
+
+function SequentialMessageButtons({
+  leadId,
+  lead,
+}: {
+  leadId: string;
+  lead: { activities: { type: string }[] };
+}) {
+  return (
+    <div className="grid gap-2 rounded-lg border border-blue-200 bg-white p-2">
+      {[1, 2, 3].map((step) => {
+        const sent = sequentialMessageSent(lead, step);
+
+        return sent ? (
+          <Button key={step} type="button" size="sm" variant="outline" disabled>
+            {step}. mesaj atıldı
+          </Button>
+        ) : (
+          <form key={step} action={markAppointmentSequentialMessageSentForm.bind(null, leadId)}>
+            <input type="hidden" name="step" value={step} />
+            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Kaydediliyor...">
+              {step}. mesaj atıldı
+            </AppointmentSubmitButton>
+          </form>
+        );
+      })}
+    </div>
+  );
+}
+
 function LeadCardNotes({
   lead,
 }: {
@@ -281,7 +374,7 @@ function LeadCardNotes({
         <div>
           <p className="font-semibold text-[#364036]">Son 3 İşlem</p>
           <div className="mt-2 space-y-1.5">
-            {lead.activities.map((activity) => (
+            {lead.activities.slice(0, 3).map((activity) => (
               <div key={activity.id} className="rounded-md bg-[#f8faf6] p-2">
                 <p className="font-medium text-[#17201b]">{formatActivityDate(activity.createdAt)}</p>
                 <p className="mt-0.5 text-[#65705f]">{activity.description}</p>
@@ -304,10 +397,10 @@ function formatActivityDate(value: Date) {
   });
 }
 
-function PassiveLeadForm({ leadId }: { leadId: string }) {
+function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: string; defaultReason?: string }) {
   return (
     <form action={deactivateAppointmentLeadForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-amber-200 bg-white p-2">
-      <select name="reason" defaultValue="WITHDREW" className="h-9 rounded-lg border px-2 text-sm">
+      <select name="reason" defaultValue={defaultReason} className="h-9 rounded-lg border px-2 text-sm">
         <option value="WITHDREW">Vazgeçti</option>
         <option value="WRONG_APPLICATION">Yanlış başvuru</option>
         <option value="NOT_ELIGIBLE">Yapamıyor / uygun değil</option>

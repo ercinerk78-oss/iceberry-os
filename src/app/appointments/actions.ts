@@ -56,6 +56,10 @@ const passiveLeadSchema = z.object({
   reason: z.enum(["WITHDREW", "WRONG_APPLICATION", "NOT_ELIGIBLE", "UNREACHABLE", "OTHER"]),
 });
 
+const sequentialMessageSchema = z.object({
+  step: z.coerce.number().int().min(1).max(3),
+});
+
 const passiveLeadReasonLabels: Record<z.infer<typeof passiveLeadSchema>["reason"], string> = {
   WITHDREW: "Vazgeçti",
   WRONG_APPLICATION: "Yanlış başvuru",
@@ -737,6 +741,78 @@ export async function deactivateAppointmentLead(leadId: string, formData: FormDa
 
 export async function deactivateAppointmentLeadForm(leadId: string, formData: FormData) {
   await deactivateAppointmentLead(leadId, formData);
+}
+
+export async function markAppointmentSequentialMessageSent(leadId: string, formData: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = sequentialMessageSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  const step = parsed.data.step;
+  await prisma.leadActivity.create({
+    data: {
+      leadId: lead.id,
+      type: `APPOINTMENT_PASSIVE_WARNING_MESSAGE_${step}`,
+      description: `${user.name}, pasife alma öncesi ${step}. WhatsApp mesajını gönderdi.`,
+    },
+  });
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentSequentialMessageSentForm(leadId: string, formData: FormData) {
+  await markAppointmentSequentialMessageSent(leadId, formData);
+}
+
+export async function reactivateAppointmentLead(leadId: string) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: leadId,
+      convertedCandidateId: null,
+      OR: [{ status: "CLOSED" }, { processStatus: "CLOSED" }],
+    },
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "TO_BE_CALLED",
+        processStatus: "TO_BE_CALLED",
+        invalidReason: null,
+        invalidReasonDetail: null,
+        nextFollowUpAt: new Date(),
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "LEAD_REACTIVATED_FROM_APPOINTMENT",
+        description: `${user.name}, pasife alınan lead kaydını tekrar randevu akışına aldı.`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function reactivateAppointmentLeadForm(leadId: string) {
+  await reactivateAppointmentLead(leadId);
 }
 
 export async function rescheduleLeadAppointment(appointmentId: string, formData: FormData) {
