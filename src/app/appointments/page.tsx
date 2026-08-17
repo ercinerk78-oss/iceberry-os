@@ -13,10 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeLeadWhere } from "@/lib/active-records";
-import {
-  APPOINTMENT_TYPE_LABELS,
-  formatAppointmentRange,
-} from "@/lib/appointments";
+import { formatAppointmentRange } from "@/lib/appointments";
 import { leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 
@@ -72,7 +69,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
 
   const appointmentLeadOptionItems = appointmentLeadOptions.map((lead) => [lead.id, `${lead.fullName} - ${lead.city}`] as [string, string]);
   const userOptionItems = users.map((user) => [user.name, user.name] as [string, string]);
-  const appointmentTypeOptionItems = Object.entries(APPOINTMENT_TYPE_LABELS);
   const leadStatusOf = (lead: { processStatus: string | null; status: string }) => lead.processStatus || lead.status;
   const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
   const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
@@ -119,7 +115,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            appointmentTypes={appointmentTypeOptionItems}
                             initialLeadId={lead.id}
                           />
                           <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2">
@@ -172,7 +167,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            appointmentTypes={appointmentTypeOptionItems}
                             initialLeadId={lead.id}
                           />
                           <PassiveLeadForm leadId={lead.id} />
@@ -219,7 +213,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            appointmentTypes={appointmentTypeOptionItems}
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />

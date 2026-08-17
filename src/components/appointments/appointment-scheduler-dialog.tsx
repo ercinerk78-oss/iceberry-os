@@ -13,7 +13,6 @@ type Option = [string, string];
 type AppointmentSchedulerDialogProps = {
   leads: Option[];
   users: Option[];
-  appointmentTypes: Option[];
   initialLeadId?: string;
   label?: string;
 };
@@ -23,7 +22,6 @@ const initialState = { success: false, message: "" };
 export function AppointmentSchedulerDialog({
   leads,
   users,
-  appointmentTypes,
   initialLeadId = "",
   label = "Randevu Al",
 }: AppointmentSchedulerDialogProps) {
@@ -74,11 +72,9 @@ export function AppointmentSchedulerDialog({
               <Field name="appointmentDate" label="Randevu tarihi" type="date" />
               <Field name="appointmentTime" label="Başlangıç saati" type="time" />
               <Field name="endTime" label="Bitiş saati" type="time" required={false} />
-              <Select name="appointmentType" label="Görüşme tipi" options={appointmentTypes} required />
+              <input type="hidden" name="appointmentType" value="PHONE" />
               <Select name="assignedUserId" label="Sorumlu" first="Sorumlu seç" options={users} />
-              <Field name="title" label="Başlık" required={false} />
               <Field name="location" label="Lokasyon" required={false} />
-              <Field name="meetingLink" label="Online görüşme linki" required={false} />
               <label className="grid gap-2 md:col-span-2">
                 <span className="text-sm font-medium">Randevu notu</span>
                 <textarea name="notes" rows={3} className="rounded-lg border bg-[#f8faf6] p-3 text-sm" />
