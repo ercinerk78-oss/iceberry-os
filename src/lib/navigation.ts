@@ -59,6 +59,7 @@ export const navigationGroups: NavigationGroup[] = [
     icon: "Building2",
     children: [
       item("appointments", "navigation.appointments", "/appointments", "CalendarCheck2"),
+      item("appointmentList", "navigation.appointmentList", "/appointments/list", "CalendarRange"),
       item("candidates", "navigation.candidates", "/candidates", "UsersRound"),
       item("locations", "navigation.locations", "/locations", "MapPinned"),
       item("pipeline", "navigation.pipeline", "/pipeline", "Columns3"),
@@ -155,7 +156,7 @@ export const navigationGroups: NavigationGroup[] = [
 
 export function isNavigationItemActive(href: string, activeHref: string, pathname?: string | null) {
   const current = pathname || activeHref;
-  const exactOnlyParents = new Set(["/orders", "/procurement", "/settings", "/warehouse"]);
+  const exactOnlyParents = new Set(["/appointments", "/orders", "/procurement", "/settings", "/warehouse"]);
   if (exactOnlyParents.has(href)) return current === href || activeHref === href;
 
   return current === href || activeHref === href || activeHref.startsWith(`${href}/`);

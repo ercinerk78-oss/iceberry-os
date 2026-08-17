@@ -16,7 +16,8 @@
   "navigation": {
     "dashboard": "Kontrol Paneli",
     "leads": "Lead Yönetimi",
-    "appointments": "Randevular",
+    "appointments": "Randevu Oluşturma",
+    "appointmentList": "Randevular",
     "candidates": "Franchise Adayları",
     "locations": "Aday Lokasyonlar",
     "pipeline": "Satış Süreci",

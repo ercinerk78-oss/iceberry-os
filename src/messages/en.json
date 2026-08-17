@@ -16,7 +16,8 @@
   "navigation": {
     "dashboard": "Dashboard",
     "leads": "Lead Pool",
-    "appointments": "Appointments",
+    "appointments": "Create Appointment",
+    "appointmentList": "Appointments",
     "candidates": "Franchise Candidates",
     "locations": "Candidate Locations",
     "pipeline": "Sales Pipeline",
