@@ -54,6 +54,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         processStatus: true,
         status: true,
         nextFollowUpAt: true,
+        activities: {
+          select: { id: true, type: true, description: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        },
       },
       orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
       take: LEAD_OPTION_LIMIT,
@@ -73,8 +78,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
   const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
   const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
-  const appointmentCallUnreachableLeads = visibleLeads.filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)));
-  const appointmentNoShowFollowUpLeads = visibleLeads.filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)));
+  const appointmentCallUnreachableLeads = visibleLeads
+    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)))
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const appointmentNoShowFollowUpLeads = visibleLeads
+    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)))
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
 
   return (
     <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevu Oluşturma" action={<ManualLeadEntry />}>
@@ -102,6 +111,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           </div>
                           <h3 className="mt-3 font-semibold">{lead.fullName} - {lead.city}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone}</p>
+                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2">
                           <CallButton phone={lead.phone} />
@@ -154,6 +164,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2">
                           <CallButton phone={lead.phone} />
@@ -200,6 +211,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2">
                           <CallButton phone={lead.phone} />
@@ -244,6 +256,59 @@ function CallButton({ phone }: { phone: string }) {
       </a>
     </Button>
   );
+}
+
+function latestActionTime(lead: {
+  activities: { createdAt: Date }[];
+  nextFollowUpAt: Date | null;
+}) {
+  return lead.activities[0]?.createdAt.getTime() ?? lead.nextFollowUpAt?.getTime() ?? 0;
+}
+
+function LeadCardNotes({
+  lead,
+}: {
+  lead: {
+    description: string | null;
+    activities: { id: string; type: string; description: string; createdAt: Date }[];
+  };
+}) {
+  const hasNotes = Boolean(lead.description) || lead.activities.length > 0;
+  if (!hasNotes) return null;
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-[#edf0e9] bg-white p-3 text-xs">
+      {lead.description ? (
+        <div>
+          <p className="font-semibold text-[#364036]">Alınan Not</p>
+          <p className="mt-1 whitespace-pre-line text-[#65705f]">{lead.description}</p>
+        </div>
+      ) : null}
+      {lead.activities.length ? (
+        <div>
+          <p className="font-semibold text-[#364036]">Son 3 İşlem</p>
+          <div className="mt-2 space-y-1.5">
+            {lead.activities.map((activity) => (
+              <div key={activity.id} className="rounded-md bg-[#f8faf6] p-2">
+                <p className="font-medium text-[#17201b]">{formatActivityDate(activity.createdAt)}</p>
+                <p className="mt-0.5 text-[#65705f]">{activity.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatActivityDate(value: Date) {
+  return value.toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function PassiveLeadForm({ leadId }: { leadId: string }) {
