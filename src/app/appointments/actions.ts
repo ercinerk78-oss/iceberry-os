@@ -773,6 +773,44 @@ export async function markAppointmentSequentialMessageSentForm(leadId: string, f
   await markAppointmentSequentialMessageSent(leadId, formData);
 }
 
+export async function moveLeadToSequentialMessageFlow(leadId: string) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "APPOINTMENT_CALL_UNREACHABLE",
+        processStatus: "APPOINTMENT_CALL_UNREACHABLE",
+        lastContactAt: new Date(),
+        nextFollowUpAt: new Date(),
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW",
+        description: `${user.name}, lead kaydını manuel olarak sıralı mesaj sürecine aldı.`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function moveLeadToSequentialMessageFlowForm(leadId: string) {
+  await moveLeadToSequentialMessageFlow(leadId);
+}
+
 export async function reactivateAppointmentLead(leadId: string) {
   await requirePermission("appointments");
   const user = await requireUser();

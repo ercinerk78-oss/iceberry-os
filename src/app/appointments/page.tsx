@@ -4,6 +4,7 @@ import {
   deactivateAppointmentLeadForm,
   markLeadUnreachableForm,
   markAppointmentSequentialMessageSentForm,
+  moveLeadToSequentialMessageFlowForm,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentLeadEditDialog } from "@/components/appointments/appointment-lead-edit-dialog";
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 
 const LEAD_OPTION_LIMIT = 200;
 const UNREACHABLE_ACTIVITY_TYPES = new Set(["APPOINTMENT_CALL_UNREACHABLE", "APPOINTMENT_NO_SHOW"]);
+const SEQUENTIAL_FLOW_ACTIVITY_TYPE = "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW";
 const PASSIVE_WARNING_TYPES = [
   "APPOINTMENT_PASSIVE_WARNING_MESSAGE_1",
   "APPOINTMENT_PASSIVE_WARNING_MESSAGE_2",
@@ -81,11 +83,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
   const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
   const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
-  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)));
   const sequentialMessageLeads = visibleLeads
-    .filter((lead) => (appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5)
+    .filter((lead) => manuallyMovedToSequentialMessageFlow(lead) || ((appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const sequentialMessageLeadIds = new Set(sequentialMessageLeads.map((lead) => lead.id));
+  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id));
   const appointmentCallUnreachableLeads = visibleLeads
     .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
@@ -135,7 +137,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                               Ulaşılamadı
                             </AppointmentSubmitButton>
                           </form>
-                          <PassiveLeadForm leadId={lead.id} />
+                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -181,6 +183,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             users={userOptionItems}
                             initialLeadId={lead.id}
                           />
+                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -227,6 +230,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />
+                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                     </article>
@@ -312,6 +316,10 @@ function latestActionTime(lead: {
 
 function unreachableAttemptCount(lead: { activities: { type: string }[] }) {
   return lead.activities.filter((activity) => UNREACHABLE_ACTIVITY_TYPES.has(activity.type)).length;
+}
+
+function manuallyMovedToSequentialMessageFlow(lead: { activities: { type: string }[] }) {
+  return lead.activities.some((activity) => activity.type === SEQUENTIAL_FLOW_ACTIVITY_TYPE);
 }
 
 function sequentialMessageSent(lead: { activities: { type: string }[] }, step: number) {
@@ -412,5 +420,23 @@ function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: strin
         Pasife Al
       </AppointmentSubmitButton>
     </form>
+  );
+}
+
+function QuickLeadActions({ leadId }: { leadId: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <form action={deactivateAppointmentLeadForm.bind(null, leadId)}>
+        <input type="hidden" name="reason" value="OTHER" />
+        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Siliniyor..." className="w-full">
+          Sil
+        </AppointmentSubmitButton>
+      </form>
+      <form action={moveLeadToSequentialMessageFlowForm.bind(null, leadId)}>
+        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
+          Sıralı Mesajlar
+        </AppointmentSubmitButton>
+      </form>
+    </div>
   );
 }
