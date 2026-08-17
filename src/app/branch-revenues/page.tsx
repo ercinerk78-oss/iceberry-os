@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accessibleBranchIds } from "@/lib/branch-access";
+import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import {
   REVENUE_SOURCE_LABELS,
   REVENUE_STATUS_LABELS,
@@ -69,13 +70,12 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const branchAnd: Prisma.BranchWhereInput[] = [];
   if (q) branchAnd.push({ OR: [{ branchName: { contains: q } }, { city: { contains: q } }] });
   if (concept) branchAnd.push({ OR: [{ conceptId: concept }, { concept }] });
-  const branchWhere: Prisma.BranchWhereInput = {
+  const branchWhere = withNonHotelMainBranchWhere({
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),
     ...(city ? { city } : {}),
     ...(status ? { status } : {}),
-    ...(branchAnd.length ? { AND: branchAnd } : {}),
-  };
+  }, branchAnd);
 
   const [branches, currentRecords, previousRecords, yearRecords, cities, concepts] = await Promise.all([
     prisma.branch.findMany({
@@ -104,8 +104,8 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
       include: { enteredBy: { select: { name: true } } },
       orderBy: { periodStart: "asc" },
     }),
-    prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
-    prisma.branchConcept.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null }), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ where: visibleMainBranchConceptWhere, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   const currentByBranch = new Map(currentRecords.map((record) => [record.branchId, record]));

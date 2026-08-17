@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { branchScopeWhere } from "@/lib/branch-access";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
@@ -49,7 +50,7 @@ type VisitWithBranch = {
 
 export default async function BranchVisitsPage() {
   const scope = await branchScopeWhere();
-  const branchWhere = { archivedAt: null, ...scope };
+  const branchWhere = withNonHotelMainBranchWhere({ archivedAt: null, ...scope });
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);

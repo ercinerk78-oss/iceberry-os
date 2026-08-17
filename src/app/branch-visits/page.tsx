@@ -6,6 +6,7 @@ import {
 } from "@/components/branches/branch-visit-calendar";
 import { AppShell } from "@/components/app-shell";
 import { branchScopeWhere } from "@/lib/branch-access";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function BranchVisitCalendarPage({ searchParams }: { search
   const visitorName = value(params, "responsible");
   const status = value(params, "status");
   const scope = await branchScopeWhere();
-  const branchWhere: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
+  const branchWhere: Prisma.BranchWhereInput = withNonHotelMainBranchWhere({ archivedAt: null, ...scope });
   const visitWhere: Prisma.BranchVisitWhereInput = {
     plannedAt: { gte: monthStart, lt: monthEnd },
     OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }],
