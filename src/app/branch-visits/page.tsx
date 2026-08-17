@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 type Params = Record<string, string | string[] | undefined>;
 
 const value = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] : "");
+const CANCELLED_VISIT_CLEANUP_CUTOFF = new Date("2026-08-17T13:20:00.000Z");
 
 export default async function BranchVisitCalendarPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
@@ -28,6 +29,7 @@ export default async function BranchVisitCalendarPage({ searchParams }: { search
   const branchWhere: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
   const visitWhere: Prisma.BranchVisitWhereInput = {
     plannedAt: { gte: monthStart, lt: monthEnd },
+    OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }],
     branch: branchWhere,
   };
 

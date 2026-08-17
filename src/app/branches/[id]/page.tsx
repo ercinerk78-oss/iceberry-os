@@ -35,6 +35,7 @@ const tabs = [
   "Timeline",
   "Notlar",
 ] as const;
+const CANCELLED_VISIT_CLEANUP_CUTOFF = new Date("2026-08-17T13:20:00.000Z");
 
 export default async function BranchDetail({
   params,
@@ -73,8 +74,8 @@ export default async function BranchDetail({
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
       audits: { orderBy: { auditDate: "desc" } },
-      visits: { orderBy: [{ plannedAt: "desc" }] },
-      operationCalendarItems: { orderBy: { startAt: "asc" } },
+      visits: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: [{ plannedAt: "desc" }] },
+      operationCalendarItems: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: { startAt: "asc" } },
       timeline: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 },
       openings: {
         where: { archivedAt: null },

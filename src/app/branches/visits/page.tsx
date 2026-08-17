@@ -26,6 +26,8 @@ const VISIT_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "İptal Edildi",
 };
 
+const CANCELLED_VISIT_CLEANUP_CUTOFF = new Date("2026-08-17T13:20:00.000Z");
+
 type VisitWithBranch = {
   id: string;
   title: string;
@@ -64,6 +66,7 @@ export default async function BranchVisitsPage() {
         status: true,
         operationsManager: true,
         visits: {
+          where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] },
           orderBy: [{ plannedAt: "desc" }],
           take: 1,
         },
@@ -72,7 +75,7 @@ export default async function BranchVisitsPage() {
       take: 500,
     }),
     prisma.branchVisit.findMany({
-      where: { branch: branchWhere },
+      where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }], branch: branchWhere },
       include: { branch: { select: { id: true, branchName: true, city: true, district: true, operationsManager: true } } },
       orderBy: [{ status: "asc" }, { plannedAt: "asc" }],
       take: 500,
