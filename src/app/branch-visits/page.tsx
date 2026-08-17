@@ -80,7 +80,7 @@ export default async function BranchVisitCalendarPage({ searchParams }: { search
   const monthLabel = monthStart.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
 
   return (
-    <AppShell activeHref="/branch-visits" eyebrow="Merkez operasyon takvimi" title="Bayi Ziyaretleri">
+    <AppShell activeHref="/branch-visits" eyebrow="Merkez operasyon takvimi" title="Şube Ziyaretleri">
       <BranchVisitCalendar
         monthLabel={capitalize(monthLabel)}
         prevHref={monthHref(params, addMonths(monthStart, -1))}
