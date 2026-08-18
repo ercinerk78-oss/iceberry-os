@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeLeadWhere } from "@/lib/active-records";
-import { formatAppointmentRange } from "@/lib/appointments";
+import { APPOINTMENT_TIME_ZONE, formatAppointmentRange } from "@/lib/appointments";
 import { leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 
@@ -24,6 +24,7 @@ export const dynamic = "force-dynamic";
 const LEAD_OPTION_LIMIT = 200;
 const UNREACHABLE_ACTIVITY_TYPES = new Set(["APPOINTMENT_CALL_UNREACHABLE", "APPOINTMENT_NO_SHOW"]);
 const SEQUENTIAL_FLOW_ACTIVITY_TYPE = "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW";
+const HIDDEN_CARD_ACTIVITY_TYPES = new Set(["CREATE"]);
 const PASSIVE_WARNING_TYPES = [
   "APPOINTMENT_PASSIVE_WARNING_MESSAGE_1",
   "APPOINTMENT_PASSIVE_WARNING_MESSAGE_2",
@@ -367,7 +368,8 @@ function LeadCardNotes({
     activities: { id: string; type: string; description: string; createdAt: Date }[];
   };
 }) {
-  const hasNotes = Boolean(lead.description) || lead.activities.length > 0;
+  const visibleActivities = lead.activities.filter((activity) => !HIDDEN_CARD_ACTIVITY_TYPES.has(activity.type));
+  const hasNotes = Boolean(lead.description) || visibleActivities.length > 0;
   if (!hasNotes) return null;
 
   return (
@@ -378,11 +380,11 @@ function LeadCardNotes({
           <p className="mt-1 whitespace-pre-line text-[#65705f]">{lead.description}</p>
         </div>
       ) : null}
-      {lead.activities.length ? (
+      {visibleActivities.length ? (
         <div>
           <p className="font-semibold text-[#364036]">Son 3 İşlem</p>
           <div className="mt-2 space-y-1.5">
-            {lead.activities.slice(0, 3).map((activity) => (
+            {visibleActivities.slice(0, 3).map((activity) => (
               <div key={activity.id} className="rounded-md bg-[#f8faf6] p-2">
                 <p className="font-medium text-[#17201b]">{formatActivityDate(activity.createdAt)}</p>
                 <p className="mt-0.5 text-[#65705f]">{activity.description}</p>
@@ -397,6 +399,7 @@ function LeadCardNotes({
 
 function formatActivityDate(value: Date) {
   return value.toLocaleString("tr-TR", {
+    timeZone: APPOINTMENT_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
