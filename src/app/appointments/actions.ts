@@ -60,6 +60,10 @@ const sequentialMessageSchema = z.object({
   step: z.coerce.number().int().min(1).max(3),
 });
 
+const invalidAppointmentLeadSchema = z.object({
+  note: z.string().trim().max(500, "Not çok uzun.").optional(),
+});
+
 const passiveLeadReasonLabels: Record<z.infer<typeof passiveLeadSchema>["reason"], string> = {
   WITHDREW: "Vazgeçti",
   WRONG_APPLICATION: "Yanlış başvuru",
@@ -686,6 +690,58 @@ export async function markLeadUnreachableForm(leadId: string, formData: FormData
   await markLeadUnreachable(leadId, formData);
 }
 
+export async function markAppointmentNoShowFollowUpUnreachable(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const reason = parsed.success ? parsed.data.reason : "";
+  const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "APPOINTMENT_NO_SHOW_FOLLOW_UP",
+        processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP",
+        lastContactAt: new Date(),
+        nextFollowUpAt: nextCallAt,
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadTask.create({
+      data: {
+        leadId: lead.id,
+        title: `Randevu saatinde ulaşılamadı - tekrar ara: ${lead.fullName}`,
+        description: reason ? `Randevu saatinde ulaşılamayan lead tekrar arandı, yine ulaşılamadı. Not: ${reason}` : "Randevu saatinde ulaşılamayan lead tekrar arandı, yine ulaşılamadı.",
+        dueDate: nextCallAt,
+        priority: "Yüksek",
+        status: "Açık",
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_NO_SHOW",
+        description: `${user.name} randevu saati sonrası tekrar aramada ulaşılamadı olarak işaretledi.${reason ? ` Not: ${reason}` : ""}`,
+      },
+    });
+  });
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentNoShowFollowUpUnreachableForm(leadId: string, formData: FormData) {
+  await markAppointmentNoShowFollowUpUnreachable(leadId, formData);
+}
+
 export async function deactivateAppointmentLead(leadId: string, formData: FormData) {
   await requirePermission("appointments");
   const parsed = passiveLeadSchema.safeParse(Object.fromEntries(formData));
@@ -809,6 +865,45 @@ export async function moveLeadToSequentialMessageFlow(leadId: string) {
 
 export async function moveLeadToSequentialMessageFlowForm(leadId: string) {
   await moveLeadToSequentialMessageFlow(leadId);
+}
+
+export async function markAppointmentLeadInvalidForm(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = invalidAppointmentLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const note = parsed.success ? parsed.data.note : "";
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        leadCategory: "INVALID_FORM",
+        invalidReason: "IRRELEVANT_APPLICATION",
+        invalidReasonDetail: note || "Randevu departmanı tarafından hatalı / yanlış başvuru olarak işaretlendi.",
+        nextFollowUpAt: null,
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_INVALID_APPLICATION",
+        description: `${user.name}, lead kaydını hatalı başvuru kategorisine aldı.${note ? ` Not: ${note}` : ""}`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentLeadInvalidFormForm(leadId: string, formData: FormData) {
+  await markAppointmentLeadInvalidForm(leadId, formData);
 }
 
 export async function reactivateAppointmentLead(leadId: string) {

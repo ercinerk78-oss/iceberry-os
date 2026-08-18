@@ -2,6 +2,8 @@ import { PhoneCall, XCircle } from "lucide-react";
 
 import {
   deactivateAppointmentLeadForm,
+  markAppointmentLeadInvalidFormForm,
+  markAppointmentNoShowFollowUpUnreachableForm,
   markLeadUnreachableForm,
   markAppointmentSequentialMessageSentForm,
   moveLeadToSequentialMessageFlowForm,
@@ -61,6 +63,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         processStatus: true,
         status: true,
         nextFollowUpAt: true,
+        leadCategory: true,
         invalidReasonDetail: true,
         activities: {
           select: { id: true, type: true, description: true, createdAt: true },
@@ -84,16 +87,20 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
   const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
   const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
+  const invalidApplicationLeads = visibleLeads
+    .filter((lead) => lead.leadCategory === "INVALID_FORM")
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const invalidApplicationLeadIds = new Set(invalidApplicationLeads.map((lead) => lead.id));
   const sequentialMessageLeads = visibleLeads
-    .filter((lead) => manuallyMovedToSequentialMessageFlow(lead) || ((appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5))
+    .filter((lead) => !invalidApplicationLeadIds.has(lead.id) && (manuallyMovedToSequentialMessageFlow(lead) || ((appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5)))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const sequentialMessageLeadIds = new Set(sequentialMessageLeads.map((lead) => lead.id));
-  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id));
+  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id));
   const appointmentCallUnreachableLeads = visibleLeads
-    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id))
+    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const appointmentNoShowFollowUpLeads = visibleLeads
-    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id))
+    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id))
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
 
   return (
@@ -184,6 +191,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             users={userOptionItems}
                             initialLeadId={lead.id}
                           />
+                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2">
+                            <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
+                            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
+                              Ulaşılamadı
+                            </AppointmentSubmitButton>
+                          </form>
                           <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
@@ -202,7 +215,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <summary className="list-none cursor-pointer">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between gap-3 text-base">
-                    <span>Randevuda Ulaşılamayanlar</span>
+                    <span>Randevu Saatinde Ulaşılamadı</span>
                     <Badge variant="secondary">{appointmentNoShowFollowUpLeads.length}</Badge>
                   </CardTitle>
                 </CardHeader>
@@ -231,6 +244,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />
+                          <form action={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)} className="grid gap-2">
+                            <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
+                            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
+                              Ulaşılamadı
+                            </AppointmentSubmitButton>
+                          </form>
                           <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
@@ -285,6 +304,46 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                   ))}
                   {!sequentialMessageLeads.length ? (
                     <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">5 kez ulaşılamayan ve mesaj sürecine alınacak aday yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Hatalı Başvuru</span>
+                    <Badge variant="secondary">{invalidApplicationLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {invalidApplicationLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">Hatalı Form</Badge>
+                            <Badge variant="outline">{lead.source}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.invalidReasonDetail ? <p className="mt-2 text-sm text-[#65705f]">Neden: {lead.invalidReasonDetail}</p> : null}
+                          <LeadCardNotes lead={lead} />
+                        </div>
+                        <div className="grid shrink-0 gap-2">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentLeadEditDialog lead={lead} />
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                  {!invalidApplicationLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Hatalı başvuru olarak ayrılan lead yok.</p>
                   ) : null}
                 </div>
               </CardContent>
@@ -434,16 +493,16 @@ function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: strin
 
 function QuickLeadActions({ leadId }: { leadId: string }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <form action={deactivateAppointmentLeadForm.bind(null, leadId)}>
-        <input type="hidden" name="reason" value="OTHER" />
-        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Siliniyor..." className="w-full">
-          Sil
-        </AppointmentSubmitButton>
-      </form>
+    <div className="grid gap-2">
       <form action={moveLeadToSequentialMessageFlowForm.bind(null, leadId)}>
         <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
           Sıralı Mesajlar
+        </AppointmentSubmitButton>
+      </form>
+      <form action={markAppointmentLeadInvalidFormForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2">
+        <input name="note" placeholder="Hatalı başvuru notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
+        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
+          Hatalı Başvuru
         </AppointmentSubmitButton>
       </form>
     </div>

@@ -1,15 +1,13 @@
 import Link from "next/link";
-import { CalendarClock, PhoneCall, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, PhoneCall, RotateCcw, XCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import {
   changeLeadAppointmentStatusForm,
-  deleteLeadAppointmentForm,
   rescheduleLeadAppointment,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentCompleteDialog } from "@/components/appointments/appointment-complete-dialog";
-import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { activeLeadWhere } from "@/lib/active-records";
@@ -133,12 +131,6 @@ export default async function AppointmentListPage({ searchParams }: { searchPara
                         <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "CANCELLED")} className="flex flex-wrap gap-2">
                           <input name="reason" placeholder="İptal nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                           <Button size="sm" variant="outline">İptal Et</Button>
-                        </form>
-                        <form action={deleteLeadAppointmentForm.bind(null, appointment.id)}>
-                          <AppointmentSubmitButton size="sm" variant="destructive" pendingLabel="Siliniyor...">
-                            <Trash2 className="size-4" />
-                            Sil
-                          </AppointmentSubmitButton>
                         </form>
                       </div>
                     </div>
