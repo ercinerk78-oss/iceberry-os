@@ -271,6 +271,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         </div>
                         <div className="grid shrink-0 gap-2">
                           <CallButton phone={lead.phone} />
+                          <AppointmentSchedulerDialog
+                            leads={appointmentLeadOptionItems}
+                            users={userOptionItems}
+                            initialLeadId={lead.id}
+                            label="Randevu Oluştur"
+                          />
                           <SequentialMessageButtons leadId={lead.id} lead={lead} />
                           {allSequentialMessagesSent(lead) ? <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" /> : null}
                         </div>
