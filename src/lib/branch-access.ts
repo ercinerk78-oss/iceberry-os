@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { currentUser, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const scopedRoles = new Set(["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF", "FRANCHISE_MANAGER"]);
+const scopedRoles = new Set(["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF"]);
 
 export function isBranchScopedRole(role: string) {
   return scopedRoles.has(role);
