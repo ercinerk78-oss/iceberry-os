@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { audit, requirePermission } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { userSchema } from "@/lib/validations/user";
 
@@ -108,5 +109,30 @@ export async function resetPassword(id: string, formData: FormData) {
     data: { passwordHash: await hashPassword(password) },
   });
   await audit("PASSWORD_RESET", "User", id, "Kullanıcı şifresi yönetici tarafından sıfırlandı.", actor.id);
+  refreshUsers();
+}
+
+export async function updateRolePermissions(roleId: string, formData: FormData) {
+  const actor = await requirePermission("users");
+  const role = await prisma.role.findUniqueOrThrow({ where: { id: roleId } });
+  const selected = formData.getAll("permissions").map(String).filter((item): item is Permission => ALL_PERMISSIONS.includes(item as Permission));
+  const unique = [...new Set(selected)];
+
+  if (actor.role === role.kod && (!unique.includes("users") || !unique.includes("settings"))) {
+    throw new Error("Kendi rolünüzden Ayarlar ve Kullanıcı Yönetimi yetkisini kaldıramazsınız.");
+  }
+
+  await prisma.role.update({
+    where: { id: role.id },
+    data: { permissions: unique },
+  });
+
+  await audit(
+    "ROLE_PERMISSIONS_UPDATED",
+    "Role",
+    role.id,
+    `${role.ad} rolünün yetkileri güncellendi.`,
+    actor.id,
+  );
   refreshUsers();
 }

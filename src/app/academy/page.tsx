@@ -15,8 +15,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function AcademyPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
-  const canManage = hasPermission(user.role, "academy.manage");
-  const canAssign = hasPermission(user.role, "academy.assign");
+  const canManage = hasPermission(user.role, "academy.manage", user.permissions);
+  const canAssign = hasPermission(user.role, "academy.assign", user.permissions);
   const filters = normalizeFilters(await searchParams);
 
   const data = await loadAcademyData(user.id, filters);

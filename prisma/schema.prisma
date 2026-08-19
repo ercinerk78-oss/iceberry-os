@@ -3651,13 +3651,14 @@ model User {
 }
 
 model Role {
-  id        String   @id @default(cuid())
-  ad        String
-  kod       String   @unique
-  aciklama  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
+  id          String   @id @default(cuid())
+  ad          String
+  kod         String   @unique
+  aciklama    String?
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
 }
 
 model AuditLog {

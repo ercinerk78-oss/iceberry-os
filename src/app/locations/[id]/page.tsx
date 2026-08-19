@@ -28,10 +28,10 @@ import { prisma } from "@/lib/prisma";
 export default async function LocationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const canUpdate = hasPermission(user.role, "locations.update");
-  const canUpload = hasPermission(user.role, "locations.upload_document");
-  const canLinkLead = hasPermission(user.role, "locations.link_lead");
-  const canViewFinancials = hasPermission(user.role, "locations.view_financials");
+  const canUpdate = hasPermission(user.role, "locations.update", user.permissions);
+  const canUpload = hasPermission(user.role, "locations.upload_document", user.permissions);
+  const canLinkLead = hasPermission(user.role, "locations.link_lead", user.permissions);
+  const canViewFinancials = hasPermission(user.role, "locations.view_financials", user.permissions);
 
   const location = await prisma.candidateLocation.findUnique({
     where: { id },

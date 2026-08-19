@@ -1,8 +1,9 @@
-import { archiveUser, createUser, resetPassword, toggleUser, updateUser } from "@/app/settings/users/actions";
+import { archiveUser, createUser, resetPassword, toggleUser, updateRolePermissions, updateUser } from "@/app/settings/users/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth";
+import { normalizePermissions, PERMISSION_DEFINITIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,11 @@ function formatDate(date: Date | null) {
       }).format(date)
     : "-";
 }
+
+const permissionGroups = PERMISSION_DEFINITIONS.reduce<Record<string, typeof PERMISSION_DEFINITIONS>>((groups, permission) => {
+  groups[permission.group] = [...(groups[permission.group] ?? []), permission];
+  return groups;
+}, {});
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<UsersSearchParams> }) {
   await requirePermission("users");
@@ -107,6 +113,61 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
         </Card>
 
         <p className="text-sm text-[#65705f]">{users.length} kullanıcı gösteriliyor.</p>
+
+        <Card className="shadow-none">
+          <CardHeader>
+            <CardTitle>Rol Yetkileri</CardTitle>
+            <p className="text-sm text-[#65705f]">
+              Her rolün hangi sekmeleri ve işlemleri göreceğini buradan yönetin. Değişiklikten sonra ilgili kullanıcılar yeniden giriş yaptığında menüleri güncellenir.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {roles.map((role) => {
+              const selected = new Set(normalizePermissions(role.permissions, role.kod));
+
+              return (
+                <details key={role.id} className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">{role.ad}</h3>
+                        <p className="text-sm text-[#65705f]">{role.aciklama || role.kod}</p>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#65705f]">
+                        {selected.size} yetki
+                      </span>
+                    </div>
+                  </summary>
+                  <form action={updateRolePermissions.bind(null, role.id)} className="mt-4 space-y-4">
+                    {Object.entries(permissionGroups).map(([groupName, permissions]) => (
+                      <section key={groupName} className="rounded-lg border bg-white p-3">
+                        <h4 className="font-medium">{groupName}</h4>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {permissions.map((permission) => (
+                            <label key={permission.key} className="flex gap-3 rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3 text-sm">
+                              <input
+                                name="permissions"
+                                type="checkbox"
+                                value={permission.key}
+                                defaultChecked={selected.has(permission.key)}
+                                className="mt-1"
+                              />
+                              <span>
+                                <span className="block font-medium">{permission.label}</span>
+                                <span className="mt-1 block text-xs leading-5 text-[#65705f]">{permission.description}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                    <Button className="bg-[#17201b] text-white">Rol Yetkilerini Kaydet</Button>
+                  </form>
+                </details>
+              );
+            })}
+          </CardContent>
+        </Card>
 
         <div className="space-y-3">
           {users.map((user) => (

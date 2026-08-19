@@ -17,6 +17,7 @@ type Permission =
   | "openings"
   | "orders"
   | "order_admin"
+  | "procurement"
   | "warehouse"
   | "reports"
   | "settings"
@@ -63,6 +64,7 @@ const allPermissions: Permission[] = [
   "openings",
   "orders",
   "order_admin",
+  "procurement",
   "warehouse",
   "reports",
   "settings",
@@ -93,8 +95,8 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   GENERAL_MANAGER: allPermissions.filter((permission) => permission !== "franchisees"),
   OPERATIONS_MANAGER: allPermissions.filter((permission) => !["settings", "users", "franchisees", "locations.delete", "locations.archive", "locations.view_financials"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations", "locations.view", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
-  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "openings", "tasks", "academy.view"],
-  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance", "openings", "documents"],
+  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "procurement", "openings", "tasks", "academy.view"],
+  MUHASEBE: ["dashboard", "orders", "order_admin", "procurement", "invoice", "integrations", "reports", "finance", "openings", "documents"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
   RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
   ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
@@ -107,7 +109,8 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   BRANCH_STAFF: ["branch_portal", "tasks", "documents", "academy.view"],
 };
 
-function hasRoutePermission(role: string, permission: Permission) {
+function hasRoutePermission(role: string, permission: Permission, permissions?: Permission[]) {
+  if (permissions?.length) return permissions.includes(permission);
   return rolePermissions[role]?.includes(permission) ?? false;
 }
 
@@ -133,6 +136,7 @@ function routePermission(path: string): Permission | null {
   if (path.startsWith("/branch-map")) return "branches";
   if (path.startsWith("/branch-revenues")) return "branch_revenue";
   if (path.startsWith("/openings")) return "openings";
+  if (path.startsWith("/procurement")) return "procurement";
   if (path.startsWith("/orders/admin")) return "order_admin";
   if (path.startsWith("/orders")) return "orders";
   if (path.startsWith("/warehouse")) return "warehouse";
@@ -196,7 +200,7 @@ export async function proxy(request: NextRequest) {
   if (!session) return loginRedirect(request);
 
   const permission = routePermission(path);
-  if (permission && !hasRoutePermission(session.role, permission)) {
+  if (permission && !hasRoutePermission(session.role, permission, session.permissions)) {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 

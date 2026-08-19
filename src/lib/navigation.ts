@@ -1,4 +1,4 @@
-import { hasPermission, routePermission, type Permission } from "@/lib/permissions";
+import { hasPermissionWithOverrides, routePermission, type Permission } from "@/lib/permissions";
 
 export type NavigationIconKey =
   | "Bell"
@@ -162,12 +162,12 @@ export function isNavigationItemActive(href: string, activeHref: string, pathnam
   return current === href || activeHref === href || activeHref.startsWith(`${href}/`);
 }
 
-export function visibleNavigationForRole(role: string) {
-  const dashboard = hasPermission(role, dashboardNavigation.permission) ? dashboardNavigation : null;
+export function visibleNavigationForRole(role: string, permissions?: readonly Permission[] | null) {
+  const dashboard = hasPermissionWithOverrides(role, dashboardNavigation.permission, permissions) ? dashboardNavigation : null;
   const groups = navigationGroups
     .map((group) => ({
       ...group,
-      children: group.children.filter((child) => hasPermission(role, child.permission)),
+      children: group.children.filter((child) => hasPermissionWithOverrides(role, child.permission, permissions)),
     }))
     .filter((group) => group.children.length > 0);
 

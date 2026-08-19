@@ -33,7 +33,7 @@ export async function AppShell({
 }: AppShellProps) {
   const user = await requireUser();
   const { locale, t } = await getTranslations();
-  const visibleNavigation = visibleNavigationForRole(user.role);
+  const visibleNavigation = visibleNavigationForRole(user.role, user.permissions);
   const dashboard = visibleNavigation.dashboard
     ? ({ ...visibleNavigation.dashboard, label: t(visibleNavigation.dashboard.key) } satisfies SidebarNavigationItem)
     : null;

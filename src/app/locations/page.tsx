@@ -52,9 +52,9 @@ export const dynamic = "force-dynamic";
 
 export default async function LocationsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const user = await requireUser();
-  const canCreate = hasPermission(user.role, "locations.create");
-  const canArchive = hasPermission(user.role, "locations.archive");
-  const canViewFinancials = hasPermission(user.role, "locations.view_financials");
+  const canCreate = hasPermission(user.role, "locations.create", user.permissions);
+  const canArchive = hasPermission(user.role, "locations.archive", user.permissions);
+  const canViewFinancials = hasPermission(user.role, "locations.view_financials", user.permissions);
   const p = await searchParams;
   const q = get(p, "q");
   const city = get(p, "city");
