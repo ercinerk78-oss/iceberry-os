@@ -5,10 +5,19 @@ import { BarChart3, CalendarCheck2, FileText, LineChart, PhoneOff, Star, Store, 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeLeadWhere } from "@/lib/active-records";
 import { appointmentStatusLabel } from "@/lib/appointments";
 import { requirePermission } from "@/lib/auth";
 import { VISIBLE_REVENUE_STATUSES } from "@/lib/branch-revenue";
+import {
+  isActiveReportLead,
+  isClosedLead,
+  isCountableAppointment,
+  isConvertedLead,
+  isInvalidLead,
+  isLeadStatus,
+  isReportableAppointment,
+  isReportableLead,
+} from "@/lib/lead-reporting";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +30,6 @@ export default async function ReportsPage() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const [
-    activeLeadCount,
     leadRows,
     appointmentRows,
     branchCount,
@@ -30,7 +38,6 @@ export default async function ReportsPage() {
     documentCount,
     branchConcepts,
   ] = await Promise.all([
-    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
     safe(
       prisma.lead.findMany({
         select: {
@@ -59,6 +66,7 @@ export default async function ReportsPage() {
               id: true,
               fullName: true,
               city: true,
+              leadCategory: true,
               convertedCandidateId: true,
               processStatus: true,
               status: true,
@@ -94,35 +102,40 @@ export default async function ReportsPage() {
   ]);
 
   const totalLeadCount = leadRows.length;
-  const convertedLeadCount = leadRows.filter((lead) => !!lead.convertedCandidateId || isStatus(lead, "CONVERTED_TO_CANDIDATE")).length;
-  const closedLeadCount = leadRows.filter((lead) => isStatus(lead, "CLOSED")).length;
-  const invalidLeadCount = leadRows.filter((lead) => lead.leadCategory === "INVALID_FORM").length;
-  const appointmentLeadIds = new Set(appointmentRows.map((appointment) => appointment.leadId));
-  const completedAppointments = appointmentRows.filter((appointment) => appointment.status === "COMPLETED");
-  const noShowAppointments = appointmentRows.filter((appointment) => appointment.status === "NO_SHOW");
-  const cancelledAppointments = appointmentRows.filter((appointment) => appointment.status === "CANCELLED");
-  const rescheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "RESCHEDULED");
-  const scheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "SCHEDULED");
+  const reportableLeads = leadRows.filter(isReportableLead);
+  const activeLeadCount = leadRows.filter(isActiveReportLead).length;
+  const convertedLeadCount = reportableLeads.filter(isConvertedLead).length;
+  const closedLeadCount = reportableLeads.filter(isClosedLead).length;
+  const invalidLeadCount = leadRows.filter(isInvalidLead).length;
+  const reportableAppointments = appointmentRows.filter(isReportableAppointment);
+  const countableAppointments = appointmentRows.filter(isCountableAppointment);
+  const appointmentLeadIds = new Set(countableAppointments.map((appointment) => appointment.leadId));
+  const completedAppointments = countableAppointments.filter((appointment) => appointment.status === "COMPLETED");
+  const noShowAppointments = countableAppointments.filter((appointment) => appointment.status === "NO_SHOW");
+  const cancelledAppointments = reportableAppointments.filter((appointment) => appointment.status === "CANCELLED");
+  const rescheduledAppointments = countableAppointments.filter((appointment) => appointment.status === "RESCHEDULED");
+  const scheduledAppointments = countableAppointments.filter((appointment) => appointment.status === "SCHEDULED");
 
   const completedLeadIds = new Set(completedAppointments.map((appointment) => appointment.leadId));
   const appointmentCallUnreachableLeadIds = new Set(
     leadRows
-      .filter((lead) => APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isStatus(lead, status)))
+      .filter((lead) => isReportableLead(lead) && APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isLeadStatus(lead, status)))
       .map((lead) => lead.id),
   );
   const appointmentNoShowFollowUpLeadIds = new Set([
     ...noShowAppointments.map((appointment) => appointment.leadId),
     ...leadRows
-      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isStatus(lead, status)))
+      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isLeadStatus(lead, status)))
+      .filter(isReportableLead)
       .map((lead) => lead.id),
   ]);
   const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
-  const closedWithoutConversionCount = leadRows.filter((lead) => isStatus(lead, "CLOSED") && !lead.convertedCandidateId).length;
+  const closedWithoutConversionCount = reportableLeads.filter((lead) => isClosedLead(lead) && !isConvertedLead(lead)).length;
 
   const convertedCandidateIds = Array.from(
     new Set([
       ...completedAppointments.map((appointment) => appointment.lead.convertedCandidateId),
-      ...leadRows.map((lead) => lead.convertedCandidateId),
+      ...reportableLeads.map((lead) => lead.convertedCandidateId),
     ].filter(Boolean)),
   ) as string[];
   const scoredCandidates = await safe(
@@ -145,7 +158,7 @@ export default async function ReportsPage() {
 
   const cards = [
     { title: "Lead Raporu", value: totalLeadCount, href: "#lead-raporu", icon: Target, note: "Toplam, aktif, pasif ve dönüşen lead görünümü" },
-    { title: "Randevu Raporu", value: appointmentRows.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },
+    { title: "Randevu Raporu", value: countableAppointments.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },
     { title: "Şube Raporu", value: branchCount, href: "/branches", icon: Store, note: "Aktif ve toplam şube görünümü" },
     { title: "Açılış Raporu", value: openingCount, href: "/openings", icon: BarChart3, note: "Kurulum projeleri ve aşamalar" },
     { title: "Ciro Raporu", value: revenueTotal, href: "/branch-revenues", icon: LineChart, note: "Bu ay kayıtlı net ciro" },
@@ -190,7 +203,7 @@ export default async function ReportsPage() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <ReportMetric title="Toplam Lead" value={totalLeadCount} note="Sisteme gelen tüm lead kayıtları" icon={Target} />
-            <ReportMetric title="Aktif Lead" value={activeLeadCount} note="Pasif ve adaya dönüşenler hariç takipteki lead" icon={Target} />
+            <ReportMetric title="Aktif Lead" value={activeLeadCount} note="Pasif, hatalı form ve adaya dönüşenler hariç takipteki lead" icon={Target} />
             <ReportMetric title="Adaya Dönüşen" value={convertedLeadCount} note="Franchise adayına çevrilen lead" icon={UsersRound} />
             <ReportMetric title="Pasife Alınan" value={closedLeadCount} note="Kapatıldı/pasif durumundaki lead" icon={PhoneOff} />
             <ReportMetric title="Hatalı Form" value={invalidLeadCount} note="Hatalı/geçersiz başvuru kategorisindeki lead" icon={PhoneOff} />
@@ -210,8 +223,8 @@ export default async function ReportsPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReportMetric title="Randevu Kaydı" value={appointmentRows.length} note="Sistemdeki toplam randevu kaydı" icon={CalendarCheck2} />
-            <ReportMetric title="Randevu Alınan Lead" value={appointmentLeadIds.size} note="En az bir randevu kaydı olan tekil lead" icon={CalendarCheck2} />
+            <ReportMetric title="Randevu Kaydı" value={countableAppointments.length} note="İptal ve hatalı form hariç randevu kaydı" icon={CalendarCheck2} />
+            <ReportMetric title="Randevu Alınan Lead" value={appointmentLeadIds.size} note="İptal ve hatalı form hariç tekil lead" icon={CalendarCheck2} />
             <ReportMetric title="Görüşülen Lead" value={completedLeadIds.size} note="Tamamlandı durumundaki tekil lead" icon={UsersRound} />
             <ReportMetric title="Görüşülemeyen Lead" value={unreachableLeadIds.size} note="Ulaşılamayan ve randevuda ulaşılamayan tekil lead" icon={PhoneOff} />
             <ReportMetric title="Planlı Randevu" value={scheduledAppointments.length} note="Henüz tamamlanmamış aktif randevular" icon={CalendarCheck2} />
@@ -287,10 +300,6 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
     console.error("[reports] metric fallback", error);
     return fallback;
   }
-}
-
-function isStatus(lead: { status: string; processStatus: string }, status: string) {
-  return lead.status === status || lead.processStatus === status;
 }
 
 function ReportMetric({

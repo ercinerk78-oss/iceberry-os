@@ -15,6 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
 import { getTranslations } from "@/lib/i18n/server";
+import {
+  isActiveReportLead,
+  isClosedLead,
+  isCountableAppointment,
+  isConvertedLead,
+  isInvalidLead,
+  isLeadStatus,
+  isReportableLead,
+} from "@/lib/lead-reporting";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +40,6 @@ async function safe<T>(operation: Promise<T>, fallback: T) {
   }
 }
 
-function isStatus(lead: { status: string; processStatus: string | null }, status: string) {
-  return lead.status === status || lead.processStatus === status;
-}
-
 export default async function Home() {
   const { t } = await getTranslations();
   const now = new Date();
@@ -43,7 +48,6 @@ export default async function Home() {
   const [
     activeBranches,
     totalBranches,
-    activeLeadCount,
     leadRows,
     appointmentRows,
     todayAppointments,
@@ -65,7 +69,6 @@ export default async function Home() {
   ] = await Promise.all([
     prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
     prisma.branch.count({ where: { archivedAt: null } }),
-    safe(prisma.lead.count({ where: activeLeadWhere() }), 0),
     safe(
       prisma.lead.findMany({
         select: {
@@ -85,16 +88,17 @@ export default async function Home() {
           leadId: true,
           status: true,
           appointmentDate: true,
+          lead: { select: { leadCategory: true } },
         },
       }),
       [],
     ),
-    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere(), status: { not: "CANCELLED" }, appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
+    safe(prisma.leadAppointment.count({ where: { lead: activeLeadWhere({ OR: [{ leadCategory: null }, { leadCategory: { not: "INVALID_FORM" } }] }), status: { not: "CANCELLED" }, appointmentDate: { gte: startOfDay, lt: endOfDay } } }), 0),
     safe(prisma.lead.count({
-      where: activeLeadWhere({ nextFollowUpAt: { lt: startOfDay } }),
+      where: activeLeadWhere({ nextFollowUpAt: { lt: startOfDay }, OR: [{ leadCategory: null }, { leadCategory: { not: "INVALID_FORM" } }] }),
     }), 0),
-    safe(prisma.leadTask.count({ where: { lead: activeLeadWhere(), dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
-    safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], where: { lead: activeLeadWhere() }, _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
+    safe(prisma.leadTask.count({ where: { lead: activeLeadWhere({ OR: [{ leadCategory: null }, { leadCategory: { not: "INVALID_FORM" } }] }), dueDate: { lt: now }, status: { in: ["Açık", "Devam Ediyor"] } } }), 0),
+    safe(prisma.leadAppointment.groupBy({ by: ["assignedUserId"], where: { lead: activeLeadWhere({ OR: [{ leadCategory: null }, { leadCategory: { not: "INVALID_FORM" } }] }) }, _count: { _all: true }, orderBy: { _count: { assignedUserId: "desc" } }, take: 5 }), []),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "NEW_OPPORTUNITY" } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, documents: { some: { archivedAt: null, documentType: { in: ["LOCATION_ANALYSIS_PDF", "LOCATION_ANALYSIS_JPEG"] } } } } }), 0),
     safe(prisma.candidateLocation.count({ where: { archivedAt: null, status: "WAITING_FOR_INVESTOR" } }), 0),
@@ -123,29 +127,32 @@ export default async function Home() {
   const number = new Intl.NumberFormat("tr-TR");
   const overdueFollowUps = overdueLeadFollowUps + overdueLeadTasks;
   const totalLeads = leadRows.length;
-  const newLeads = leadRows.filter((lead) => isStatus(lead, "NEW") && !lead.convertedCandidateId).length;
-  const waitingAppointmentLeads = leadRows.filter((lead) => isStatus(lead, "WAITING_FOR_APPOINTMENT") && !lead.convertedCandidateId).length;
-  const convertedLeadCount = leadRows.filter((lead) => !!lead.convertedCandidateId || isStatus(lead, "CONVERTED_TO_CANDIDATE")).length;
-  const closedLeadCount = leadRows.filter((lead) => isStatus(lead, "CLOSED")).length;
-  const invalidFormLeads = leadRows.filter((lead) => lead.leadCategory === "INVALID_FORM").length;
-  const appointmentCount = appointmentRows.length;
-  const appointmentLeadIds = new Set(appointmentRows.map((appointment) => appointment.leadId));
-  const completedAppointments = appointmentRows.filter((appointment) => appointment.status === "COMPLETED");
-  const scheduledAppointments = appointmentRows.filter((appointment) => appointment.status === "SCHEDULED");
+  const reportableLeads = leadRows.filter(isReportableLead);
+  const activeLeadCountForReport = leadRows.filter(isActiveReportLead).length;
+  const newLeads = reportableLeads.filter((lead) => isLeadStatus(lead, "NEW") && !isConvertedLead(lead) && !isClosedLead(lead)).length;
+  const waitingAppointmentLeads = reportableLeads.filter((lead) => isLeadStatus(lead, "WAITING_FOR_APPOINTMENT") && !isConvertedLead(lead) && !isClosedLead(lead)).length;
+  const convertedLeadCount = reportableLeads.filter(isConvertedLead).length;
+  const closedLeadCount = reportableLeads.filter(isClosedLead).length;
+  const invalidFormLeads = leadRows.filter(isInvalidLead).length;
+  const countableAppointments = appointmentRows.filter(isCountableAppointment);
+  const appointmentCount = countableAppointments.length;
+  const appointmentLeadIds = new Set(countableAppointments.map((appointment) => appointment.leadId));
+  const completedAppointments = countableAppointments.filter((appointment) => appointment.status === "COMPLETED");
+  const scheduledAppointments = countableAppointments.filter((appointment) => appointment.status === "SCHEDULED");
   const completedLeadIds = new Set(completedAppointments.map((appointment) => appointment.leadId));
   const appointmentCallUnreachableLeadIds = new Set(
-    leadRows
-      .filter((lead) => APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isStatus(lead, status)))
+    reportableLeads
+      .filter((lead) => APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isLeadStatus(lead, status)))
       .map((lead) => lead.id),
   );
   const appointmentNoShowFollowUpLeadIds = new Set([
-    ...appointmentRows.filter((appointment) => appointment.status === "NO_SHOW").map((appointment) => appointment.leadId),
-    ...leadRows
-      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isStatus(lead, status)))
+    ...countableAppointments.filter((appointment) => appointment.status === "NO_SHOW").map((appointment) => appointment.leadId),
+    ...reportableLeads
+      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isLeadStatus(lead, status)))
       .map((lead) => lead.id),
   ]);
   const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
-  const closedWithoutConversionCount = leadRows.filter((lead) => isStatus(lead, "CLOSED") && !lead.convertedCandidateId).length;
+  const closedWithoutConversionCount = reportableLeads.filter((lead) => isClosedLead(lead) && !isConvertedLead(lead)).length;
   const validLeads = Math.max(totalLeads - invalidFormLeads, 0);
   const conversionRate = validLeads ? Math.round((appointmentLeadIds.size / validLeads) * 100) : 0;
   const attendanceRate = appointmentLeadIds.size ? Math.round((completedLeadIds.size / appointmentLeadIds.size) * 100) : 0;
@@ -163,7 +170,7 @@ export default async function Home() {
   ];
   const reporting = [
     ["Toplam Lead", totalLeads],
-    ["Aktif Lead", activeLeadCount],
+    ["Aktif Lead", activeLeadCountForReport],
     ["Adaya Dönüşen", convertedLeadCount],
     ["Pasife Alınan", closedLeadCount],
     ["Hatalı Form / Geçersiz", invalidFormLeads],
