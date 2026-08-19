@@ -5,6 +5,7 @@ import { BarChart3, CalendarCheck2, FileText, LineChart, PhoneOff, Star, Store, 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { activeCandidateWhere } from "@/lib/active-records";
 import { appointmentStatusLabel } from "@/lib/appointments";
 import { requirePermission } from "@/lib/auth";
 import { VISIBLE_REVENUE_STATUSES } from "@/lib/branch-revenue";
@@ -32,6 +33,9 @@ export default async function ReportsPage() {
   const [
     leadRows,
     appointmentRows,
+    activeCandidateCount,
+    passiveCandidateCount,
+    activeCandidateRows,
     branchCount,
     openingCount,
     revenueRows,
@@ -74,6 +78,16 @@ export default async function ReportsPage() {
           },
         },
         orderBy: { appointmentDate: "desc" },
+      }),
+      [],
+    ),
+    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere() }), 0),
+    safe(prisma.franchiseCandidate.count({ where: { archivedAt: { not: null } } }), 0),
+    safe(
+      prisma.franchiseCandidate.findMany({
+        where: activeCandidateWhere(),
+        select: { id: true, fullName: true, city: true, qualificationScore: true },
+        orderBy: [{ qualificationScore: "desc" }, { createdAt: "desc" }],
       }),
       [],
     ),
@@ -132,22 +146,7 @@ export default async function ReportsPage() {
   const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
   const closedWithoutConversionCount = reportableLeads.filter((lead) => isClosedLead(lead) && !isConvertedLead(lead)).length;
 
-  const convertedCandidateIds = Array.from(
-    new Set([
-      ...completedAppointments.map((appointment) => appointment.lead.convertedCandidateId),
-      ...reportableLeads.map((lead) => lead.convertedCandidateId),
-    ].filter(Boolean)),
-  ) as string[];
-  const scoredCandidates = await safe(
-    convertedCandidateIds.length
-      ? prisma.franchiseCandidate.findMany({
-          where: { id: { in: convertedCandidateIds }, archivedAt: null },
-          select: { id: true, fullName: true, city: true, qualificationScore: true },
-          orderBy: [{ qualificationScore: "desc" }, { createdAt: "desc" }],
-        })
-      : Promise.resolve([]),
-    [],
-  );
+  const scoredCandidates = activeCandidateRows;
   const scoreValues = scoredCandidates.map((candidate) => candidate.qualificationScore).filter((score): score is number => typeof score === "number");
   const averageScore = scoreValues.length ? scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length : 0;
   const highScoreCandidates = scoredCandidates.filter((candidate) => (candidate.qualificationScore ?? 0) >= 8);
@@ -159,6 +158,7 @@ export default async function ReportsPage() {
   const cards = [
     { title: "Lead Raporu", value: totalLeadCount, href: "#lead-raporu", icon: Target, note: "Toplam, aktif, pasif ve dönüşen lead görünümü" },
     { title: "Randevu Raporu", value: countableAppointments.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },
+    { title: "Aday Raporu", value: activeCandidateCount, href: "#aday-raporu", icon: UsersRound, note: "Aktif ve pasif franchise adayı görünümü" },
     { title: "Şube Raporu", value: branchCount, href: "/branches", icon: Store, note: "Aktif ve toplam şube görünümü" },
     { title: "Açılış Raporu", value: openingCount, href: "/openings", icon: BarChart3, note: "Kurulum projeleri ve aşamalar" },
     { title: "Ciro Raporu", value: revenueTotal, href: "/branch-revenues", icon: LineChart, note: "Bu ay kayıtlı net ciro" },
@@ -210,6 +210,23 @@ export default async function ReportsPage() {
             <ReportMetric title="Randevu İçin Ulaşılamayan" value={appointmentCallUnreachableLeadIds.size} note="Randevu almak için arandı ama ulaşılamadı" icon={PhoneOff} />
             <ReportMetric title="Randevuda Ulaşılamayan" value={appointmentNoShowFollowUpLeadIds.size} note="Randevu saatinde ulaşılamayan lead" icon={PhoneOff} />
             <ReportMetric title="Dönüşsüz Kapanan" value={closedWithoutConversionCount} note="Adaya dönüşmeden kapatılan lead" icon={PhoneOff} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card id="aday-raporu" className="mt-5 scroll-mt-24 shadow-none">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UsersRound className="size-5 text-[#2f5f20]" />
+            Franchise Adayı Raporu
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <ReportMetric title="Aktif Aday" value={activeCandidateCount} note="Franchise adayları ana listesindeki aktif aday" icon={UsersRound} />
+            <ReportMetric title="Pasif Aday" value={passiveCandidateCount} note="Pasife alınan franchise adayları" icon={PhoneOff} />
+            <ReportMetric title="Toplam Aday" value={activeCandidateCount + passiveCandidateCount} note="Aktif ve pasif aday toplamı" icon={Target} />
+            <ReportMetric title="Puansız Aktif Aday" value={unscoredCompletedCandidates.length} note="Aktif adaylarda puan bekleyen kayıt" icon={Star} />
           </div>
         </CardContent>
       </Card>
