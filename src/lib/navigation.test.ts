@@ -20,7 +20,7 @@ test("role based navigation hides empty or unauthorized groups", () => {
   assert.equal(warehouse.groups.some((group) => group.id === "system"), false);
   assert.equal(warehouse.groups.some((group) => group.id === "warehouseLogistics"), true);
 
-  const training = visibleNavigationForRole("TRAINING_MANAGER");
+  const training = visibleNavigationForRole("TRAINING_DEPARTMENT");
   assert.equal(training.groups.some((group) => group.id === "academy"), true);
   assert.equal(training.groups.some((group) => group.id === "warehouseLogistics"), false);
 });

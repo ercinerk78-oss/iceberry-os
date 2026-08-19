@@ -94,15 +94,14 @@
     "WAREHOUSE_MANAGER": "Depo Sorumlusu",
     "MUHASEBE": "Muhasebe",
     "APPOINTMENT_DEPARTMENT": "Randevu Departmanı",
-    "RANDEVU_DEPARTMANI": "Randevu Departmanı",
-    "ARCHITECTURAL_LEAD": "Mimari Sorumlu",
+    "ARCHITECTURE_PROJECT_IMPLEMENTATION": "Mimari Proje ve Uygulama Departmanı",
+    "ADVERTISING_OPERATIONS": "Reklam Uygulamaları Departmanı",
     "OPENING_COORDINATOR": "Açılış Koordinatörü",
     "AUDITOR": "Denetçi",
-    "TRAINING_MANAGER": "Eğitim Yöneticisi",
+    "TRAINING_DEPARTMENT": "Eğitim Departmanı",
     "DOCUMENT_MANAGER": "Doküman Yöneticisi",
     "BRANCH_OWNER": "Şube Sahibi",
-    "BRANCH_MANAGER": "Şube Müdürü",
-    "BRANCH_STAFF": "Şube Personeli"
+    "BRANCH_MANAGER": "Şube Müdürü"
   },
   "leadStatus": {
     "NEW": "Yeni Lead",

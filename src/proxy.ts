@@ -98,15 +98,14 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "procurement", "openings", "tasks", "academy.view"],
   MUHASEBE: ["dashboard", "orders", "order_admin", "procurement", "invoice", "integrations", "reports", "finance", "openings", "documents"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ARCHITECTURE_PROJECT_IMPLEMENTATION: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ADVERTISING_OPERATIONS: ["dashboard", "leads", "appointments", "candidates", "pipeline", "reports", "integrations", "academy.view"],
   OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
-  TRAINING_MANAGER: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
+  TRAINING_DEPARTMENT: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
   DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
   BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
   BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
-  BRANCH_STAFF: ["branch_portal", "tasks", "documents", "academy.view"],
 };
 
 function hasRoutePermission(role: string, permission: Permission, permissions?: Permission[]) {
@@ -147,8 +146,8 @@ function routePermission(path: string): Permission | null {
 
 function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
-  if (role === "APPOINTMENT_DEPARTMENT" || role === "RANDEVU_DEPARTMANI") return "/candidates";
-  if (["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
+  if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
 
   return "/";
 }

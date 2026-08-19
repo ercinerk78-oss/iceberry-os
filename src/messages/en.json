@@ -94,15 +94,14 @@
     "WAREHOUSE_MANAGER": "Warehouse Manager",
     "MUHASEBE": "Accounting",
     "APPOINTMENT_DEPARTMENT": "Appointment Department",
-    "RANDEVU_DEPARTMANI": "Appointment Department",
-    "ARCHITECTURAL_LEAD": "Architectural Lead",
+    "ARCHITECTURE_PROJECT_IMPLEMENTATION": "Architecture Project and Implementation Department",
+    "ADVERTISING_OPERATIONS": "Advertising Operations Department",
     "OPENING_COORDINATOR": "Opening Coordinator",
     "AUDITOR": "Auditor",
-    "TRAINING_MANAGER": "Training Manager",
+    "TRAINING_DEPARTMENT": "Training Department",
     "DOCUMENT_MANAGER": "Document Manager",
     "BRANCH_OWNER": "Branch Owner",
-    "BRANCH_MANAGER": "Branch Manager",
-    "BRANCH_STAFF": "Branch Staff"
+    "BRANCH_MANAGER": "Branch Manager"
   },
   "leadStatus": {
     "NEW": "New Lead",

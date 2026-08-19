@@ -7,15 +7,14 @@ export const USER_ROLES = [
   "WAREHOUSE_MANAGER",
   "MUHASEBE",
   "APPOINTMENT_DEPARTMENT",
-  "RANDEVU_DEPARTMANI",
-  "ARCHITECTURAL_LEAD",
+  "ARCHITECTURE_PROJECT_IMPLEMENTATION",
+  "ADVERTISING_OPERATIONS",
   "OPENING_COORDINATOR",
   "AUDITOR",
-  "TRAINING_MANAGER",
+  "TRAINING_DEPARTMENT",
   "DOCUMENT_MANAGER",
   "BRANCH_OWNER",
   "BRANCH_MANAGER",
-  "BRANCH_STAFF",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -27,15 +26,14 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   WAREHOUSE_MANAGER: "Depo Sorumlusu",
   MUHASEBE: "Muhasebe",
   APPOINTMENT_DEPARTMENT: "Randevu Departmanı",
-  RANDEVU_DEPARTMANI: "Randevu Departmanı",
-  ARCHITECTURAL_LEAD: "Mimari Sorumlu",
+  ARCHITECTURE_PROJECT_IMPLEMENTATION: "Mimari Proje ve Uygulama Departmanı",
+  ADVERTISING_OPERATIONS: "Reklam Uygulamaları Departmanı",
   OPENING_COORDINATOR: "Açılış Koordinatörü",
   AUDITOR: "Denetçi",
-  TRAINING_MANAGER: "Eğitim Yöneticisi",
+  TRAINING_DEPARTMENT: "Eğitim Departmanı",
   DOCUMENT_MANAGER: "Doküman Yöneticisi",
   BRANCH_OWNER: "Şube Sahibi",
   BRANCH_MANAGER: "Şube Müdürü",
-  BRANCH_STAFF: "Şube Personeli",
 };
 
 export function roleLabel(role: string, locale?: Locale) {
@@ -182,15 +180,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "procurement", "openings", "tasks", "academy.view"],
   MUHASEBE: ["dashboard", "orders", "order_admin", "procurement", "invoice", "integrations", "reports", "finance", "openings", "documents"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ARCHITECTURE_PROJECT_IMPLEMENTATION: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ADVERTISING_OPERATIONS: ["dashboard", "leads", "appointments", "candidates", "pipeline", "reports", "integrations", "academy.view"],
   OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
-  TRAINING_MANAGER: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
+  TRAINING_DEPARTMENT: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
   DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
   BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
   BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
-  BRANCH_STAFF: ["branch_portal", "tasks", "documents", "academy.view"],
 };
 
 export function normalizePermissions(value: unknown, role?: string): Permission[] {
@@ -250,8 +247,8 @@ export function routePermission(path: string): Permission | null {
 
 export function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
-  if (role === "APPOINTMENT_DEPARTMENT" || role === "RANDEVU_DEPARTMANI") return "/candidates";
-  if (["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
+  if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
 
   return "/";
 }

@@ -60,7 +60,7 @@ export default async function CandidateDetailPage({
       where: {
         isActive: true,
         archivedAt: null,
-        role: { in: ["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR", "ARCHITECTURAL_LEAD"] },
+        role: { in: ["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR", "ARCHITECTURE_PROJECT_IMPLEMENTATION"] },
       },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },

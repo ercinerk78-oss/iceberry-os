@@ -108,7 +108,7 @@ export class AcademyService {
         description: "Şube personeli için zorunlu başlangıç eğitim yolu.",
         version: 1,
         status: "PUBLISHED",
-        targetRoleCode: "BRANCH_STAFF",
+        targetRoleCode: "BRANCH_MANAGER",
         estimatedDurationMinutes: 240,
         publishedAt: new Date(),
         programs: { create: { programId: program.id, sortOrder: 1, isRequired: true, dueOffsetDays: 7 } },

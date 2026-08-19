@@ -149,7 +149,7 @@ export default async function BranchDetail({
             {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} conceptOptions={conceptOptions} /> : null}
             {tab === "Açılış Süreci" ? <OpeningPanel activeOpening={activeOpening} activeStageTitle={activeStage?.title} /> : null}
             {tab === "Kullanıcılar" ? <UsersPanel users={branch.users} /> : null}
-            {tab === "Görevler" ? <BranchTaskPanel branchId={id} tasks={branch.tasks} canReview={!["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF"].includes(user?.role ?? "")} /> : null}
+            {tab === "Görevler" ? <BranchTaskPanel branchId={id} tasks={branch.tasks} canReview={!["BRANCH_OWNER", "BRANCH_MANAGER"].includes(user?.role ?? "")} /> : null}
             {tab === "Dokümanlar" ? <RelatedDocumentsPanel relation="branch" relationId={id} documents={branch.documents} /> : null}
             {tab === "Denetim Raporları" ? <AuditPanel audits={branch.audits} /> : null}
             {tab === "Operasyon Ziyaretleri" ? <BranchVisitsPanel branchId={id} visits={branch.visits} /> : null}
