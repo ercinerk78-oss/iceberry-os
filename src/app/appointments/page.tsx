@@ -167,7 +167,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           </div>
                           <h3 className="mt-3 font-semibold">{lead.fullName} - {lead.city}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone}</p>
-                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
@@ -186,6 +185,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
+                      <LeadCardNotes lead={lead} />
                     </article>
                   ))}
                   {!schedulableLeads.length ? (
@@ -219,7 +219,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
-                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
@@ -238,6 +237,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
+                      <LeadCardNotes lead={lead} />
                     </article>
                   ))}
                   {!appointmentCallUnreachableLeads.length ? (
@@ -271,7 +271,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
-                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
@@ -291,6 +290,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
+                      <LeadCardNotes lead={lead} />
                     </article>
                   ))}
                   {!appointmentNoShowFollowUpLeads.length ? (
@@ -324,7 +324,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Sonraki takip: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
-                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
@@ -338,6 +337,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {allSequentialMessagesSent(lead) ? <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" /> : null}
                         </div>
                       </div>
+                      <LeadCardNotes lead={lead} />
                     </article>
                   ))}
                   {!sequentialMessageLeads.length ? (
@@ -371,13 +371,13 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
                           {lead.invalidReasonDetail ? <p className="mt-2 text-sm text-[#65705f]">Neden: {lead.invalidReasonDetail}</p> : null}
-                          <LeadCardNotes lead={lead} />
                         </div>
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                         </div>
                       </div>
+                      <LeadCardNotes lead={lead} />
                     </article>
                   ))}
                   {!invalidApplicationLeads.length ? (
@@ -476,7 +476,7 @@ function LeadCardNotes({
   if (!hasNotes) return null;
 
   return (
-    <div className="mt-3 space-y-2 rounded-lg border border-[#edf0e9] bg-white p-3 text-xs">
+    <div className="mt-3 space-y-3 rounded-lg border border-[#edf0e9] bg-white p-3 text-xs">
       {lead.description ? (
         <div>
           <p className="font-semibold text-[#364036]">Alınan Not</p>
@@ -486,11 +486,11 @@ function LeadCardNotes({
       {visibleActivities.length ? (
         <div>
           <p className="font-semibold text-[#364036]">Son 3 İşlem</p>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
             {visibleActivities.slice(0, 3).map((activity) => (
-              <div key={activity.id} className="rounded-md bg-[#f8faf6] p-2">
+              <div key={activity.id} className="min-w-0 rounded-md bg-[#f8faf6] p-2">
                 <p className="font-medium text-[#17201b]">{formatActivityDate(activity.createdAt)}</p>
-                <p className="mt-0.5 text-[#65705f]">{activity.description}</p>
+                <p className="mt-0.5 break-words text-[#65705f]">{activity.description}</p>
               </div>
             ))}
           </div>
