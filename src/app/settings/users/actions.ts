@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { userSchema } from "@/lib/validations/user";
 
 const refreshUsers = () => revalidatePath("/settings/users");
+type PasswordResetState = { success: boolean; message: string };
 
 export async function createUser(formData: FormData) {
   const actor = await requirePermission("users");
@@ -110,6 +111,22 @@ export async function resetPassword(id: string, formData: FormData) {
   });
   await audit("PASSWORD_RESET", "User", id, "Kullanıcı şifresi yönetici tarafından sıfırlandı.", actor.id);
   refreshUsers();
+}
+
+export async function resetPasswordWithState(id: string, _state: PasswordResetState, formData: FormData) {
+  try {
+    const password = String(formData.get("password") ?? "");
+
+    if (password.length < 10) {
+      return { success: false, message: "Şifre en az 10 karakter olmalıdır." };
+    }
+
+    await resetPassword(id, formData);
+    return { success: true, message: "Şifre başarıyla sıfırlandı." };
+  } catch (error) {
+    console.error("Password reset failed", error);
+    return { success: false, message: "Şifre sıfırlanamadı. Yetki veya kullanıcı durumunu kontrol edin." };
+  }
 }
 
 export async function updateRolePermissions(roleId: string, formData: FormData) {

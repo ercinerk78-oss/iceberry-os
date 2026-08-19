@@ -1,4 +1,5 @@
-import { archiveUser, createUser, resetPassword, toggleUser, updateRolePermissions, updateUser } from "@/app/settings/users/actions";
+import { archiveUser, createUser, toggleUser, updateRolePermissions, updateUser } from "@/app/settings/users/actions";
+import { UserPasswordResetForm } from "@/components/settings/user-password-reset-form";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -200,17 +201,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           {user.isActive ? "Pasifleştir" : "Aktifleştir"}
                         </Button>
                       </form>
-                      <form action={resetPassword.bind(null, user.id)} className="flex gap-1">
-                        <input
-                          name="password"
-                          type="password"
-                          placeholder="Yeni geçici şifre"
-                          className="h-7 rounded border px-2"
-                        />
-                        <Button size="sm" variant="outline">
-                          Şifreyi Sıfırla
-                        </Button>
-                      </form>
+                      <UserPasswordResetForm userId={user.id} />
                       <form action={archiveUser.bind(null, user.id)}>
                         <Button size="sm" variant="destructive">
                           Arşivle
