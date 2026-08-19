@@ -1,4 +1,5 @@
-import { PhoneCall, XCircle } from "lucide-react";
+import type { Prisma } from "@prisma/client";
+import { PhoneCall, Search, XCircle } from "lucide-react";
 
 import {
   deactivateAppointmentLeadForm,
@@ -20,6 +21,7 @@ import { activeLeadWhere } from "@/lib/active-records";
 import { APPOINTMENT_TIME_ZONE, formatAppointmentRange } from "@/lib/appointments";
 import { leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive, phoneDigits } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +37,29 @@ const PASSIVE_WARNING_TYPES = [
 
 type Params = {
   lead?: string;
+  q?: string;
 };
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const leadWhere = params.lead ? activeLeadWhere({ id: params.lead }) : activeLeadWhere();
+  const q = params.q?.trim();
+  const phoneQuery = phoneDigits(q);
+  const searchWhere: Prisma.LeadWhereInput | undefined = q
+    ? {
+        OR: [
+          { fullName: containsInsensitive(q) },
+          { phone: { contains: phoneQuery ?? q } },
+          { email: containsInsensitive(q) },
+          { city: containsInsensitive(q) },
+          { source: containsInsensitive(q) },
+          { requestedConcept: containsInsensitive(q) },
+          { description: containsInsensitive(q) },
+        ],
+      }
+    : undefined;
+  const leadWhere = activeLeadWhere({
+    AND: [...(params.lead ? [{ id: params.lead }] : []), ...(searchWhere ? [searchWhere] : [])],
+  });
 
   const [appointmentLeadOptions, visibleLeads, users] = await Promise.all([
     prisma.lead.findMany({
@@ -106,7 +126,25 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   return (
     <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevu Oluşturma" action={<ManualLeadEntry />}>
       <div className="space-y-5">
-        <div className="grid gap-4 xl:grid-cols-3">
+        <form className="flex flex-col gap-2 rounded-xl border bg-white p-4 shadow-sm md:flex-row md:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#65705f]" />
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Ad, telefon, e-posta, şehir, kaynak, konsept veya not ara"
+              className="h-11 w-full rounded-lg border border-[#dfe4dc] bg-white pl-10 pr-3 text-sm"
+            />
+          </label>
+          <Button className="bg-[#17201b] text-white">Ara</Button>
+          {q ? (
+            <Button asChild variant="outline">
+              <a href="/appointments">Temizle</a>
+            </Button>
+          ) : null}
+        </form>
+
+        <div className="grid gap-4 2xl:grid-cols-2">
           <Card className="shadow-none">
             <details open>
               <summary className="list-none cursor-pointer">
@@ -121,7 +159,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <div className="space-y-3">
                   {schedulableLeads.map((lead) => (
                     <article key={lead.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
@@ -131,7 +169,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           <p className="mt-1 text-sm text-[#65705f]">{lead.phone}</p>
                           <LeadCardNotes lead={lead} />
                         </div>
-                        <div className="grid shrink-0 gap-2">
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
@@ -139,7 +177,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             users={userOptionItems}
                             initialLeadId={lead.id}
                           />
-                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2">
+                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
                             <input name="reason" placeholder="Ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                             <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
                               Ulaşılamadı
@@ -172,7 +210,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <div className="space-y-3">
                   {appointmentCallUnreachableLeads.map((lead) => (
                     <article key={lead.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
@@ -183,7 +221,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                           <LeadCardNotes lead={lead} />
                         </div>
-                        <div className="grid shrink-0 gap-2">
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
@@ -191,7 +229,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             users={userOptionItems}
                             initialLeadId={lead.id}
                           />
-                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2">
+                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
                             <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                             <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
                               Ulaşılamadı
@@ -224,7 +262,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <div className="space-y-3">
                   {appointmentNoShowFollowUpLeads.map((lead) => (
                     <article key={lead.id} className="rounded-lg border border-rose-200 bg-rose-50/60 p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
@@ -235,7 +273,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                           <LeadCardNotes lead={lead} />
                         </div>
-                        <div className="grid shrink-0 gap-2">
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                           <AppointmentSchedulerDialog
@@ -244,7 +282,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             initialLeadId={lead.id}
                             label="Tekrar Randevu Oluştur"
                           />
-                          <form action={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)} className="grid gap-2">
+                          <form action={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
                             <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
                             <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
                               Ulaşılamadı
@@ -277,7 +315,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <div className="space-y-3">
                   {sequentialMessageLeads.map((lead) => (
                     <article key={lead.id} className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
@@ -288,7 +326,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Sonraki takip: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
                           <LeadCardNotes lead={lead} />
                         </div>
-                        <div className="grid shrink-0 gap-2">
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentSchedulerDialog
                             leads={appointmentLeadOptionItems}
@@ -324,7 +362,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <div className="space-y-3">
                   {invalidApplicationLeads.map((lead) => (
                     <article key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="secondary">Hatalı Form</Badge>
@@ -335,7 +373,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           {lead.invalidReasonDetail ? <p className="mt-2 text-sm text-[#65705f]">Neden: {lead.invalidReasonDetail}</p> : null}
                           <LeadCardNotes lead={lead} />
                         </div>
-                        <div className="grid shrink-0 gap-2">
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
                         </div>
