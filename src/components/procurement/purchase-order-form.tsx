@@ -18,13 +18,23 @@ export function PurchaseOrderForm({
   suppliers,
   warehouses,
   products,
+  sourceRequestId,
+  sourceRequestNumber,
+  initialSupplierId = "",
+  initialWarehouseId = "",
+  initialLines,
 }: {
   suppliers: Option[];
   warehouses: Option[];
   products: ProductOption[];
+  sourceRequestId?: string;
+  sourceRequestNumber?: string;
+  initialSupplierId?: string;
+  initialWarehouseId?: string;
+  initialLines?: Line[];
 }) {
   const [state, action, pending] = useActionState(createPurchaseOrderAction, initialState);
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [emptyLine()]);
   const totals = useMemo(() => {
     return calculatePurchaseTotals(lines
       .filter((line) => line.productId && line.quantity > 0)
@@ -48,7 +58,13 @@ export function PurchaseOrderForm({
 
   return (
     <form action={action} className="grid gap-5 xl:grid-cols-[1fr_360px]">
+      {sourceRequestId ? <input type="hidden" name="sourceRequestId" value={sourceRequestId} /> : null}
       <div className="space-y-4">
+        {sourceRequestNumber ? (
+          <div className="rounded-xl border border-[#d9e8d2] bg-[#f8faf6] p-4 text-sm text-[#2f3a2b]">
+            Bu sipariş <b>{sourceRequestNumber}</b> numaralı depo talebinden oluşturuluyor.
+          </div>
+        ) : null}
         <Card className="shadow-none">
           <CardHeader>
             <CardTitle>Sipariş Bilgileri</CardTitle>
@@ -56,14 +72,14 @@ export function PurchaseOrderForm({
           <CardContent className="grid gap-3 md:grid-cols-2">
             <label className="text-sm">
               Tedarikçi
-              <select name="supplierId" required className="mt-1 h-10 w-full rounded-lg border px-3">
+              <select name="supplierId" required defaultValue={initialSupplierId} className="mt-1 h-10 w-full rounded-lg border px-3">
                 <option value="">Tedarikçi seçin</option>
                 {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
               </select>
             </label>
             <label className="text-sm">
               Teslim Deposu
-              <select name="warehouseId" required className="mt-1 h-10 w-full rounded-lg border px-3">
+              <select name="warehouseId" required defaultValue={initialWarehouseId} className="mt-1 h-10 w-full rounded-lg border px-3">
                 <option value="">Depo seçin</option>
                 {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
               </select>

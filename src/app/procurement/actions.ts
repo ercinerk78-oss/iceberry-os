@@ -8,6 +8,7 @@ import {
   approvePurchaseOrder,
   cancelPurchaseOrder,
   closePurchaseOrder,
+  createPurchaseRequest,
   createPurchaseOrder,
   markPurchaseOrderSent,
   upsertSupplierProduct,
@@ -17,9 +18,11 @@ export type ProcurementActionState = { ok: boolean; message: string };
 
 const refreshPaths = [
   "/procurement",
+  "/procurement/requests",
   "/procurement/orders",
   "/procurement/suppliers",
   "/procurement/reports",
+  "/warehouse/purchase-requests",
   "/warehouse/goods-receipts",
   "/integrations",
 ];
@@ -33,6 +36,7 @@ export async function createPurchaseOrderAction(_: ProcurementActionState, formD
   try {
     const user = await requirePermission("procurement");
     const order = await createPurchaseOrder({
+      sourceRequestId: optionalString(formData.get("sourceRequestId")),
       supplierId: String(formData.get("supplierId") || ""),
       warehouseId: String(formData.get("warehouseId") || ""),
       expectedDeliveryDate: optionalString(formData.get("expectedDeliveryDate")),
@@ -50,6 +54,26 @@ export async function createPurchaseOrderAction(_: ProcurementActionState, formD
   }
 
   redirect(redirectTo);
+}
+
+export async function createPurchaseRequestAction(_: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  try {
+    const user = await requirePermission("warehouse");
+    const request = await createPurchaseRequest({
+      title: String(formData.get("title") || ""),
+      warehouseId: String(formData.get("warehouseId") || ""),
+      supplierId: optionalString(formData.get("supplierId")),
+      priority: String(formData.get("priority") || "NORMAL") as "LOW" | "NORMAL" | "HIGH" | "URGENT",
+      neededByDate: optionalString(formData.get("neededByDate")),
+      notes: optionalString(formData.get("notes")),
+      items: purchaseRequestItemsFromForm(formData),
+    }, user.id);
+    await audit("PURCHASE_REQUEST_CREATED", "PurchaseRequest", request.id, `${request.requestNumber} numaralı satın alma talebi oluşturuldu.`, user.id);
+    refresh();
+    return { ok: true, message: "Satın alma talebi oluşturuldu ve satın alma ekibine iletildi." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." };
+  }
 }
 
 export async function purchaseOrderCommand(id: string, command: string) {
@@ -124,6 +148,22 @@ function purchaseItemsFromForm(formData: FormData) {
       unitPrice: unitPrices[index],
       vatRate: Number.isFinite(vatRates[index]) ? vatRates[index] : 20,
       discountRate: Number.isFinite(discountRates[index]) ? discountRates[index] : 0,
+      notes: notes[index] || undefined,
+    }))
+    .filter((item) => item.productId && item.quantity > 0);
+}
+
+function purchaseRequestItemsFromForm(formData: FormData) {
+  const productIds = formData.getAll("productId").map(String);
+  const quantities = formData.getAll("quantity").map(Number);
+  const estimatedUnitCosts = formData.getAll("estimatedUnitCost").map(Number);
+  const notes = formData.getAll("itemNotes").map(String);
+
+  return productIds
+    .map((productId, index) => ({
+      productId,
+      quantity: quantities[index],
+      estimatedUnitCost: Number.isFinite(estimatedUnitCosts[index]) ? estimatedUnitCosts[index] : undefined,
       notes: notes[index] || undefined,
     }))
     .filter((item) => item.productId && item.quantity > 0);

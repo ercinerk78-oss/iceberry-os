@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Clock, ShoppingCart } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ShoppingCart } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 export default async function ProcurementPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const [openOrders, delayedOrders, pendingReceipts, orders] = await Promise.all([
+  const [openRequests, openOrders, delayedOrders, pendingReceipts, orders] = await Promise.all([
+    prisma.purchaseRequest.count({ where: { status: { in: ["SUBMITTED", "APPROVED"] } } }),
     prisma.purchaseOrder.count({ where: { status: { in: ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] } } }),
     prisma.purchaseOrder.count({
       where: {
@@ -39,12 +40,18 @@ export default async function ProcurementPage() {
           <p className="max-w-3xl text-sm text-[#65705f]">
             Tedarikçi siparişleri, bekleyen teslimatlar, alış faturaları ve mal kabul süreçleri tek merkezde takip edilir.
           </p>
-          <Button asChild>
-            <Link href="/procurement/orders/new">Yeni Satın Alma Siparişi</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/procurement/requests">Bekleyen Talepler</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/procurement/orders/new">Talep Olmadan Sipariş Oluştur</Link>
+            </Button>
+          </div>
         </div>
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Metric title="Bekleyen Depo Talebi" value={openRequests} icon={<ClipboardList className="size-5" />} />
           <Metric title="Açık Satın Alma Siparişi" value={openOrders} icon={<ShoppingCart className="size-5" />} />
           <Metric title="Geciken Teslimat" value={delayedOrders} icon={<AlertTriangle className="size-5" />} />
           <Metric title="Bekleyen Mal Kabul" value={pendingReceipts} icon={<Clock className="size-5" />} />

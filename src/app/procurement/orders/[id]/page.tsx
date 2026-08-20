@@ -17,6 +17,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
     include: {
       supplier: true,
       warehouse: { select: { name: true } },
+      sourceRequest: { select: { requestNumber: true, title: true } },
       items: { orderBy: { createdAt: "asc" } },
       approvals: { orderBy: { actedAt: "desc" } },
       goodsReceipts: { include: { items: { select: { id: true } } }, orderBy: { createdAt: "desc" } },
@@ -42,6 +43,13 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                 <p className="text-sm text-[#65705f]">
                   {order.warehouse.name} · Beklenen teslim {procurementDate(order.expectedDeliveryDate)}
                 </p>
+                {order.sourceRequest ? (
+                  <p className="mt-1 text-xs text-[#65705f]">
+                    Kaynak talep: {order.sourceRequest.requestNumber} · {order.sourceRequest.title}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-[#65705f]">Talep olmadan doğrudan oluşturulan satın alma siparişi</p>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-2xl font-semibold">{procurementMoney(order.grandTotal, order.currency)}</p>

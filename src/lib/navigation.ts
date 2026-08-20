@@ -91,6 +91,7 @@ export const navigationGroups: NavigationGroup[] = [
     icon: "ShoppingCart",
     children: [
       item("procurement", "navigation.procurement", "/procurement", "ShoppingCart"),
+      item("purchaseRequests", "navigation.purchaseRequests", "/procurement/requests", "CheckSquare"),
       item("purchaseOrders", "navigation.purchaseOrders", "/procurement/orders", "Package"),
       item("purchaseSuppliers", "navigation.purchaseSuppliers", "/procurement/suppliers", "Store"),
       item("purchaseReports", "navigation.purchaseReports", "/procurement/reports", "LineChart"),
@@ -107,6 +108,7 @@ export const navigationGroups: NavigationGroup[] = [
       item("shipments", "navigation.shipments", "/warehouse/shipments", "Truck"),
       item("warehouse", "navigation.warehouse", "/warehouse", "Warehouse"),
       item("stock", "navigation.stock", "/warehouse/stock", "Warehouse"),
+      item("warehousePurchaseRequests", "navigation.warehousePurchaseRequests", "/warehouse/purchase-requests", "CheckSquare"),
       item("goodsReceipts", "navigation.goodsReceipts", "/warehouse/goods-receipts", "CheckSquare"),
       item("lots", "navigation.lots", "/warehouse/lots", "CalendarRange"),
       item("counts", "navigation.counts", "/warehouse/counts", "CheckSquare"),
