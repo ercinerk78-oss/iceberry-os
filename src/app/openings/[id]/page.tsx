@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock3, FileText, Play, ShieldCheck } from
 import { completeProjectMilestone, markProjectOpened, setProjectStageStatus } from "@/app/openings/actions";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
+import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
 import { BudgetForm, ReadinessCheckForm, RiskForm, TargetDateForm } from "@/components/openings/opening-project-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,12 @@ import {
   openingRiskStatusLabels,
   openingStageStatusLabels,
 } from "@/lib/openings";
+import { checklistPercentage, isHotelOpeningConcept } from "@/lib/opening-checklists";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Süreç", "Kilometre Taşları", "Görevler", "Belgeler", "Bütçe", "Riskler", "Hazırlık Puanı", "Takvim", "Timeline", "Açılış Özeti"];
+const tabs = ["Süreç", "Kurulum Planı", "Kilometre Taşları", "Görevler", "Belgeler", "Bütçe", "Riskler", "Hazırlık Puanı", "Takvim", "Timeline", "Açılış Özeti"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -32,7 +34,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
   const project = await prisma.openingProject.findUnique({
     where: { id },
     include: {
-      branch: { select: { id: true, branchName: true, city: true, status: true } },
+      branch: { select: { id: true, branchName: true, city: true, status: true, concept: true, conceptType: true } },
       franchiseCandidate: { select: { fullName: true, phone: true, email: true } },
       stages: { include: { milestones: { orderBy: { dueDate: "asc" } }, tasks: true }, orderBy: { sortOrder: "asc" } },
       milestones: { include: { tasks: true }, orderBy: { dueDate: "asc" } },
@@ -41,6 +43,8 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
       budgetItems: { orderBy: { createdAt: "desc" } },
       risks: { orderBy: { createdAt: "desc" } },
       readinessChecks: { orderBy: { component: "asc" } },
+      setupChecklistItems: { where: { archivedAt: null }, orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
+      documentChecklistItems: { where: { archivedAt: null }, orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
       targetDateChanges: { orderBy: { createdAt: "desc" } },
       postOpeningReviews: { orderBy: { dayNumber: "asc" } },
     },
@@ -63,6 +67,8 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
   const overdueMilestones = project.milestones.filter((m) => m.dueDate && m.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(m.status));
   const blockers = project.readinessChecks.filter((check) => check.blocker && check.status !== "PASSED");
   const canOpen = project.openingReadinessScore >= 80 && !overdueMilestones.some((m) => m.isCritical) && !blockers.length && !project.risks.some((risk) => risk.level === "CRITICAL" && ["OPEN", "WATCHING"].includes(risk.status));
+  const isHotelConcept = isHotelOpeningConcept(project.branchConcept || project.branch.concept || project.branch.conceptType);
+  const setupPercent = checklistPercentage(project.setupChecklistItems);
 
   return (
     <AppShell activeHref="/openings" eyebrow={project.projectNumber} title={project.name}>
@@ -82,6 +88,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
             <Info label="Yatırımcı" value={project.investorName || project.franchiseCandidate?.fullName || "Belirtilmedi"} />
             <Info label="Hedef Açılış" value={dateTR(project.targetOpeningDate)} />
             <Info label="İlerleme" value={`%${project.progressPercentage}`} />
+            <Info label="Kurulum Planı" value={isHotelConcept ? "Kapsam dışı" : `%${setupPercent}`} />
           </div>
           <div className="mt-4 h-3 rounded bg-[#edf0e9]"><div className="h-3 rounded bg-[#6fbe44]" style={{ width: `${project.progressPercentage}%` }} /></div>
         </Card>
@@ -108,6 +115,15 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
               </Card>
             ))}
           </div>
+        ) : null}
+
+        {tab === "Kurulum Planı" ? (
+          <OpeningChecklistPanel
+            projectId={project.id}
+            setupItems={project.setupChecklistItems}
+            documentItems={project.documentChecklistItems}
+            isHotelConcept={isHotelConcept}
+          />
         ) : null}
 
         {tab === "Kilometre Taşları" ? (

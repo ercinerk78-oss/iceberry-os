@@ -120,94 +120,96 @@ model Franchisee {
 }
 
 model Branch {
-  id                        String                          @id @default(cuid())
-  franchiseeId              String?
-  candidateId               String?                         @unique
-  sourceLeadId              String?
-  branchCode                String?                         @unique
-  branchName                String
-  legalName                 String?
-  tradeName                 String?
-  ownershipType             String                          @default("FRANCHISE")
-  conceptType               String?
-  conceptId                 String?
-  city                      String
-  district                  String?
-  address                   String?
-  country                   String                          @default("Türkiye")
-  latitude                  Float?
-  longitude                 Float?
-  phone                     String?
-  email                     String?
-  mallName                  String?
-  floor                     String?
-  unitNumber                String?
-  squareMeters              Float?
-  authorizedPersonName      String?
-  authorizedPersonPhone     String?
-  authorizedPersonEmail     String?
-  taxOffice                 String?
-  taxNumber                 String?
-  billingAddress            String?
-  concept                   String
-  locationType              String
-  openingDate               DateTime?
-  plannedOpeningDate        DateTime?
-  closingDate               DateTime?
-  contractStartDate         DateTime?
-  contractEndDate           DateTime?
-  leaseStartDate            DateTime?
-  leaseEndDate              DateTime?
-  rentAmount                Float?
-  turnoverRentRate          Float?
-  depositAmount             Float?
-  royaltyRate               Float?
-  marketingContributionRate Float?
-  managerName               String?
-  managerPhone              String?
-  managerEmail              String?
-  operationsManager         String?
-  status                    String                          @default("PLANNED")
-  generalNotes              String?
-  createdById               String?
-  lastAuditAt               DateTime?
-  lastAuditScore            Float?
-  healthScore               Float?
-  createdAt                 DateTime                        @default(now())
-  updatedAt                 DateTime                        @updatedAt
-  archivedAt                DateTime?
-  franchisee                Franchisee?                     @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
-  candidate                 FranchiseCandidate?             @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  conceptRelation           BranchConcept?                  @relation(fields: [conceptId], references: [id], onDelete: Restrict)
-  documents                 Document[]
-  openings                  BranchOpening[]
-  openingProjects           OpeningProject[]
-  orders                    FranchiseOrder[]
-  users                     BranchUser[]
-  tasks                     BranchTask[]
-  revenueRecords            BranchRevenueRecord[]
-  audits                    BranchAudit[]
-  auditAssignments          AuditAssignment[]
-  operationalAudits         Audit[]
-  auditFindings             AuditFinding[]
-  correctiveActions         CorrectiveAction[]
-  healthScoreSnapshots      BranchHealthScoreSnapshot[]
-  developmentPlans          BranchDevelopmentPlan[]
-  operationCalendarItems    OperationCalendarItem[]
-  visits                    BranchVisit[]
-  timeline                  BranchTimelineEvent[]
-  externalMappings          ExternalBranchMapping[]
-  deliveryIssues            DeliveryIssue[]
-  shipmentBackorders        ShipmentBackorder[]
-  supplyAlerts              SupplyComplianceAlert[]
-  financialProfile          BranchFinancialProfile?
-  ledgerAccounts            BranchLedgerAccount[]
-  ledgerEntries             BranchLedgerEntry[]
-  royaltyAccruals           RoyaltyAccrual[]
-  collectionPayments        CollectionPayment[]
-  financialReconciliations  BranchFinancialReconciliation[]
-  financialDisputes         FinancialDispute[]
-  financialActivities       FinancialActivityLog[]
+  id                            String                          @id @default(cuid())
+  franchiseeId                  String?
+  candidateId                   String?                         @unique
+  sourceLeadId                  String?
+  branchCode                    String?                         @unique
+  branchName                    String
+  legalName                     String?
+  tradeName                     String?
+  ownershipType                 String                          @default("FRANCHISE")
+  conceptType                   String?
+  conceptId                     String?
+  city                          String
+  district                      String?
+  address                       String?
+  country                       String                          @default("Türkiye")
+  latitude                      Float?
+  longitude                     Float?
+  phone                         String?
+  email                         String?
+  mallName                      String?
+  floor                         String?
+  unitNumber                    String?
+  squareMeters                  Float?
+  authorizedPersonName          String?
+  authorizedPersonPhone         String?
+  authorizedPersonEmail         String?
+  taxOffice                     String?
+  taxNumber                     String?
+  billingAddress                String?
+  concept                       String
+  locationType                  String
+  openingDate                   DateTime?
+  plannedOpeningDate            DateTime?
+  closingDate                   DateTime?
+  contractStartDate             DateTime?
+  contractEndDate               DateTime?
+  leaseStartDate                DateTime?
+  leaseEndDate                  DateTime?
+  rentAmount                    Float?
+  turnoverRentRate              Float?
+  depositAmount                 Float?
+  royaltyRate                   Float?
+  marketingContributionRate     Float?
+  managerName                   String?
+  managerPhone                  String?
+  managerEmail                  String?
+  operationsManager             String?
+  status                        String                          @default("PLANNED")
+  generalNotes                  String?
+  createdById                   String?
+  lastAuditAt                   DateTime?
+  lastAuditScore                Float?
+  healthScore                   Float?
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @updatedAt
+  archivedAt                    DateTime?
+  franchisee                    Franchisee?                     @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  candidate                     FranchiseCandidate?             @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  conceptRelation               BranchConcept?                  @relation(fields: [conceptId], references: [id], onDelete: Restrict)
+  documents                     Document[]
+  openings                      BranchOpening[]
+  openingProjects               OpeningProject[]
+  openingSetupChecklistItems    OpeningSetupChecklistItem[]
+  openingDocumentChecklistItems OpeningDocumentChecklistItem[]
+  orders                        FranchiseOrder[]
+  users                         BranchUser[]
+  tasks                         BranchTask[]
+  revenueRecords                BranchRevenueRecord[]
+  audits                        BranchAudit[]
+  auditAssignments              AuditAssignment[]
+  operationalAudits             Audit[]
+  auditFindings                 AuditFinding[]
+  correctiveActions             CorrectiveAction[]
+  healthScoreSnapshots          BranchHealthScoreSnapshot[]
+  developmentPlans              BranchDevelopmentPlan[]
+  operationCalendarItems        OperationCalendarItem[]
+  visits                        BranchVisit[]
+  timeline                      BranchTimelineEvent[]
+  externalMappings              ExternalBranchMapping[]
+  deliveryIssues                DeliveryIssue[]
+  shipmentBackorders            ShipmentBackorder[]
+  supplyAlerts                  SupplyComplianceAlert[]
+  financialProfile              BranchFinancialProfile?
+  ledgerAccounts                BranchLedgerAccount[]
+  ledgerEntries                 BranchLedgerEntry[]
+  royaltyAccruals               RoyaltyAccrual[]
+  collectionPayments            CollectionPayment[]
+  financialReconciliations      BranchFinancialReconciliation[]
+  financialDisputes             FinancialDispute[]
+  financialActivities           FinancialActivityLog[]
 
   @@index([franchiseeId, archivedAt])
   @@index([candidateId])
@@ -1648,69 +1650,132 @@ model OpeningTaskTemplate {
 }
 
 model OpeningProject {
-  id                    String                     @id @default(cuid())
-  projectNumber         String                     @unique
-  name                  String
-  branchId              String
-  franchiseCandidateId  String?
-  contractId            String?
-  locationAnalysisId    String?
-  candidateLocationId   String?
-  templateId            String?
-  templateVersion       Int?
-  branchConcept         String?
-  ownershipType         String?
-  country               String                     @default("Türkiye")
-  city                  String
-  district              String?
-  address               String?
-  shoppingMallName      String?
-  investorName          String?
-  investorCompanyName   String?
-  projectManagerId      String?
-  operationManagerId    String?
-  architecturalLeadId   String?
-  openingCoordinatorId  String?
-  plannedStartDate      DateTime?
-  targetOpeningDate     DateTime
-  forecastOpeningDate   DateTime?
-  actualOpeningDate     DateTime?
-  status                OpeningProjectStatus       @default(PLANNING)
-  progressPercentage    Int                        @default(0)
-  riskLevel             OpeningRiskLevel           @default(LOW)
-  openingReadinessScore Int                        @default(0)
-  currentStageId        String?
-  currency              String                     @default("TRY")
-  plannedBudget         Decimal?                   @db.Decimal(18, 2)
-  approvedBudget        Decimal?                   @db.Decimal(18, 2)
-  actualCost            Decimal?                   @db.Decimal(18, 2)
-  budgetVariance        Decimal?                   @db.Decimal(18, 2)
-  description           String?
-  cancellationReason    String?
-  completedAt           DateTime?
-  createdById           String?
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  archivedAt            DateTime?
-  branch                Branch                     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  franchiseCandidate    FranchiseCandidate?        @relation(fields: [franchiseCandidateId], references: [id], onDelete: SetNull)
-  template              OpeningProjectTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  candidateLocation     CandidateLocation?         @relation(fields: [candidateLocationId], references: [id], onDelete: SetNull)
-  stages                OpeningProjectStage[]
-  milestones            OpeningMilestone[]
-  budgetItems           OpeningBudgetItem[]
-  risks                 OpeningRisk[]
-  targetDateChanges     OpeningTargetDateChange[]
-  readinessChecks       OpeningReadinessCheck[]
-  postOpeningReviews    OpeningPostOpeningReview[]
-  documents             Document[]
-  tasks                 BranchTask[]
+  id                     String                         @id @default(cuid())
+  projectNumber          String                         @unique
+  name                   String
+  branchId               String
+  franchiseCandidateId   String?
+  contractId             String?
+  locationAnalysisId     String?
+  candidateLocationId    String?
+  templateId             String?
+  templateVersion        Int?
+  branchConcept          String?
+  ownershipType          String?
+  country                String                         @default("Türkiye")
+  city                   String
+  district               String?
+  address                String?
+  shoppingMallName       String?
+  investorName           String?
+  investorCompanyName    String?
+  projectManagerId       String?
+  operationManagerId     String?
+  architecturalLeadId    String?
+  openingCoordinatorId   String?
+  plannedStartDate       DateTime?
+  targetOpeningDate      DateTime
+  forecastOpeningDate    DateTime?
+  actualOpeningDate      DateTime?
+  status                 OpeningProjectStatus           @default(PLANNING)
+  progressPercentage     Int                            @default(0)
+  riskLevel              OpeningRiskLevel               @default(LOW)
+  openingReadinessScore  Int                            @default(0)
+  currentStageId         String?
+  currency               String                         @default("TRY")
+  plannedBudget          Decimal?                       @db.Decimal(18, 2)
+  approvedBudget         Decimal?                       @db.Decimal(18, 2)
+  actualCost             Decimal?                       @db.Decimal(18, 2)
+  budgetVariance         Decimal?                       @db.Decimal(18, 2)
+  description            String?
+  cancellationReason     String?
+  completedAt            DateTime?
+  createdById            String?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  archivedAt             DateTime?
+  branch                 Branch                         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  franchiseCandidate     FranchiseCandidate?            @relation(fields: [franchiseCandidateId], references: [id], onDelete: SetNull)
+  template               OpeningProjectTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  candidateLocation      CandidateLocation?             @relation(fields: [candidateLocationId], references: [id], onDelete: SetNull)
+  stages                 OpeningProjectStage[]
+  milestones             OpeningMilestone[]
+  budgetItems            OpeningBudgetItem[]
+  risks                  OpeningRisk[]
+  targetDateChanges      OpeningTargetDateChange[]
+  readinessChecks        OpeningReadinessCheck[]
+  postOpeningReviews     OpeningPostOpeningReview[]
+  documents              Document[]
+  tasks                  BranchTask[]
+  setupChecklistItems    OpeningSetupChecklistItem[]
+  documentChecklistItems OpeningDocumentChecklistItem[]
 
   @@index([branchId, status])
   @@index([franchiseCandidateId])
   @@index([candidateLocationId])
   @@index([targetOpeningDate, status])
   @@index([riskLevel, status])
+  @@index([archivedAt])
+}
+
+model OpeningSetupChecklistItem {
+  id                    String         @id @default(cuid())
+  openingProjectId      String
+  branchId              String
+  category              String
+  title                 String
+  description           String?
+  responsibleDepartment String         @default("OPERATIONS")
+  status                String         @default("BEKLIYOR")
+  selectedOption        String?
+  closingNote           String?
+  sourceType            String         @default("TEMPLATE")
+  templateKey           String?
+  sortOrder             Int            @default(0)
+  completedById         String?
+  completedAt           DateTime?
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  project               OpeningProject @relation(fields: [openingProjectId], references: [id], onDelete: Restrict)
+  branch                Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([openingProjectId, templateKey])
+  @@index([openingProjectId, status])
+  @@index([branchId, status])
+  @@index([responsibleDepartment, status])
+  @@index([archivedAt])
+}
+
+model OpeningDocumentChecklistItem {
+  id                    String         @id @default(cuid())
+  openingProjectId      String
+  branchId              String
+  category              String         @default("EVRAK")
+  title                 String
+  description           String?
+  companyTypeCondition  String?
+  responsibleDepartment String         @default("OPERATIONS")
+  status                String         @default("TALEP_EDILDI")
+  note                  String?
+  documentId            String?
+  sourceType            String         @default("TEMPLATE")
+  templateKey           String?
+  sortOrder             Int            @default(0)
+  completedById         String?
+  completedAt           DateTime?
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  project               OpeningProject @relation(fields: [openingProjectId], references: [id], onDelete: Restrict)
+  branch                Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([openingProjectId, templateKey])
+  @@index([openingProjectId, status])
+  @@index([branchId, status])
+  @@index([responsibleDepartment, status])
   @@index([archivedAt])
 }
 
@@ -2614,35 +2679,35 @@ model FranchiseOrder {
 }
 
 model FranchiseOrderItem {
-  id                String            @id @default(cuid())
-  orderId           String
-  productId         String
-  productName       String
-  sku               String
-  unit              String
-  quantity          Float
-  approvedQuantity  Float?
-  reservedQuantity  Float             @default(0)
-  pickedQuantity    Float             @default(0)
-  packedQuantity    Float             @default(0)
-  shippedQuantity   Float             @default(0)
-  deliveredQuantity Float             @default(0)
-  returnedQuantity  Float             @default(0)
-  preparedQuantity  Float             @default(0)
-  missingQuantity   Float             @default(0)
-  unitPrice         Float
-  vatRate           Float
-  lineSubtotal      Float
-  lineVat           Float
-  lineTotal         Float
-  notes             String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  order             FranchiseOrder    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  product           Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
-  pickingItems      PickingListItem[]
-  shipmentItems     ShipmentItem[]
-  returnItems       ReturnItem[]
+  id                 String              @id @default(cuid())
+  orderId            String
+  productId          String
+  productName        String
+  sku                String
+  unit               String
+  quantity           Float
+  approvedQuantity   Float?
+  reservedQuantity   Float               @default(0)
+  pickedQuantity     Float               @default(0)
+  packedQuantity     Float               @default(0)
+  shippedQuantity    Float               @default(0)
+  deliveredQuantity  Float               @default(0)
+  returnedQuantity   Float               @default(0)
+  preparedQuantity   Float               @default(0)
+  missingQuantity    Float               @default(0)
+  unitPrice          Float
+  vatRate            Float
+  lineSubtotal       Float
+  lineVat            Float
+  lineTotal          Float
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  order              FranchiseOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pickingItems       PickingListItem[]
+  shipmentItems      ShipmentItem[]
+  returnItems        ReturnItem[]
   shipmentBackorders ShipmentBackorder[]
 
   @@index([orderId])
@@ -2662,12 +2727,12 @@ model OrderActivity {
 }
 
 model Shipment {
-  id                    String          @id @default(cuid())
-  shipmentNumber        String          @unique
-  orderId               String          @unique
+  id                    String              @id @default(cuid())
+  shipmentNumber        String              @unique
+  orderId               String              @unique
   warehouseId           String
-  status                String          @default("PREPARING")
-  shipmentType          String          @default("CARGO")
+  status                String              @default("PREPARING")
+  shipmentType          String              @default("CARGO")
   carrierName           String?
   trackingNumber        String?
   vehiclePlate          String?
@@ -2679,10 +2744,10 @@ model Shipment {
   receivedByName        String?
   deliveryProblemStatus String?
   notes                 String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  order                 FranchiseOrder  @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  warehouse             Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  order                 FranchiseOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  warehouse             Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   items                 ShipmentItem[]
   deliveryIssues        DeliveryIssue[]
   backorders            ShipmentBackorder[]
@@ -2692,25 +2757,25 @@ model Shipment {
 }
 
 model Supplier {
-  id              String                   @id @default(cuid())
-  name            String
-  code            String?                  @unique
-  taxNumber       String?
-  taxOffice       String?
-  phone           String?
-  email           String?
-  address         String?
-  status          String                   @default("ACTIVE")
-  notes           String?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
-  archivedAt      DateTime?
-  productMappings ExternalProductMapping[]
+  id               String                   @id @default(cuid())
+  name             String
+  code             String?                  @unique
+  taxNumber        String?
+  taxOffice        String?
+  phone            String?
+  email            String?
+  address          String?
+  status           String                   @default("ACTIVE")
+  notes            String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  archivedAt       DateTime?
+  productMappings  ExternalProductMapping[]
   supplierProducts SupplierProduct[]
   purchaseRequests PurchaseRequest[]
   purchaseOrders   PurchaseOrder[]
-  goodsReceipts   GoodsReceipt[]
-  lots            InventoryLot[]
+  goodsReceipts    GoodsReceipt[]
+  lots             InventoryLot[]
 
   @@index([name])
   @@index([status])
@@ -2743,25 +2808,25 @@ model SupplierProduct {
 }
 
 model PurchaseRequest {
-  id                    String                @id @default(cuid())
-  requestNumber         String                @unique
-  title                 String
-  warehouseId           String
-  supplierId            String?
-  status                String                @default("DRAFT")
-  priority              String                @default("NORMAL")
-  requestedById         String?
-  neededByDate          DateTime?
-  approvedById          String?
-  approvedAt            DateTime?
-  notes                 String?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  warehouse             Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  supplier              Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  purchaseOrder         PurchaseOrder?        @relation("PurchaseOrderSource")
-  items                 PurchaseRequestItem[]
-  approvals             PurchaseApproval[]
+  id            String                @id @default(cuid())
+  requestNumber String                @unique
+  title         String
+  warehouseId   String
+  supplierId    String?
+  status        String                @default("DRAFT")
+  priority      String                @default("NORMAL")
+  requestedById String?
+  neededByDate  DateTime?
+  approvedById  String?
+  approvedAt    DateTime?
+  notes         String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  warehouse     Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  supplier      Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseOrder PurchaseOrder?        @relation("PurchaseOrderSource")
+  items         PurchaseRequestItem[]
+  approvals     PurchaseApproval[]
 
   @@index([warehouseId, status])
   @@index([supplierId, status])
@@ -2790,36 +2855,36 @@ model PurchaseRequestItem {
 }
 
 model PurchaseOrder {
-  id                    String              @id @default(cuid())
-  orderNumber           String              @unique
+  id                    String                 @id @default(cuid())
+  orderNumber           String                 @unique
   supplierId            String
   warehouseId           String
-  sourceRequestId       String?             @unique
-  status                String              @default("DRAFT")
-  approvalStatus        String              @default("PENDING")
-  orderDate             DateTime            @default(now())
+  sourceRequestId       String?                @unique
+  status                String                 @default("DRAFT")
+  approvalStatus        String                 @default("PENDING")
+  orderDate             DateTime               @default(now())
   expectedDeliveryDate  DateTime?
   sentAt                DateTime?
   closedAt              DateTime?
   cancelledAt           DateTime?
-  subtotal              Decimal             @default(0) @db.Decimal(18, 2)
-  discountTotal         Decimal             @default(0) @db.Decimal(18, 2)
-  vatTotal              Decimal             @default(0) @db.Decimal(18, 2)
-  grandTotal            Decimal             @default(0) @db.Decimal(18, 2)
-  currency              String              @default("TRY")
-  paymentStatus         String              @default("UNPAID")
+  subtotal              Decimal                @default(0) @db.Decimal(18, 2)
+  discountTotal         Decimal                @default(0) @db.Decimal(18, 2)
+  vatTotal              Decimal                @default(0) @db.Decimal(18, 2)
+  grandTotal            Decimal                @default(0) @db.Decimal(18, 2)
+  currency              String                 @default("TRY")
+  paymentStatus         String                 @default("UNPAID")
   paymentTermDays       Int?
   externalReference     String?
-  invoiceStatus         String              @default("NOT_RECEIVED")
+  invoiceStatus         String                 @default("NOT_RECEIVED")
   notes                 String?
   createdById           String?
   approvedById          String?
   approvedAt            DateTime?
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  supplier              Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  warehouse             Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  sourceRequest         PurchaseRequest?    @relation("PurchaseOrderSource", fields: [sourceRequestId], references: [id], onDelete: SetNull)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  supplier              Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse             Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  sourceRequest         PurchaseRequest?       @relation("PurchaseOrderSource", fields: [sourceRequestId], references: [id], onDelete: SetNull)
   items                 PurchaseOrderItem[]
   approvals             PurchaseApproval[]
   goodsReceipts         GoodsReceipt[]
@@ -3103,33 +3168,33 @@ model ShipmentItem {
 }
 
 model ShipmentBackorder {
-  id                      String              @id @default(cuid())
+  id                      String             @id @default(cuid())
   franchiseOrderId        String
-  franchiseOrderItemId    String              @unique
+  franchiseOrderItemId    String             @unique
   shipmentId              String?
   branchId                String?
   productId               String
   orderedQuantity         Float
-  shippedQuantity         Float               @default(0)
+  shippedQuantity         Float              @default(0)
   outstandingQuantity     Float
-  fulfilledQuantity       Float               @default(0)
+  fulfilledQuantity       Float              @default(0)
   unit                    String
-  status                  String              @default("OPEN")
-  reason                  String              @default("STOCK_SHORTAGE")
+  status                  String             @default("OPEN")
+  reason                  String             @default("STOCK_SHORTAGE")
   note                    String?
   expectedFulfillmentDate DateTime?
   fulfilledAt             DateTime?
   createdById             String?
   completedById           String?
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @updatedAt
-  order                   FranchiseOrder      @relation(fields: [franchiseOrderId], references: [id], onDelete: Restrict)
-  orderItem               FranchiseOrderItem  @relation(fields: [franchiseOrderItemId], references: [id], onDelete: Restrict)
-  shipment                Shipment?           @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
-  branch                  Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  product                 Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
-  createdBy               User?               @relation("ShipmentBackorderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  completedBy             User?               @relation("ShipmentBackorderCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  order                   FranchiseOrder     @relation(fields: [franchiseOrderId], references: [id], onDelete: Restrict)
+  orderItem               FranchiseOrderItem @relation(fields: [franchiseOrderItemId], references: [id], onDelete: Restrict)
+  shipment                Shipment?          @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  branch                  Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product                 Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy               User?              @relation("ShipmentBackorderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedBy             User?              @relation("ShipmentBackorderCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
 
   @@index([franchiseOrderId, status])
   @@index([branchId, status])
@@ -3620,30 +3685,30 @@ model Notification {
 }
 
 model User {
-  id                     String                @id @default(cuid())
-  name                   String
-  email                  String                @unique
-  passwordHash           String
-  phone                  String?
-  role                   String
-  roleId                 String?
-  isActive               Boolean               @default(true)
-  lastLoginAt            DateTime?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  archivedAt             DateTime?
-  auditLogs              AuditLog[]
-  roleRecord             Role?                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  branchUsers            BranchUser[]
-  assignedBranchTasks    BranchTask[]          @relation("BranchTaskAssignedUser")
-  createdBranchTasks     BranchTask[]          @relation("BranchTaskCreatedBy")
-  reviewedBranchTasks    BranchTask[]          @relation("BranchTaskReviewer")
-  taskEvidence           TaskEvidence[]
-  branchTimeline         BranchTimelineEvent[]
-  enteredRevenueRecords  BranchRevenueRecord[] @relation("RevenueEnteredBy")
-  approvedRevenueRecords BranchRevenueRecord[] @relation("RevenueApprovedBy")
-  createdShipmentBackorders ShipmentBackorder[] @relation("ShipmentBackorderCreatedBy")
-  completedShipmentBackorders ShipmentBackorder[] @relation("ShipmentBackorderCompletedBy")
+  id                          String                @id @default(cuid())
+  name                        String
+  email                       String                @unique
+  passwordHash                String
+  phone                       String?
+  role                        String
+  roleId                      String?
+  isActive                    Boolean               @default(true)
+  lastLoginAt                 DateTime?
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+  archivedAt                  DateTime?
+  auditLogs                   AuditLog[]
+  roleRecord                  Role?                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branchUsers                 BranchUser[]
+  assignedBranchTasks         BranchTask[]          @relation("BranchTaskAssignedUser")
+  createdBranchTasks          BranchTask[]          @relation("BranchTaskCreatedBy")
+  reviewedBranchTasks         BranchTask[]          @relation("BranchTaskReviewer")
+  taskEvidence                TaskEvidence[]
+  branchTimeline              BranchTimelineEvent[]
+  enteredRevenueRecords       BranchRevenueRecord[] @relation("RevenueEnteredBy")
+  approvedRevenueRecords      BranchRevenueRecord[] @relation("RevenueApprovedBy")
+  createdShipmentBackorders   ShipmentBackorder[]   @relation("ShipmentBackorderCreatedBy")
+  completedShipmentBackorders ShipmentBackorder[]   @relation("ShipmentBackorderCompletedBy")
 
   @@index([role, isActive])
   @@index([archivedAt])
@@ -3783,7 +3848,7 @@ model ExternalSupplierMapping {
 }
 
 model ExternalInvoice {
-  id                String    @id @default(cuid())
+  id                String         @id @default(cuid())
   provider          String
   invoiceType       String
   externalInvoiceId String
@@ -3795,15 +3860,15 @@ model ExternalInvoice {
   customerName      String?
   supplierName      String?
   invoiceDate       DateTime?
-  status            String    @default("RECEIVED")
-  subtotal          Decimal?  @db.Decimal(18, 2)
-  vatTotal          Decimal?  @db.Decimal(18, 2)
-  total             Decimal?  @db.Decimal(18, 2)
-  currency          String    @default("TRY")
+  status            String         @default("RECEIVED")
+  subtotal          Decimal?       @db.Decimal(18, 2)
+  vatTotal          Decimal?       @db.Decimal(18, 2)
+  total             Decimal?       @db.Decimal(18, 2)
+  currency          String         @default("TRY")
   payload           String?
   matchedAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@unique([provider, externalInvoiceId])
@@ -3815,7 +3880,7 @@ model ExternalInvoice {
 }
 
 model ReconciliationRecord {
-  id                 String    @id @default(cuid())
+  id                 String         @id @default(cuid())
   reconciliationType String
   orderId            String?
   shipmentId         String?
@@ -3824,9 +3889,9 @@ model ReconciliationRecord {
   externalInvoiceId  String?
   provider           String?
   status             String
-  internalAmount     Decimal?  @db.Decimal(18, 2)
-  externalAmount     Decimal?  @db.Decimal(18, 2)
-  differenceAmount   Decimal?  @db.Decimal(18, 2)
+  internalAmount     Decimal?       @db.Decimal(18, 2)
+  externalAmount     Decimal?       @db.Decimal(18, 2)
+  differenceAmount   Decimal?       @db.Decimal(18, 2)
   currency           String?
   discrepancyDetails String?
   assignedUserId     String?
@@ -3834,8 +3899,8 @@ model ReconciliationRecord {
   reviewedAt         DateTime?
   resolution         String?
   resolutionNote     String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
   closedAt           DateTime?
   purchaseOrder      PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
