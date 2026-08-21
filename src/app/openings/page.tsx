@@ -18,6 +18,13 @@ type Params = Record<string, string | string[] | undefined>;
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] as string : "");
 const OPENING_PROJECT_LIST_LIMIT = 100;
 const CITY_FILTER_LIMIT = 100;
+const activeOpeningStatuses = ["DRAFT", "PLANNING", "IN_PROGRESS", "ON_HOLD", "AT_RISK", "DELAYED", "READY_FOR_REVIEW", "READY_FOR_OPENING"] as const;
+const activeOpeningStatusSet = new Set<string>(activeOpeningStatuses);
+const activeOpeningWhere: Prisma.OpeningProjectWhereInput = {
+  archivedAt: null,
+  status: { in: [...activeOpeningStatuses] },
+};
+const activeOpeningStatusOptions = Object.entries(openingProjectStatusLabels).filter(([key]) => activeOpeningStatusSet.has(key));
 
 const emptyOpeningsData = {
   items: [],
@@ -38,7 +45,7 @@ export default async function Openings({ searchParams }: { searchParams: Promise
   const now = new Date();
   const soon = new Date(now.getTime() + 14 * 86400000);
 
-  const where: Prisma.OpeningProjectWhereInput = { archivedAt: null };
+  const where: Prisma.OpeningProjectWhereInput = { ...activeOpeningWhere };
   if (q) {
     where.OR = [
       { projectNumber: containsInsensitive(q) },
@@ -48,17 +55,17 @@ export default async function Openings({ searchParams }: { searchParams: Promise
       { investorName: containsInsensitive(q) },
     ];
   }
-  if (status) where.status = status as Prisma.EnumOpeningProjectStatusFilter["equals"];
+  if (status && activeOpeningStatusSet.has(status)) where.status = status as Prisma.EnumOpeningProjectStatusFilter["equals"];
   if (risk) where.riskLevel = risk as Prisma.EnumOpeningRiskLevelFilter["equals"];
   if (city) where.city = city;
-  if (alert === "late") where.AND = [{ targetOpeningDate: { lt: now } }, { status: { notIn: ["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"] } }];
+  if (alert === "late") where.AND = [{ targetOpeningDate: { lt: now } }, activeOpeningWhere];
   if (alert === "soon") where.targetOpeningDate = { gte: now, lte: soon };
 
   const { items, statusCounts, riskCounts, cities, legacyCount, setupError } = await loadOpeningsData(where);
 
-  const activeCount = statusCounts.filter((item) => !["COMPLETED", "CANCELLED"].includes(item.status)).reduce((sum, item) => sum + item._count._all, 0);
+  const activeCount = statusCounts.reduce((sum, item) => sum + item._count._all, 0);
   const readyCount = statusCounts.find((item) => item.status === "READY_FOR_OPENING")?._count._all ?? 0;
-  const delayedCount = items.filter((item) => item.targetOpeningDate < now && !["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"].includes(item.status)).length;
+  const delayedCount = items.filter((item) => item.targetOpeningDate < now).length;
   const criticalRiskCount = riskCounts.find((item) => item.riskLevel === "CRITICAL")?._count._all ?? 0;
 
   return (
@@ -89,7 +96,7 @@ export default async function Openings({ searchParams }: { searchParams: Promise
               <Search className="absolute left-3 top-3 size-4" />
               <input name="q" defaultValue={q} placeholder="Proje, şube, şehir veya yatırımcı ara" className="h-10 w-full rounded-lg border pl-9 pr-3 text-sm" />
             </label>
-            <Select name="status" value={status} first="Tüm durumlar" options={Object.entries(openingProjectStatusLabels)} />
+            <Select name="status" value={activeOpeningStatusSet.has(status) ? status : ""} first="Tüm durumlar" options={activeOpeningStatusOptions} />
             <Select name="risk" value={risk} first="Tüm riskler" options={Object.entries(openingRiskLevelLabels)} />
             <Select name="city" value={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
             <Select name="alert" value={alert} first="Tüm zaman durumları" options={[["late", "Geciken projeler"], ["soon", "Yaklaşan açılışlar"]]} />
@@ -101,7 +108,7 @@ export default async function Openings({ searchParams }: { searchParams: Promise
           {items.map((project) => {
             const currentStage = project.stages.find((stage) => ["READY_TO_START", "IN_PROGRESS", "DELAYED", "AT_RISK"].includes(stage.status)) ?? project.stages[0];
             const lateMilestones = project.milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(milestone.status)).length;
-            const isLate = project.targetOpeningDate < now && !["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"].includes(project.status);
+            const isLate = project.targetOpeningDate < now;
             const setupProgress = checklistPercentage(project.setupChecklistItems);
             const documentProgress = checklistPercentage(project.documentChecklistItems);
             return (
@@ -144,19 +151,18 @@ async function loadOpeningsData(where: Prisma.OpeningProjectWhereInput) {
         where,
         include: {
           branch: { select: { branchName: true, city: true, status: true } },
-          stages: { orderBy: { sortOrder: "asc" } },
-          milestones: true,
+          stages: { select: { nameSnapshot: true, status: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
+          milestones: { select: { dueDate: true, status: true } },
           setupChecklistItems: { where: { archivedAt: null }, select: { status: true } },
           documentChecklistItems: { where: { archivedAt: null }, select: { status: true } },
-          risks: { where: { status: { in: ["OPEN", "WATCHING"] } } },
-          _count: { select: { tasks: true, documents: true, budgetItems: true } },
+          _count: { select: { tasks: true, documents: true } },
         },
         orderBy: { targetOpeningDate: "asc" },
         take: OPENING_PROJECT_LIST_LIMIT,
       }),
-      prisma.openingProject.groupBy({ by: ["status"], where: { archivedAt: null }, _count: { _all: true } }),
-      prisma.openingProject.groupBy({ by: ["riskLevel"], where: { archivedAt: null }, _count: { _all: true } }),
-      prisma.openingProject.findMany({ distinct: ["city"], where: { archivedAt: null }, select: { city: true }, orderBy: { city: "asc" }, take: CITY_FILTER_LIMIT }),
+      prisma.openingProject.groupBy({ by: ["status"], where: activeOpeningWhere, _count: { _all: true } }),
+      prisma.openingProject.groupBy({ by: ["riskLevel"], where: activeOpeningWhere, _count: { _all: true } }),
+      prisma.openingProject.findMany({ distinct: ["city"], where: activeOpeningWhere, select: { city: true }, orderBy: { city: "asc" }, take: CITY_FILTER_LIMIT }),
       prisma.branchOpening.count({ where: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
     ]);
 
