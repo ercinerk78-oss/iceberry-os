@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import {
   defaultOpeningDocumentItems,
@@ -13,6 +15,8 @@ type ChecklistItemInput = {
   status?: string;
   createdById?: string;
 };
+
+type OpeningChecklistTx = Pick<Prisma.TransactionClient, "openingSetupChecklistItem" | "openingDocumentChecklistItem">;
 
 export class OpeningChecklistService {
   static async ensureForProject(projectId: string, userId?: string) {
@@ -30,41 +34,49 @@ export class OpeningChecklistService {
     const concept = project.branchConcept || project.branch.concept || project.branch.conceptType;
     if (isHotelOpeningConcept(concept)) return { skipped: true, message: "Hotel konsepti açılış kurulum checklist kapsamı dışında." };
 
-    await prisma.$transaction([
-      prisma.openingSetupChecklistItem.createMany({
-        data: defaultOpeningSetupItems.map((item) => ({
-          openingProjectId: project.id,
-          branchId: project.branchId,
-          category: item.category,
-          title: item.title,
-          description: item.description ?? null,
-          responsibleDepartment: item.responsibleDepartment,
-          sourceType: "TEMPLATE",
-          templateKey: item.key,
-          sortOrder: item.sortOrder,
-          createdById: userId,
-        })),
-        skipDuplicates: true,
-      }),
-      prisma.openingDocumentChecklistItem.createMany({
-        data: defaultOpeningDocumentItems.map((item) => ({
-          openingProjectId: project.id,
-          branchId: project.branchId,
-          category: item.category,
-          title: item.title,
-          description: item.description ?? null,
-          companyTypeCondition: item.companyTypeCondition ?? null,
-          responsibleDepartment: item.responsibleDepartment,
-          sourceType: "TEMPLATE",
-          templateKey: item.key,
-          sortOrder: item.sortOrder,
-          createdById: userId,
-        })),
-        skipDuplicates: true,
-      }),
-    ]);
+    await prisma.$transaction((tx) => OpeningChecklistService.seedForProjectInTransaction(tx, project, userId));
 
     return { skipped: false, message: "Kurulum ve evrak checklist'i hazırlandı." };
+  }
+
+  static async seedForProjectInTransaction(
+    tx: OpeningChecklistTx,
+    project: { id: string; branchId: string; branchConcept?: string | null },
+    userId?: string | null,
+  ) {
+    if (isHotelOpeningConcept(project.branchConcept)) return;
+
+    await tx.openingSetupChecklistItem.createMany({
+      data: defaultOpeningSetupItems.map((item) => ({
+        openingProjectId: project.id,
+        branchId: project.branchId,
+        category: item.category,
+        title: item.title,
+        description: item.description ?? null,
+        responsibleDepartment: item.responsibleDepartment,
+        sourceType: "TEMPLATE",
+        templateKey: item.key,
+        sortOrder: item.sortOrder,
+        createdById: userId,
+      })),
+      skipDuplicates: true,
+    });
+    await tx.openingDocumentChecklistItem.createMany({
+      data: defaultOpeningDocumentItems.map((item) => ({
+        openingProjectId: project.id,
+        branchId: project.branchId,
+        category: item.category,
+        title: item.title,
+        description: item.description ?? null,
+        companyTypeCondition: item.companyTypeCondition ?? null,
+        responsibleDepartment: item.responsibleDepartment,
+        sourceType: "TEMPLATE",
+        templateKey: item.key,
+        sortOrder: item.sortOrder,
+        createdById: userId,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   static async createSetupItem(projectId: string, input: ChecklistItemInput) {

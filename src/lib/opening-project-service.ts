@@ -1,5 +1,6 @@
 import { Prisma, type OpeningProjectStatus, type OpeningRiskLevel, type PrismaClient } from "@prisma/client";
 
+import { OpeningChecklistService } from "@/lib/opening-checklist-service";
 import { defaultMilestonesByStage, defaultOpeningTemplateStages } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
 
@@ -231,6 +232,7 @@ export class OpeningProjectService {
       });
 
       await OpeningProjectService.seedReadinessChecks(tx, project.id);
+      await OpeningChecklistService.seedForProjectInTransaction(tx, project, input.createdById);
       return OpeningProjectService.recalculateProject(project.id, tx);
   }
 

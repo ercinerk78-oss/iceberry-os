@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { checklistPercentage } from "@/lib/opening-checklists";
 import { dateTR, openingProjectStatusLabels, openingRiskLevelLabels } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive } from "@/lib/search";
@@ -101,6 +102,8 @@ export default async function Openings({ searchParams }: { searchParams: Promise
             const currentStage = project.stages.find((stage) => ["READY_TO_START", "IN_PROGRESS", "DELAYED", "AT_RISK"].includes(stage.status)) ?? project.stages[0];
             const lateMilestones = project.milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(milestone.status)).length;
             const isLate = project.targetOpeningDate < now && !["COMPLETED", "CANCELLED", "OPENED", "POST_OPENING"].includes(project.status);
+            const setupProgress = checklistPercentage(project.setupChecklistItems);
+            const documentProgress = checklistPercentage(project.documentChecklistItems);
             return (
               <Card key={project.id} className={`p-5 shadow-none ${isLate ? "border-rose-300" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -115,9 +118,11 @@ export default async function Openings({ searchParams }: { searchParams: Promise
                 </div>
                 <div className="mt-4 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${project.progressPercentage}%` }} /></div>
                 <div className="mt-2 flex justify-between text-sm"><span>{currentStage?.nameSnapshot ?? "Aşama yok"}</span><strong>%{project.progressPercentage}</strong></div>
-                <div className="mt-4 grid grid-cols-4 gap-2 text-sm">
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-6">
                   <span>Açılış<br /><strong>{dateTR(project.targetOpeningDate)}</strong></span>
                   <span>Hazırlık<br /><strong>%{project.openingReadinessScore}</strong></span>
+                  <span>Kurulum<br /><strong>%{setupProgress}</strong></span>
+                  <span>Evrak<br /><strong>%{documentProgress}</strong></span>
                   <span>Geciken<br /><strong className={lateMilestones ? "text-rose-700" : ""}>{lateMilestones}</strong></span>
                   <span>Görev<br /><strong>{project._count.tasks}</strong></span>
                 </div>
@@ -141,6 +146,8 @@ async function loadOpeningsData(where: Prisma.OpeningProjectWhereInput) {
           branch: { select: { branchName: true, city: true, status: true } },
           stages: { orderBy: { sortOrder: "asc" } },
           milestones: true,
+          setupChecklistItems: { where: { archivedAt: null }, select: { status: true } },
+          documentChecklistItems: { where: { archivedAt: null }, select: { status: true } },
           risks: { where: { status: { in: ["OPEN", "WATCHING"] } } },
           _count: { select: { tasks: true, documents: true, budgetItems: true } },
         },
