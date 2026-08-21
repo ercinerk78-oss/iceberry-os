@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Clock3, FileText, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock3, FileText } from "lucide-react";
 
-import { completeOpeningSetupChecklistItem, markProjectOpened } from "@/app/openings/actions";
+import { completeOpeningSetupChecklistItem } from "@/app/openings/actions";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
@@ -21,7 +21,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Süreç", "Kurulum Planı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline", "Açılış Özeti"];
+const tabs = ["Süreç", "Kurulum Planı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -58,10 +58,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
     );
   }
 
-  const now = new Date();
-  const overdueMilestones = project.milestones.filter((m) => m.dueDate && m.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(m.status));
   const blockers = project.readinessChecks.filter((check) => check.blocker && check.status !== "PASSED");
-  const canOpen = project.openingReadinessScore >= 80 && !overdueMilestones.some((m) => m.isCritical) && !blockers.length && !project.risks.some((risk) => risk.level === "CRITICAL" && ["OPEN", "WATCHING"].includes(risk.status));
   const isHotelConcept = isHotelOpeningConcept(project.branchConcept || project.branch.concept || project.branch.conceptType);
   const setupPercent = checklistPercentage(project.setupChecklistItems);
 
@@ -126,19 +123,6 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
         {activeTab === "Timeline" ? <Timeline project={project} /> : null}
 
-        {activeTab === "Açılış Özeti" ? (
-          <Card className="p-5 shadow-none">
-            <div className="grid gap-3 md:grid-cols-4">
-              <Info label="Kritik gecikme" value={overdueMilestones.length.toString()} />
-              <Info label="Açık risk" value={project.risks.filter((r) => ["OPEN", "WATCHING"].includes(r.status)).length.toString()} />
-              <Info label="Hazırlık puanı" value={`%${project.openingReadinessScore}`} />
-              <Info label="Sonrası takip" value={`${project.postOpeningReviews.length}/4`} />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {canOpen ? <form action={markProjectOpened.bind(null, project.id)}><Button><ShieldCheck className="size-4" />Şubeyi Açıldı Olarak İşaretle</Button></form> : <p className="flex items-center gap-2 text-sm text-amber-700"><AlertTriangle className="size-4" />Açılış için kritik kriterler tamamlanmalı.</p>}
-            </div>
-          </Card>
-        ) : null}
       </div>
     </AppShell>
   );
