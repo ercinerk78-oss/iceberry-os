@@ -14,7 +14,8 @@
     "db:schema:read": "node scripts/read-production-schema.mjs",
     "db:migrate:status": "prisma migrate status",
     "db:migrate:deploy": "node scripts/run-production-migrations.mjs",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "openings:ensure-checklists": "tsx scripts/ensure-opening-checklists.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
