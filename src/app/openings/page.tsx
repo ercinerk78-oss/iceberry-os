@@ -19,10 +19,15 @@ const get = (params: Params, key: string) => (typeof params[key] === "string" ? 
 const OPENING_PROJECT_LIST_LIMIT = 100;
 const CITY_FILTER_LIMIT = 100;
 const activeOpeningStatuses = ["DRAFT", "PLANNING", "IN_PROGRESS", "ON_HOLD", "AT_RISK", "DELAYED", "READY_FOR_REVIEW", "READY_FOR_OPENING"] as const;
+const activeOpeningBranchStatuses = ["PLANNED", "SETUP", "IN_SETUP", "CONTRACTED", "READY_TO_OPEN"] as const;
 const activeOpeningStatusSet = new Set<string>(activeOpeningStatuses);
 const activeOpeningWhere: Prisma.OpeningProjectWhereInput = {
   archivedAt: null,
   status: { in: [...activeOpeningStatuses] },
+  branch: {
+    archivedAt: null,
+    status: { in: [...activeOpeningBranchStatuses] },
+  },
 };
 const activeOpeningStatusOptions = Object.entries(openingProjectStatusLabels).filter(([key]) => activeOpeningStatusSet.has(key));
 
