@@ -1,6 +1,8 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { audit, requirePermission } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
@@ -9,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { userSchema } from "@/lib/validations/user";
 
 const refreshUsers = () => revalidatePath("/settings/users");
+export type UserActionState = { success: boolean; message: string };
 type PasswordResetState = { success: boolean; message: string };
 
 export async function createUser(formData: FormData) {
@@ -19,7 +22,9 @@ export async function createUser(formData: FormData) {
     throw new Error("Geçici şifre zorunludur.");
   }
 
-  const role = await prisma.role.findUniqueOrThrow({ where: { kod: data.role } });
+  const role = await prisma.role.findUnique({ where: { kod: data.role } });
+  if (!role) throw new Error("Seçilen rol sistemde bulunamadı. Rol listesini kontrol edin.");
+
   const user = await prisma.user.create({
     data: {
       name: data.name,
@@ -35,11 +40,21 @@ export async function createUser(formData: FormData) {
   refreshUsers();
 }
 
+export async function createUserWithState(_state: UserActionState, formData: FormData): Promise<UserActionState> {
+  try {
+    await createUser(formData);
+    return { success: true, message: "Kullanıcı başarıyla oluşturuldu." };
+  } catch (error) {
+    return { success: false, message: userErrorMessage(error, "Kullanıcı oluşturulamadı.") };
+  }
+}
+
 export async function updateUser(id: string, formData: FormData) {
   const actor = await requirePermission("users");
   const before = await prisma.user.findUniqueOrThrow({ where: { id } });
   const data = userSchema.parse(Object.fromEntries(formData));
-  const role = await prisma.role.findUniqueOrThrow({ where: { kod: data.role } });
+  const role = await prisma.role.findUnique({ where: { kod: data.role } });
+  if (!role) throw new Error("Seçilen rol sistemde bulunamadı. Rol listesini kontrol edin.");
 
   await prisma.user.update({
     where: { id },
@@ -63,6 +78,15 @@ export async function updateUser(id: string, formData: FormData) {
     actor.id,
   );
   refreshUsers();
+}
+
+function userErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof z.ZodError) return error.issues[0]?.message ?? fallback;
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    return "Bu e-posta adresiyle daha önce kullanıcı oluşturulmuş.";
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
 }
 
 export async function toggleUser(id: string, formData: FormData) {

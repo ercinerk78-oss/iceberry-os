@@ -1,5 +1,6 @@
-import { archiveUser, createUser, toggleUser, updateRolePermissions, updateUser } from "@/app/settings/users/actions";
+import { archiveUser, toggleUser, updateRolePermissions, updateUser } from "@/app/settings/users/actions";
 import { UserPasswordResetForm } from "@/components/settings/user-password-reset-form";
+import { UserCreateForm } from "@/components/settings/user-create-form";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,20 +97,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             <CardTitle>Yeni Kullanıcı</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createUser} className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <input name="name" placeholder="Ad Soyad" className={inputClass} required />
-              <input name="email" type="email" placeholder="E-posta" className={inputClass} required />
-              <input name="phone" placeholder="Telefon" className={inputClass} />
-              <select name="role" className={inputClass}>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.kod}>
-                    {role.ad}
-                  </option>
-                ))}
-              </select>
-              <input name="password" type="password" placeholder="Geçici şifre" className={inputClass} required />
-              <Button className="md:col-span-2 xl:col-span-5">Kullanıcı Oluştur</Button>
-            </form>
+            <UserCreateForm roles={roles.map((role) => ({ id: role.id, ad: role.ad, kod: role.kod }))} />
           </CardContent>
         </Card>
 

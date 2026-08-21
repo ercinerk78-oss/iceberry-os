@@ -58,17 +58,6 @@ export class OpeningProjectService {
                 requiresApproval: Boolean(milestone.approval),
                 requiresDocument: Boolean(milestone.document),
                 requiresAudit: Boolean(milestone.audit),
-                tasks: {
-                  create: milestone.tasks.map((title, taskIndex) => ({
-                    title,
-                    priority: milestone.critical ? "HIGH" : "NORMAL",
-                    dueOffsetDays: taskIndex + 1,
-                    requiresApproval: Boolean(milestone.approval),
-                    requiresDocument: Boolean(milestone.document),
-                    autoCreate: true,
-                    sortOrder: taskIndex + 1,
-                  })),
-                },
               })),
             },
           })),
@@ -190,7 +179,7 @@ export class OpeningProjectService {
         });
 
         for (const milestoneTemplate of stageTemplate.milestones) {
-          const milestone = await tx.openingMilestone.create({
+          await tx.openingMilestone.create({
             data: {
               projectId: project.id,
               projectStageId: stage.id,
@@ -211,28 +200,6 @@ export class OpeningProjectService {
             },
           });
 
-          for (const taskTemplate of milestoneTemplate.tasks.filter((task) => task.autoCreate)) {
-            const task = await tx.branchTask.create({
-              data: {
-                branchId: branch.id,
-                title: taskTemplate.title,
-                description: taskTemplate.description || `${milestone.nameSnapshot} kilometre taşı kapsamında otomatik oluşturuldu.`,
-                assignedRole: taskTemplate.defaultOwnerRole || milestoneTemplate.defaultOwnerRole,
-                createdById: input.createdById,
-                priority: taskTemplate.priority,
-                status: "OPEN",
-                dueDate: addDays(plannedStart, taskTemplate.dueOffsetDays),
-                requiresFile: taskTemplate.requiresDocument,
-                requiresApproval: taskTemplate.requiresApproval,
-                sourceType: "OPENING_PROJECT",
-                sourceId: project.id,
-                openingProjectId: project.id,
-                openingStageId: stage.id,
-                openingMilestoneId: milestone.id,
-              },
-            });
-            await tx.openingMilestone.update({ where: { id: milestone.id }, data: { relatedTaskId: task.id } });
-          }
         }
         dayCursor = addDays(plannedEnd, 1);
       }
