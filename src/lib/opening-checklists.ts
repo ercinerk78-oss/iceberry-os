@@ -38,6 +38,7 @@ export const OPENING_SETUP_CATEGORIES = [
 ] as const;
 
 export const OPENING_DOCUMENT_CATEGORIES = ["Sözleşme", "Şirket Evrakı", "Resmi Evrak", "Teknik Evrak", "Operasyon"] as const;
+export const HIDDEN_OPENING_DOCUMENT_TITLES = ["Kira sözleşmesi", "Ruhsat başvuru belgesi", "Belediye uygunluk evrakı", "Tabela onayı"] as const;
 
 export const setupStatusLabels = Object.fromEntries(OPENING_SETUP_STATUSES) as Record<string, string>;
 export const documentStatusLabels = Object.fromEntries(OPENING_DOCUMENT_STATUSES) as Record<string, string>;
@@ -153,15 +154,11 @@ export const defaultOpeningSetupItems: OpeningChecklistSeedItem[] = [
 
 export const defaultOpeningDocumentItems: OpeningDocumentSeedItem[] = [
   doc("Sözleşme", "Franchise sözleşmesi", 10),
-  doc("Sözleşme", "Kira sözleşmesi", 20),
   doc("Şirket Evrakı", "Vergi levhası", 30),
   doc("Şirket Evrakı", "Ticaret sicil gazetesi", 40, "Şirket ise"),
   doc("Şirket Evrakı", "İmza sirküleri", 50, "Şirket ise"),
   doc("Şirket Evrakı", "İmza beyannamesi", 60, "Şahıs ise"),
-  doc("Resmi Evrak", "Ruhsat başvuru belgesi", 70),
-  doc("Resmi Evrak", "Belediye uygunluk evrakı", 80),
   doc("Teknik Evrak", "Mimari proje dosyası", 90),
-  doc("Teknik Evrak", "Tabela onayı", 100),
   doc("Operasyon", "Eğitim katılım listesi", 110),
   doc("Operasyon", "Açılış teslim tutanağı", 120),
 ];

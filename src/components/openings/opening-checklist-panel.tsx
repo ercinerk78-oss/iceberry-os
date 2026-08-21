@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import {
   checklistPercentage,
   documentStatusLabels,
+  HIDDEN_OPENING_DOCUMENT_TITLES,
   OPENING_DOCUMENT_CATEGORIES,
   OPENING_DOCUMENT_STATUSES,
   OPENING_RESPONSIBLE_DEPARTMENTS,
@@ -68,9 +69,10 @@ export function OpeningChecklistPanel({
 }) {
   const [setupState, addSetupAction] = useActionState(addOpeningSetupChecklistItem.bind(null, projectId), initialState);
   const [documentState, addDocumentAction] = useActionState(addOpeningDocumentChecklistItem.bind(null, projectId), initialState);
+  const visibleDocumentItems = documentItems.filter((item) => !HIDDEN_OPENING_DOCUMENT_TITLES.includes(item.title as (typeof HIDDEN_OPENING_DOCUMENT_TITLES)[number]));
   const setupPercent = checklistPercentage(setupItems);
-  const documentPercent = checklistPercentage(documentItems);
-  const hasChecklist = setupItems.length || documentItems.length;
+  const documentPercent = checklistPercentage(visibleDocumentItems);
+  const hasChecklist = setupItems.length || visibleDocumentItems.length;
 
   if (isHotelConcept) {
     return (
@@ -100,7 +102,7 @@ export function OpeningChecklistPanel({
     <div className="space-y-5">
       <div className="grid gap-3 md:grid-cols-4">
         <Metric title="Kurulum İlerlemesi" value={`%${setupPercent}`} detail={`${completedCount(setupItems)} / ${setupItems.length} kalem`} />
-        <Metric title="Evrak İlerlemesi" value={`%${documentPercent}`} detail={`${completedDocumentCount(documentItems)} / ${documentItems.length} evrak`} />
+        <Metric title="Evrak İlerlemesi" value={`%${documentPercent}`} detail={`${completedDocumentCount(visibleDocumentItems)} / ${visibleDocumentItems.length} evrak`} />
         <Metric title="Yatırımcıda" value={setupItems.filter((item) => item.responsibleDepartment === "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Takip edilen açık kalem" />
         <Metric title="Merkezde" value={setupItems.filter((item) => item.responsibleDepartment !== "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Departman bekleyen kalem" />
       </div>
@@ -121,7 +123,7 @@ export function OpeningChecklistPanel({
             <h2 className="text-lg font-semibold">Evrak ve Yapılacaklar</h2>
           </div>
           <DocumentAddForm action={addDocumentAction} state={documentState} />
-          <GroupedDocumentItems items={documentItems} />
+          <GroupedDocumentItems items={visibleDocumentItems} />
         </section>
       </div>
     </div>

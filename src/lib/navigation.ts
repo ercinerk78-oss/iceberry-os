@@ -67,6 +67,12 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
+    id: "opening",
+    key: "navigationGroups.opening",
+    icon: "CalendarRange",
+    children: [item("openings", "navigation.openings", "/openings", "CalendarRange")],
+  },
+  {
     id: "branch",
     key: "navigationGroups.branch",
     icon: "Store",
@@ -78,12 +84,6 @@ export const navigationGroups: NavigationGroup[] = [
       item("operations", "navigation.operations", "/operations", "ShieldCheck"),
       item("branchMap", "navigation.branchMap", "/branch-map", "MapPinned"),
     ],
-  },
-  {
-    id: "opening",
-    key: "navigationGroups.opening",
-    icon: "CalendarRange",
-    children: [item("openings", "navigation.openings", "/openings", "CalendarRange")],
   },
   {
     id: "procurement",
@@ -115,15 +115,6 @@ export const navigationGroups: NavigationGroup[] = [
       item("productMappings", "navigation.productMappings", "/warehouse/product-mappings", "Package"),
       item("compliance", "navigation.compliance", "/warehouse/compliance", "Bell"),
       item("movements", "navigation.movements", "/warehouse/movements", "LineChart"),
-    ],
-  },
-  {
-    id: "finance",
-    key: "navigationGroups.finance",
-    icon: "Landmark",
-    children: [
-      item("finance", "navigation.finance", "/finance", "Landmark"),
-      item("integrations", "navigation.integrations", "/integrations", "PlugZap"),
     ],
   },
   {

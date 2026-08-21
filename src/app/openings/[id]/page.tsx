@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Play, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, FileText, ShieldCheck } from "lucide-react";
 
-import { completeProjectMilestone, markProjectOpened, setProjectStageStatus } from "@/app/openings/actions";
+import { completeOpeningSetupChecklistItem, markProjectOpened } from "@/app/openings/actions";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
@@ -12,19 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   dateTR,
-  openingMilestoneStatusLabels,
-  openingPriorityLabels,
   openingProjectStatusLabels,
   openingRiskLevelLabels,
   openingRiskStatusLabels,
-  openingStageStatusLabels,
 } from "@/lib/openings";
-import { checklistPercentage, isHotelOpeningConcept } from "@/lib/opening-checklists";
+import { checklistPercentage, isHotelOpeningConcept, responsibleDepartmentLabels, setupStatusLabels } from "@/lib/opening-checklists";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Süreç", "Kurulum Planı", "Kilometre Taşları", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline", "Açılış Özeti"];
+const tabs = ["Süreç", "Kurulum Planı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline", "Açılış Özeti"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -97,21 +94,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
         {activeTab === "Süreç" ? (
           <div className="space-y-3">
-            {project.stages.map((stage) => (
-              <Card key={stage.id} className="p-4 shadow-none">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{stage.sortOrder}. {stage.nameSnapshot}</p>
-                    <p className="text-sm text-[#65705f]">{openingStageStatusLabels[stage.status]} · {dateTR(stage.plannedStartDate)} - {dateTR(stage.plannedEndDate)}</p>
-                    <p className="mt-1 text-sm">İlerleme %{stage.progressPercentage} · Kilometre taşı {stage._count.milestones} · Görev {stage._count.tasks}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    {!["IN_PROGRESS", "COMPLETED"].includes(stage.status) ? <form action={setProjectStageStatus.bind(null, stage.id, "IN_PROGRESS")}><Button size="sm"><Play className="size-4" />Başlat</Button></form> : null}
-                    {stage.status !== "COMPLETED" ? <form action={setProjectStageStatus.bind(null, stage.id, "COMPLETED")}><Button size="sm" variant="outline"><CheckCircle2 className="size-4" />Tamamla</Button></form> : null}
-                  </div>
-                </div>
-              </Card>
-            ))}
+            <ProcessSetupList items={project.setupChecklistItems} isHotelConcept={isHotelConcept} />
           </div>
         ) : null}
 
@@ -122,24 +105,6 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
             documentItems={project.documentChecklistItems}
             isHotelConcept={isHotelConcept}
           />
-        ) : null}
-
-        {activeTab === "Kilometre Taşları" ? (
-          <div className="space-y-3">
-            {project.milestones.map((milestone) => (
-              <Card key={milestone.id} className={`p-4 shadow-none ${milestone.isCritical ? "border-amber-200" : ""}`}>
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap gap-2"><Badge>{openingMilestoneStatusLabels[milestone.status]}</Badge><Badge variant="secondary">{openingPriorityLabels[milestone.priority]}</Badge>{milestone.isCritical ? <Badge className="bg-amber-100 text-amber-800">Kritik</Badge> : null}</div>
-                    <h3 className="mt-2 font-semibold">{milestone.nameSnapshot}</h3>
-                    <p className="mt-1 text-sm text-[#65705f]">Son tarih: {dateTR(milestone.dueDate)} · İlerleme %{milestone.progressPercentage}</p>
-                    {milestone.requiresDocument || milestone.requiresAudit || milestone.requiresApproval ? <p className="mt-1 text-xs text-[#65705f]">Gereksinimler: {["Belge", milestone.requiresAudit ? "Denetim" : "", milestone.requiresApproval ? "Onay" : ""].filter(Boolean).join(", ")}</p> : null}
-                  </div>
-                  {milestone.status !== "COMPLETED" ? <form action={completeProjectMilestone.bind(null, milestone.id)} className="flex gap-2"><input name="note" placeholder="Tamamlama notu" className="h-9 rounded border px-2 text-sm" /><Button size="sm">Tamamla</Button></form> : null}
-                </div>
-              </Card>
-            ))}
-          </div>
         ) : null}
 
         {activeTab === "Görevler" ? <TaskList tasks={project.tasks} /> : null}
@@ -183,8 +148,78 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border bg-[#f8faf6] p-4"><p className="text-xs font-medium uppercase text-[#65705f]">{label}</p><p className="mt-2 text-sm font-semibold">{value}</p></div>;
 }
 
+type ProcessSetupItem = {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  responsibleDepartment: string;
+  status: string;
+  closingNote: string | null;
+};
+
+function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]; isHotelConcept: boolean }) {
+  if (isHotelConcept) {
+    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Hotel konsepti kurulum checklist sürecine dahil değil.</p>;
+  }
+  if (!items.length) {
+    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Kurulum checklisti henüz oluşturulmamış. Kurulum Planı sekmesinden checklist oluşturabilirsiniz.</p>;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {groupByCategory(items).map(([category, categoryItems]) => {
+        const percent = checklistPercentage(categoryItems);
+        const completedItems = categoryItems.filter((item) => item.status === "TAMAMLANDI");
+        return (
+          <Card key={category} className="p-4 shadow-none">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">{category}</h2>
+                <p className="mt-1 text-sm text-[#65705f]">{completedItems.length} / {categoryItems.length} kalem tamamlandı</p>
+              </div>
+              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
+            </div>
+            <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
+            <div className="mt-4 space-y-3">
+              {categoryItems.map((item) => (
+                <div key={item.id} className="rounded-lg border bg-[#fbfcf8] p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{item.title}</p>
+                      {item.description ? <p className="mt-1 text-sm text-[#65705f]">{item.description}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={item.status === "TAMAMLANDI" ? "default" : "secondary"}>{setupStatusLabels[item.status] ?? item.status}</Badge>
+                      <Badge variant="outline">{responsibleDepartmentLabels[item.responsibleDepartment] ?? item.responsibleDepartment}</Badge>
+                    </div>
+                  </div>
+                  {item.closingNote ? <p className="mt-2 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
+                  {item.status !== "TAMAMLANDI" ? (
+                    <form action={completeOpeningSetupChecklistItem.bind(null, item.id)} className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+                      <input name="selectedOption" type="hidden" value="MERKEZ_TAMAMLADI" />
+                      <input name="closingNote" required placeholder="Tamamlama notu" className="h-10 rounded border px-3 text-sm" />
+                      <Button type="submit" size="sm"><CheckCircle2 className="size-4" />Tamamla</Button>
+                    </form>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function TaskList({ tasks }: { tasks: { id: string; title: string; priority: string; status: string; dueDate: Date | null; assignedRole: string | null }[] }) {
   return <div className="space-y-3">{tasks.map((task) => <Card key={task.id} className="p-4 shadow-none"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-semibold">{task.title}</p><p className="text-sm text-[#65705f]">{task.assignedRole || "Sorumlu atanmadı"} · {dateTR(task.dueDate)}</p></div><div className="flex gap-2"><Badge>{task.status}</Badge><Badge variant="secondary">{task.priority}</Badge></div></div></Card>)}{!tasks.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Görev bulunmuyor.</p> : null}</div>;
+}
+
+function groupByCategory<T extends { category: string }>(items: T[]) {
+  const map = new Map<string, T[]>();
+  for (const item of items) map.set(item.category, [...(map.get(item.category) ?? []), item]);
+  return [...map.entries()];
 }
 
 function Timeline({ project }: { project: { targetDateChanges: { id: string; oldDate: Date; newDate: Date; reason: string; createdAt: Date }[]; postOpeningReviews: { id: string; dayNumber: number; plannedDate: Date; status: string }[] } }) {

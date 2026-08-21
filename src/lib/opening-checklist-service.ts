@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   defaultOpeningDocumentItems,
   defaultOpeningSetupItems,
+  HIDDEN_OPENING_DOCUMENT_TITLES,
   isHotelOpeningConcept,
 } from "@/lib/opening-checklists";
 
@@ -186,4 +187,35 @@ export class OpeningChecklistService {
       select: { openingProjectId: true, branchId: true },
     });
   }
+
+  static async recalculateProjectProgress(projectId: string) {
+    const [setupItems, documentItems] = await Promise.all([
+      prisma.openingSetupChecklistItem.findMany({
+        where: { openingProjectId: projectId, archivedAt: null },
+        select: { status: true },
+      }),
+      prisma.openingDocumentChecklistItem.findMany({
+        where: { openingProjectId: projectId, archivedAt: null, title: { notIn: [...HIDDEN_OPENING_DOCUMENT_TITLES] } },
+        select: { status: true },
+      }),
+    ]);
+    const setupProgress = percentage(setupItems, ["TAMAMLANDI"]);
+    const documentProgress = percentage(documentItems, ["KONTROL_EDILDI", "GEREKLI_DEGIL"]);
+    const hasDocuments = documentItems.length > 0;
+    const readiness = hasDocuments ? Math.round((setupProgress + documentProgress) / 2) : setupProgress;
+
+    await prisma.openingProject.update({
+      where: { id: projectId },
+      data: {
+        progressPercentage: setupProgress,
+        openingReadinessScore: readiness,
+      },
+    });
+  }
+}
+
+function percentage(items: { status: string }[], completedStatuses: string[]) {
+  if (!items.length) return 0;
+  const completed = items.filter((item) => completedStatuses.includes(item.status)).length;
+  return Math.round((completed / items.length) * 100);
 }

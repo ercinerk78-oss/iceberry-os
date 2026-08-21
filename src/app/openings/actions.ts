@@ -327,6 +327,7 @@ export async function ensureOpeningChecklist(projectId: string, formData: FormDa
   void formData;
   const user = await requirePermission("openings");
   await OpeningChecklistService.ensureForProject(projectId, user.id);
+  await OpeningChecklistService.recalculateProjectProgress(projectId);
   const project = await prisma.openingProject.findUnique({ where: { id: projectId }, select: { branchId: true } });
   refresh(projectId, project?.branchId);
 }
@@ -344,6 +345,7 @@ export async function addOpeningSetupChecklistItem(projectId: string, _state: Op
       status: parsed.data.status || "BEKLIYOR",
       createdById: user.id,
     });
+    await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
     refresh(item.openingProjectId, item.branchId);
     return { success: true, message: "Kurulum kalemi eklendi." };
   } catch (error) {
@@ -355,6 +357,7 @@ export async function setOpeningSetupChecklistStatus(itemId: string, formData: F
   await requirePermission("openings");
   const status = String(formData.get("status") || "BEKLIYOR");
   const item = await OpeningChecklistService.setSetupItemStatus(itemId, status);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -363,6 +366,7 @@ export async function completeOpeningSetupChecklistItem(itemId: string, formData
   const closingNote = String(formData.get("closingNote") || "");
   const selectedOption = String(formData.get("selectedOption") || "");
   const item = await OpeningChecklistService.completeSetupItem(itemId, user.id, closingNote, selectedOption);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -370,6 +374,7 @@ export async function archiveOpeningSetupChecklistItem(itemId: string, formData:
   void formData;
   await requirePermission("openings");
   const item = await OpeningChecklistService.archiveSetupItem(itemId);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -387,6 +392,7 @@ export async function addOpeningDocumentChecklistItem(projectId: string, _state:
       status: parsed.data.status || "TALEP_EDILDI",
       createdById: user.id,
     });
+    await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
     refresh(item.openingProjectId, item.branchId);
     return { success: true, message: "Evrak kalemi eklendi." };
   } catch (error) {
@@ -399,6 +405,7 @@ export async function setOpeningDocumentChecklistStatus(itemId: string, formData
   const status = String(formData.get("status") || "TALEP_EDILDI");
   const note = String(formData.get("note") || "");
   const item = await OpeningChecklistService.setDocumentItemStatus(itemId, status, user.id, note);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -406,6 +413,7 @@ export async function archiveOpeningDocumentChecklistItem(itemId: string, formDa
   void formData;
   await requirePermission("openings");
   const item = await OpeningChecklistService.archiveDocumentItem(itemId);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
