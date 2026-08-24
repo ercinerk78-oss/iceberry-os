@@ -121,13 +121,13 @@ export class AuditWorkflowService {
     return prisma.$transaction(async (tx) => {
       const audit = await tx.audit.findUnique({ where: { id: auditId } });
       if (!audit) throw new Error("Denetim bulunamadı.");
-      const status = audit.requiresFollowUp ? "REVIEW_REQUIRED" : "COMPLETED";
+      const completedAt = new Date();
       const updated = await tx.audit.update({
         where: { id: auditId },
-        data: { status, reviewerId, reviewedAt: new Date(), completedAt: status === "COMPLETED" ? new Date() : null },
+        data: { status: "COMPLETED", reviewerId, reviewedAt: completedAt, completedAt, requiresFollowUp: false, followUpDueAt: null },
       });
       if (audit.assignmentId) {
-        await tx.auditAssignment.update({ where: { id: audit.assignmentId }, data: { status: status === "COMPLETED" ? "COMPLETED" : "REVIEW_REQUIRED", reviewerId } });
+        await tx.auditAssignment.update({ where: { id: audit.assignmentId }, data: { status: "COMPLETED", reviewerId } });
       }
       await tx.branch.update({
         where: { id: audit.branchId },
@@ -140,7 +140,7 @@ export class AuditWorkflowService {
           action: "AUDIT_APPROVED",
           entityType: "Audit",
           entityId: audit.id,
-          description: status === "COMPLETED" ? "Denetim onaylandı ve kapatıldı." : "Denetim onaylandı, takip aksiyonları bekleniyor.",
+          description: "Denetim onaylandı ve kapatıldı.",
         },
       });
       return updated;

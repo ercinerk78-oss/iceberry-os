@@ -311,6 +311,8 @@ export async function approveAudit(auditId: string) {
   const audit = await new AuditWorkflowService().approveAudit(auditId, user.id);
   await new BranchHealthScoreService().calculate(audit.branchId);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${audit.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function createFinding(_state: { message: string }, formData: FormData) {
