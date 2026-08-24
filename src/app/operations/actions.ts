@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireBranchOperationAccess, requireCentralOperationsAccess } from "@/lib/operations/access";
+import { requireBranchOperationAccess, requireCentralOperationsAccess, requireOperationsUser } from "@/lib/operations/access";
 import { AuditWorkflowService, scoreForAnswer } from "@/lib/operations/audit-workflow-service";
 import { BranchHealthScoreService } from "@/lib/operations/health-score-service";
 import { prisma } from "@/lib/prisma";
@@ -163,13 +163,16 @@ export async function createAuditAssignment(_state: { message: string }, formDat
 }
 
 export async function startAuditAssignment(assignmentId: string) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
+  const assignment = await prisma.auditAssignment.findUnique({ where: { id: assignmentId }, select: { branchId: true } });
+  if (!assignment) throw new Error("Denetim ataması bulunamadı.");
+  await requireBranchOperationAccess(assignment.branchId);
   await new AuditWorkflowService().startAssignment(assignmentId, user.id);
   revalidatePath("/operations");
 }
 
 export async function saveAuditAnswer(_state: { message: string }, formData: FormData) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
   const parsed = answerSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { message: "Denetim cevabı eksik veya hatalı." };
   const input = parsed.data;
@@ -231,7 +234,10 @@ export async function saveAuditAnswer(_state: { message: string }, formData: For
 }
 
 export async function submitAudit(auditId: string) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
+  const existing = await prisma.audit.findUnique({ where: { id: auditId }, select: { branchId: true } });
+  if (!existing) throw new Error("Denetim bulunamadı.");
+  await requireBranchOperationAccess(existing.branchId);
   await new AuditWorkflowService().submitAudit(auditId, user.id);
   revalidatePath("/operations");
 }

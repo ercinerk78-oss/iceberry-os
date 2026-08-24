@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { ClipboardCheck, Send, ShieldCheck } from "lucide-react";
 
 import { createAuditAssignment, createAuditTemplate, saveAuditAnswer } from "@/app/operations/actions";
@@ -24,7 +24,6 @@ export function OperationForms({
 }) {
   const [templateState, templateAction, templatePending] = useActionState(createAuditTemplate, initial);
   const [assignmentState, assignmentAction, assignmentPending] = useActionState(createAuditAssignment, initial);
-  const [answerState, answerAction, answerPending] = useActionState(saveAuditAnswer, initial);
   const today = new Date();
   const nextWeek = new Date(today.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10);
 
@@ -57,20 +56,34 @@ export function OperationForms({
         </div>
       </form>
 
-      <form action={answerAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
-        <h3 className="flex items-center gap-2 font-semibold"><Send className="size-4" /> Hızlı Denetim Cevabı</h3>
-        <div className="mt-4 grid gap-3">
-          <select name="questionId" className="h-10 rounded-lg border px-3">
-            {openQuestions.map((question) => <option key={question.id} value={question.id}>{question.title}</option>)}
-          </select>
-          <input name="auditId" value={openQuestions[0]?.auditId ?? ""} readOnly className="h-10 rounded-lg border bg-[#f8faf6] px-3 text-sm text-[#65705f]" />
-          <Select name="answerValue" label="Cevap" options={[["PASS", "Uygun"], ["FAIL", "Uygun Değil"], ["NOT_APPLICABLE", "Uygulanamaz"]]} />
-          <textarea name="comment" rows={3} placeholder="Açıklama" className="rounded-lg border px-3 py-2" />
-          <Button disabled={answerPending || !openQuestions.length} className="bg-[#17201b] text-white">{answerPending ? "Kaydediliyor..." : "Cevabı Kaydet"}</Button>
-          {answerState.message ? <p className="text-sm text-[#65705f]">{answerState.message}</p> : null}
-        </div>
-      </form>
+      <QuickAuditAnswerForm openQuestions={openQuestions} />
     </section>
+  );
+}
+
+export function QuickAuditAnswerForm({ openQuestions }: { openQuestions: AuditQuestionOption[] }) {
+  const [answerState, answerAction, answerPending] = useActionState(saveAuditAnswer, initial);
+  const [selectedQuestionId, setSelectedQuestionId] = useState(openQuestions[0]?.id ?? "");
+  const selectedQuestion = useMemo(
+    () => openQuestions.find((question) => question.id === selectedQuestionId) ?? openQuestions[0],
+    [openQuestions, selectedQuestionId],
+  );
+
+  return (
+    <form action={answerAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+      <h3 className="flex items-center gap-2 font-semibold"><Send className="size-4" /> Denetim Cevabı</h3>
+      <div className="mt-4 grid gap-3">
+        <select name="questionId" value={selectedQuestion?.id ?? ""} onChange={(event) => setSelectedQuestionId(event.target.value)} className="h-10 rounded-lg border px-3">
+          {openQuestions.map((question) => <option key={question.id} value={question.id}>{question.title}</option>)}
+        </select>
+        <input name="auditId" value={selectedQuestion?.auditId ?? ""} readOnly className="h-10 rounded-lg border bg-[#f8faf6] px-3 text-sm text-[#65705f]" />
+        <Select name="answerValue" label="Cevap" options={[["PASS", "Uygun"], ["FAIL", "Uygun Değil"], ["NOT_APPLICABLE", "Uygulanamaz"]]} />
+        <textarea name="comment" rows={3} placeholder="Açıklama" className="rounded-lg border px-3 py-2" />
+        <Button disabled={answerPending || !openQuestions.length} className="bg-[#17201b] text-white">{answerPending ? "Kaydediliyor..." : "Cevabı Kaydet"}</Button>
+        {answerState.message ? <p className="text-sm text-[#65705f]">{answerState.message}</p> : null}
+        {!openQuestions.length ? <p className="text-sm text-[#65705f]">Cevap bekleyen aktif denetim sorusu yok.</p> : null}
+      </div>
+    </form>
   );
 }
 

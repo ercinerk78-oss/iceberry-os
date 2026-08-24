@@ -2,7 +2,7 @@ import { AlertTriangle, CalendarClock, ShieldCheck, TrendingUp } from "lucide-re
 
 import { approveAudit, publishAuditTemplate, recalculateBranchHealth, startAuditAssignment, submitAudit } from "@/app/operations/actions";
 import { AppShell } from "@/components/app-shell";
-import { OperationForms } from "@/components/operations/operation-forms";
+import { OperationForms, QuickAuditAnswerForm } from "@/components/operations/operation-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,7 @@ export default async function OperationsPage() {
   ]);
   const publishedTemplates = templates.filter((template) => template.status === "PUBLISHED");
   const activeAudits = audits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const canManage = canManageOperations(user.role);
   const averageHealth = branches.length ? Math.round(branches.reduce((sum, branch) => sum + (branch.healthScore ?? 0), 0) / branches.length) : 0;
   const openQuestions = activeAudits.flatMap((audit) => {
     const answered = new Set(audit.answers.map((answer) => answer.questionId));
@@ -80,24 +81,26 @@ export default async function OperationsPage() {
           ))}
         </section>
 
-        {canManageOperations(user.role) ? <OperationForms branches={branches} templates={publishedTemplates} openQuestions={openQuestions} /> : null}
+        {canManage ? <OperationForms branches={branches} templates={publishedTemplates} openQuestions={openQuestions} /> : <QuickAuditAnswerForm openQuestions={openQuestions} />}
 
-        <section className="grid gap-4 xl:grid-cols-2">
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Denetim Şablonları</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {templates.map((template) => (
-                <div key={template.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><p className="font-medium">{template.name} v{template.version}</p><p className="text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, template.auditType)} · {template.sections.length} bölüm</p></div>
-                    <Badge variant="outline">{label(AUDIT_TEMPLATE_STATUS_LABELS, template.status)}</Badge>
+        <section className={`grid gap-4 ${canManage ? "xl:grid-cols-2" : ""}`}>
+          {canManage ? (
+            <Card className="shadow-none">
+              <CardHeader><CardTitle>Denetim Şablonları</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {templates.map((template) => (
+                  <div key={template.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div><p className="font-medium">{template.name} v{template.version}</p><p className="text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, template.auditType)} · {template.sections.length} bölüm</p></div>
+                      <Badge variant="outline">{label(AUDIT_TEMPLATE_STATUS_LABELS, template.status)}</Badge>
+                    </div>
+                    {template.status !== "PUBLISHED" ? <form action={publishAuditTemplate.bind(null, template.id)} className="mt-3"><Button size="sm" variant="outline">Yayımla</Button></form> : null}
                   </div>
-                  {canManageOperations(user.role) && template.status !== "PUBLISHED" ? <form action={publishAuditTemplate.bind(null, template.id)} className="mt-3"><Button size="sm" variant="outline">Yayımla</Button></form> : null}
-                </div>
-              ))}
-              {!templates.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz denetim şablonu yok.</p> : null}
-            </CardContent>
-          </Card>
+                ))}
+                {!templates.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz denetim şablonu yok.</p> : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="shadow-none">
             <CardHeader><CardTitle>Denetim Atamaları</CardTitle></CardHeader>
@@ -108,7 +111,7 @@ export default async function OperationsPage() {
                     <div><p className="font-medium">{assignment.branch.branchName}</p><p className="text-xs text-[#65705f]">{assignment.template.name} · Son tarih {dateTR(assignment.dueAt)}</p></div>
                     <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
                   </div>
-                  {canManageOperations(user.role) && ["ASSIGNED", "PLANNED"].includes(assignment.status) ? <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3"><Button size="sm" variant="outline">Başlat</Button></form> : null}
+                  {["ASSIGNED", "PLANNED"].includes(assignment.status) ? <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3"><Button size="sm" variant="outline">Başlat</Button></form> : null}
                 </div>
               ))}
               {!assignments.length ? <p className="py-8 text-center text-sm text-[#65705f]">Denetim ataması yok.</p> : null}
@@ -126,12 +129,10 @@ export default async function OperationsPage() {
                     <div><p className="font-medium">{audit.branch.branchName}</p><p className="text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, audit.auditType)} · {label(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}</p></div>
                     <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
                   </div>
-                  {canManageOperations(user.role) ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {audit.status === "IN_PROGRESS" ? <form action={submitAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Gönder</Button></form> : null}
-                      {["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status) ? <form action={approveAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
-                    </div>
-                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {audit.status === "IN_PROGRESS" ? <form action={submitAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Gönder</Button></form> : null}
+                    {canManage && ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status) ? <form action={approveAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
+                  </div>
                 </div>
               ))}
               {!audits.length ? <p className="py-8 text-center text-sm text-[#65705f]">Denetim kaydı yok.</p> : null}
@@ -150,7 +151,7 @@ export default async function OperationsPage() {
               {!healthScores.length ? (
                 <div className="py-8 text-center text-sm text-[#65705f]">
                   Sağlık puanı henüz hesaplanmadı.
-                  {branches[0] && canManageOperations(user.role) ? <form action={recalculateBranchHealth.bind(null, branches[0].id)} className="mt-3"><Button size="sm" variant="outline">İlk şube için hesapla</Button></form> : null}
+                  {branches[0] && canManage ? <form action={recalculateBranchHealth.bind(null, branches[0].id)} className="mt-3"><Button size="sm" variant="outline">İlk şube için hesapla</Button></form> : null}
                 </div>
               ) : null}
             </CardContent>

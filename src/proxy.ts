@@ -104,11 +104,15 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
   TRAINING_DEPARTMENT: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
   DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
+  BRANCH_OWNER: ["operations", "academy.view"],
+  BRANCH_MANAGER: ["operations", "academy.view"],
 };
 
+const branchRoles = new Set(["BRANCH_OWNER", "BRANCH_MANAGER"]);
+const branchRoleAllowedPermissions = new Set<Permission>(["operations", "academy.view"]);
+
 function hasRoutePermission(role: string, permission: Permission, permissions?: Permission[]) {
+  if (branchRoles.has(role) && !branchRoleAllowedPermissions.has(permission)) return false;
   if (permissions?.length) return permissions.includes(permission);
   return rolePermissions[role]?.includes(permission) ?? false;
 }
@@ -147,7 +151,8 @@ function routePermission(path: string): Permission | null {
 function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
   if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
-  if (["BRANCH_OWNER", "BRANCH_MANAGER", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER"].includes(role)) return "/operations";
+  if (role === "FRANCHISE_MANAGER") return "/branch-portal";
 
   return "/";
 }

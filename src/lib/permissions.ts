@@ -186,9 +186,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
   TRAINING_DEPARTMENT: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
   DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
+  BRANCH_OWNER: ["operations", "academy.view"],
+  BRANCH_MANAGER: ["operations", "academy.view"],
 };
+
+const BRANCH_ROLES = new Set(["BRANCH_OWNER", "BRANCH_MANAGER"]);
+const BRANCH_ROLE_ALLOWED_PERMISSIONS = new Set<Permission>(["operations", "academy.view"]);
 
 export function normalizePermissions(value: unknown, role?: string): Permission[] {
   const fallback = USER_ROLES.includes(role as UserRole) ? ROLE_PERMISSIONS[role as UserRole] : [];
@@ -204,6 +207,7 @@ export function normalizePermissions(value: unknown, role?: string): Permission[
 }
 
 export function hasPermission(role: string, permission: Permission, permissions?: readonly Permission[] | null) {
+  if (BRANCH_ROLES.has(role) && !BRANCH_ROLE_ALLOWED_PERMISSIONS.has(permission)) return false;
   if (permissions?.length) return permissions.includes(permission);
   return USER_ROLES.includes(role as UserRole) && ROLE_PERMISSIONS[role as UserRole].includes(permission);
 }
@@ -248,7 +252,8 @@ export function routePermission(path: string): Permission | null {
 export function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
   if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
-  if (["BRANCH_OWNER", "BRANCH_MANAGER", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER"].includes(role)) return "/operations";
+  if (role === "FRANCHISE_MANAGER") return "/branch-portal";
 
   return "/";
 }
