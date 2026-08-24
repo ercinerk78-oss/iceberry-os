@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, Check, CheckSquare, FileText, ShieldCheck, TrendingUp } from "lucide-react";
+import { CalendarClock, Check, CheckSquare, ClipboardCheck, FileText, ShieldCheck, TrendingUp } from "lucide-react";
 
 import { completeOperationCalendarItem, updateBranch, updateBranchNotes } from "@/app/branches/actions";
 import { cancelBranchVisit, completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
@@ -107,6 +107,8 @@ export default async function BranchDetail({
   const activeStage = activeOpening?.stages.find((stage) => stage.status === "IN_PROGRESS");
   const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status));
   const overdueTasks = openTasks.filter((task) => task.dueDate && task.dueDate < new Date());
+  const openAuditAssignments = branch.auditAssignments.filter((assignment) => ["ASSIGNED", "PLANNED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status));
+  const activeOperationalAudits = branch.operationalAudits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
   const lastOperationalAudit = branch.operationalAudits[0];
   const lastAudit = branch.audits[0];
   const lastAuditScore = lastOperationalAudit ? percentTR(Number(lastOperationalAudit.percentageScore)) : (lastAudit?.score ?? "—");
@@ -133,13 +135,20 @@ export default async function BranchDetail({
                 {branch.district ? ` / ${branch.district}` : ""} · Planlanan açılış {formatDate(branch.plannedOpeningDate)}
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               <Metric label="Açık Görev" value={openTasks.length} icon={CheckSquare} />
               <Metric label="Geciken Görev" value={overdueTasks.length} icon={CalendarClock} />
+              <Metric label="Açık Denetim" value={openAuditAssignments.length + activeOperationalAudits.length} icon={ClipboardCheck} />
               <Metric label="Son Denetim" value={lastAuditScore} icon={ShieldCheck} />
             </div>
           </div>
         </Card>
+
+        <BranchAuditNotice
+          branchId={id}
+          assignments={openAuditAssignments}
+          activeAudits={activeOperationalAudits}
+        />
 
         <Card className="shadow-none">
           <CardHeader className="border-b">
@@ -210,6 +219,51 @@ function UsersPanel({ users }: { users: { id: string; role: string; user: { name
   if (!users.length) return <Empty title="Kullanıcılar" text="Bu şubeye atanmış kullanıcı yok." />;
 
   return <List items={users.map((item) => `${item.user.name} · ${item.role} · ${item.user.email}`)} />;
+}
+
+function BranchAuditNotice({
+  branchId,
+  assignments,
+  activeAudits,
+}: {
+  branchId: string;
+  assignments: { id: string; auditType: string; status: string; dueAt: Date; template: { name: string } }[];
+  activeAudits: { id: string; auditType: string; status: string; result: string; percentageScore: unknown; createdAt: Date; template: { name: string } }[];
+}) {
+  if (!assignments.length && !activeAudits.length) return null;
+
+  const firstAssignment = assignments[0];
+  const firstAudit = activeAudits[0];
+
+  return (
+    <Card className="border-[#b9df9c] bg-[#f3faef] shadow-none">
+      <CardContent className="flex flex-col justify-between gap-4 p-4 lg:flex-row lg:items-center">
+        <div className="flex gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#6fbe44] text-white">
+            <ClipboardCheck className="size-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold">Bu şubede açık operasyon denetimi var</h2>
+            <p className="mt-1 text-sm text-[#65705f]">
+              {firstAssignment
+                ? `${firstAssignment.template.name} · ${operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, firstAssignment.status)} · Son tarih ${operationDateTR(firstAssignment.dueAt)}`
+                : `${firstAudit?.template.name} · ${operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, firstAudit?.status)} · ${percentTR(Number(firstAudit?.percentageScore ?? 0))}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {firstAssignment && ["ASSIGNED", "PLANNED"].includes(firstAssignment.status) ? (
+            <form action={startAuditAssignment.bind(null, firstAssignment.id)}>
+              <Button variant="outline">Denetimi Başlat</Button>
+            </form>
+          ) : null}
+          <Button asChild>
+            <Link href={`/branches/${branchId}?tab=${encodeURIComponent("Denetim Raporları")}`}>Denetimleri Aç</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function AuditPanel({

@@ -159,6 +159,7 @@ export async function createAuditAssignment(_state: { message: string }, formDat
     },
   });
   revalidatePath("/operations");
+  revalidatePath(`/branches/${input.branchId}`);
   return { message: "Denetim ataması oluşturuldu." };
 }
 
@@ -169,6 +170,7 @@ export async function startAuditAssignment(assignmentId: string) {
   await requireBranchOperationAccess(assignment.branchId);
   await new AuditWorkflowService().startAssignment(assignmentId, user.id);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${assignment.branchId}`);
 }
 
 export async function saveAuditAnswer(_state: { message: string }, formData: FormData) {
@@ -240,6 +242,7 @@ export async function submitAudit(auditId: string) {
   await requireBranchOperationAccess(existing.branchId);
   await new AuditWorkflowService().submitAudit(auditId, user.id);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${existing.branchId}`);
 }
 
 export async function approveAudit(auditId: string) {
