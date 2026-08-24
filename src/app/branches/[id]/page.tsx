@@ -399,7 +399,7 @@ function AuditPanel({
   );
 }
 
-function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { id: string; title: string; visitType: string; plannedAt: Date; completedAt: Date | null; status: string; visitorName: string | null; notes: string | null; resultNotes: string | null }[] }) {
+function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { id: string; title: string; visitType: string; plannedAt: Date; completedAt: Date | null; visitScore: number | null; status: string; visitorName: string | null; notes: string | null; resultNotes: string | null }[] }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[340px_1fr]">
       <form action={createBranchVisit} className="space-y-3 rounded-lg border bg-[#f8faf6] p-4">
@@ -435,13 +435,15 @@ function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { i
             <p className="mt-1 text-sm text-[#65705f]">
               Plan: {formatDate(visit.plannedAt)}{visit.completedAt ? ` · Gerçekleşme: ${formatDate(visit.completedAt)}` : ""}
             </p>
+            {visit.visitScore == null ? null : <p className="mt-1 text-sm font-medium text-[#2f5f20]">Ziyaret puanı: %{visit.visitScore}</p>}
             {visit.visitorName ? <p className="mt-1 text-sm text-[#65705f]">Sorumlu: {visit.visitorName}</p> : null}
             {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
             {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
             {visit.status === "PLANNED" ? (
               <>
-              <form action={completeBranchVisit.bind(null, visit.id)} className="mt-4 grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+              <form action={completeBranchVisit.bind(null, visit.id)} className="mt-4 grid gap-2 md:grid-cols-[1fr_1fr_2fr_auto]">
                 <input type="datetime-local" name="completedAt" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <input required type="number" min="0" max="100" name="visitScore" placeholder="Puan %" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                 <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                 <Button variant="outline"><Check className="size-4" />Gerçekleşti</Button>
               </form>

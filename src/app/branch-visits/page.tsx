@@ -60,6 +60,7 @@ export default async function BranchVisitCalendarPage({ searchParams }: { search
         visitType: true,
         plannedAt: true,
         completedAt: true,
+        visitScore: true,
         status: true,
         visitorName: true,
         notes: true,
@@ -119,6 +120,7 @@ function toCalendarVisit(
     visitType: string;
     plannedAt: Date;
     completedAt: Date | null;
+    visitScore: number | null;
     status: string;
     visitorName: string | null;
     notes: string | null;
@@ -150,6 +152,7 @@ function toCalendarVisit(
     status: visit.status,
     derivedStatus,
     visitorName: visit.visitorName ?? "",
+    visitScore: visit.visitScore,
     notes: visit.notes ?? "",
     resultNotes: visit.resultNotes ?? "",
   };

@@ -39,6 +39,7 @@ export type BranchVisitCalendarItem = {
   status: string;
   derivedStatus: "PLANNED" | "COMPLETED" | "CANCELLED" | "MISSED";
   visitorName: string;
+  visitScore: number | null;
   notes: string;
   resultNotes: string;
 };
@@ -253,6 +254,7 @@ function VisitDetail({
         <Info label="Durum" value={STATUS_LABELS[visit.derivedStatus]} />
         <Info label="Ziyaret Tipi" value={VISIT_TYPE_OPTIONS.find(([value]) => value === visit.visitType)?.[1] ?? visit.visitType} />
         <Info label="Gerçekleşme Tarihi" value={visit.completedAt ? formatDateTime(visit.completedAt) : "-"} />
+        <Info label="Ziyaret Puanı" value={visit.visitScore == null ? "-" : `%${visit.visitScore}`} />
         <Info label="Not" value={visit.notes || "-"} wide />
         <Info label="Sonuç / Ek Notlar" value={visit.resultNotes || "-"} wide />
       </div>
@@ -265,8 +267,9 @@ function VisitDetail({
       </details>
 
       {visit.status !== "COMPLETED" ? (
-        <form action={completeBranchVisit.bind(null, visit.id)} className="grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 md:grid-cols-[1fr_2fr_auto]">
+        <form action={completeBranchVisit.bind(null, visit.id)} className="grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 md:grid-cols-[1fr_1fr_2fr_auto]">
           <input name="completedAt" type="datetime-local" defaultValue={visit.completedAtInput || visit.plannedAtInput} className="h-10 rounded-lg border bg-white px-3 text-sm" />
+          <input name="visitScore" required type="number" min="0" max="100" placeholder="Puan %" className="h-10 rounded-lg border bg-white px-3 text-sm" />
           <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
           <Button className="bg-emerald-700 text-white"><CheckCircle2 className="size-4" />Gerçekleşti</Button>
         </form>
@@ -312,6 +315,7 @@ function VisitForm({
       <Select name="visitorName" current={visit?.visitorName ?? ""} first="Sorumlu kullanıcı" options={userOptions} />
       <Select name="visitType" current={visit?.visitType ?? "OPERATION"} first="Ziyaret tipi" options={VISIT_TYPE_OPTIONS} />
       <Select name="status" current={visit?.status ?? "PLANNED"} first="Durum" options={STATUS_OPTIONS} />
+      <input name="visitScore" type="number" min="0" max="100" defaultValue={visit?.visitScore ?? ""} placeholder="Ziyaret puanı %" className="h-10 rounded-lg border px-3 text-sm" />
       <input name="title" defaultValue={visit?.title} placeholder="Başlık" className="h-10 rounded-lg border px-3 text-sm" />
       <textarea name="notes" defaultValue={visit?.notes} placeholder="Not" className="min-h-24 rounded-lg border p-3 text-sm md:col-span-2" />
       <div className="flex justify-end md:col-span-2">

@@ -185,6 +185,7 @@ export default async function OperationsPage() {
                   <p className="mt-2 text-xs text-[#65705f]">{score.negativeFactors || score.positiveFactors || "Açıklanabilir sağlık puanı hesaplandı."}</p>
                   <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
                     <HealthPart label="Denetim" value={score.auditComponent} />
+                    <HealthPart label="Ziyaret" value={score.visitComponent ?? 0} />
                     <HealthPart label="Bulgu" value={score.findingComponent} />
                     <HealthPart label="Görev" value={score.taskComponent} />
                     <HealthPart label="Ciro" value={score.revenueComponent} />

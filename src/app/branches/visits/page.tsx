@@ -35,6 +35,7 @@ type VisitWithBranch = {
   visitType: string;
   plannedAt: Date;
   completedAt: Date | null;
+  visitScore: number | null;
   status: string;
   visitorName: string | null;
   notes: string | null;
@@ -209,6 +210,7 @@ function VisitList({
                   <p className="mt-1 text-sm text-[#65705f]">
                     Plan: {formatDate(visit.plannedAt)}{visit.completedAt ? ` · Gerçekleşme: ${formatDate(visit.completedAt)}` : ""}
                   </p>
+                  {visit.visitScore == null ? null : <p className="mt-1 text-sm font-medium text-[#2f5f20]">Ziyaret puanı: %{visit.visitScore}</p>}
                   {visit.visitorName ? <p className="mt-1 text-sm text-[#65705f]">Sorumlu: {visit.visitorName}</p> : null}
                   {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
                   {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
@@ -218,6 +220,7 @@ function VisitList({
                     {showCompleteAction ? (
                       <form action={completeBranchVisit.bind(null, visit.id)} className="grid gap-2">
                         <input name="completedAt" type="datetime-local" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                        <input name="visitScore" required type="number" min="0" max="100" placeholder="Puan %" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                         <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
                         <Button size="sm" className="bg-[#17201b] text-white">Gerçekleşti</Button>
                       </form>

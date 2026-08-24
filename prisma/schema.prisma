@@ -1376,6 +1376,7 @@ model BranchHealthScoreSnapshot {
   score            Decimal  @db.Decimal(5, 2)
   previousScore    Decimal? @db.Decimal(5, 2)
   auditComponent   Decimal  @default(0) @db.Decimal(5, 2)
+  visitComponent   Decimal? @db.Decimal(5, 2)
   findingComponent Decimal  @default(0) @db.Decimal(5, 2)
   taskComponent    Decimal  @default(0) @db.Decimal(5, 2)
   revenueComponent Decimal  @default(0) @db.Decimal(5, 2)
@@ -1439,6 +1440,7 @@ model BranchVisit {
   visitType     String    @default("OPERATION")
   plannedAt     DateTime
   completedAt   DateTime?
+  visitScore    Int?
   status        String    @default("PLANNED")
   visitorName   String?
   plannedById   String?
@@ -1452,6 +1454,7 @@ model BranchVisit {
   @@index([branchId, plannedAt])
   @@index([status, plannedAt])
   @@index([completedAt])
+  @@index([branchId, status, completedAt])
 }
 
 model BranchTimelineEvent {

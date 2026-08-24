@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth";
+import { BranchHealthScoreService } from "@/lib/operations/health-score-service";
 import { prisma } from "@/lib/prisma";
+
+const visitScoreSchema = z.preprocess(
+  (value) => (value === "" || value == null ? undefined : Number(value)),
+  z.number().int().min(0, "Ziyaret puanı en az 0 olmalıdır.").max(100, "Ziyaret puanı en fazla 100 olabilir.").optional(),
+);
 
 const createVisitSchema = z.object({
   branchId: z.string().min(1, "Şube seçimi zorunludur."),
@@ -13,6 +19,7 @@ const createVisitSchema = z.object({
   visitType: z.string().trim().optional(),
   title: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  visitScore: visitScoreSchema,
   status: z.enum(["PLANNED", "COMPLETED", "CANCELLED"]).optional(),
 });
 
@@ -23,6 +30,10 @@ const updateVisitSchema = createVisitSchema.extend({
 const completeVisitSchema = z.object({
   completedAt: z.string().optional(),
   resultNotes: z.string().trim().optional(),
+  visitScore: z.preprocess(
+    (value) => (value === "" || value == null ? undefined : Number(value)),
+    z.number().int().min(0, "Ziyaret puanı en az 0 olmalıdır.").max(100, "Ziyaret puanı en fazla 100 olabilir."),
+  ),
 });
 
 const cancelVisitSchema = z.object({
@@ -74,6 +85,7 @@ export async function createBranchVisit(formData: FormData) {
         plannedById: user.id,
         completedAt: status === "COMPLETED" ? plannedAt : null,
         completedById: status === "COMPLETED" ? user.id : null,
+        visitScore: status === "COMPLETED" ? data.visitScore ?? null : null,
         resultNotes: status === "CANCELLED" ? "İptal edildi." : null,
         notes: data.notes || null,
       },
@@ -105,6 +117,7 @@ export async function createBranchVisit(formData: FormData) {
   });
 
   refresh(branch.id);
+  if (status === "COMPLETED") await new BranchHealthScoreService().calculate(branch.id);
 }
 
 export async function updateBranchVisit(visitId: string, formData: FormData) {
@@ -145,6 +158,7 @@ export async function updateBranchVisit(visitId: string, formData: FormData) {
         visitorName: data.visitorName || user.name,
         completedAt: data.status === "COMPLETED" ? visit.completedAt ?? plannedAt : visit.completedAt,
         completedById: data.status === "COMPLETED" ? visit.completedById ?? user.id : visit.completedById,
+        visitScore: data.status === "COMPLETED" ? data.visitScore ?? null : null,
         ...(resultNotes ? { resultNotes } : {}),
         notes: data.notes || null,
       },
@@ -173,6 +187,7 @@ export async function updateBranchVisit(visitId: string, formData: FormData) {
 
   refresh(branch.id);
   if (visit.branchId !== branch.id) refresh(visit.branchId);
+  if (data.status === "COMPLETED") await new BranchHealthScoreService().calculate(branch.id);
 }
 
 export async function completeBranchVisit(visitId: string, formData: FormData) {
@@ -198,6 +213,7 @@ export async function completeBranchVisit(visitId: string, formData: FormData) {
         status: "COMPLETED",
         completedAt,
         completedById: user.id,
+        visitScore: parsed.data.visitScore,
         resultNotes: parsed.data.resultNotes || null,
       },
     }),
@@ -221,6 +237,7 @@ export async function completeBranchVisit(visitId: string, formData: FormData) {
   ]);
 
   refresh(visit.branchId);
+  await new BranchHealthScoreService().calculate(visit.branchId);
 }
 
 export async function cancelBranchVisit(visitId: string, formData: FormData) {
