@@ -191,6 +191,11 @@ export default async function OperationsPage() {
                     <HealthPart label="Ciro" value={score.revenueComponent} />
                     <HealthPart label="Tedarik" value={score.supplyComponent} />
                   </div>
+                  {canManage ? (
+                    <form action={recalculateBranchHealth.bind(null, score.branchId)} className="mt-3">
+                      <Button size="sm" variant="outline">Puanı Yenile</Button>
+                    </form>
+                  ) : null}
                 </div>
               ))}
               {!latestHealthScores.length ? (

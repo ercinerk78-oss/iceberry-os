@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireBranchOperationAccess, requireCentralOperationsAccess, requireOperationsUser } from "@/lib/operations/access";
+import { AuditScoringService } from "@/lib/operations/audit-scoring-service";
 import { AuditWorkflowService, scoreForAnswer } from "@/lib/operations/audit-workflow-service";
 import { BranchHealthScoreService } from "@/lib/operations/health-score-service";
 import { prisma } from "@/lib/prisma";
@@ -343,6 +344,14 @@ export async function createFinding(_state: { message: string }, formData: FormD
 
 export async function recalculateBranchHealth(branchId: string) {
   await requireBranchOperationAccess(branchId);
+  const latestAudit = await prisma.audit.findFirst({
+    where: { branchId, status: { in: ["COMPLETED", "REVIEW_REQUIRED", "SUBMITTED"] } },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (latestAudit) await new AuditScoringService().scoreAudit(latestAudit.id);
   await new BranchHealthScoreService().calculate(branchId);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${branchId}`);
+  revalidatePath("/branch-portal");
 }
