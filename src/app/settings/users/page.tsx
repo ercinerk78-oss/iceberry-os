@@ -36,7 +36,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   await requirePermission("users");
 
   const params = await searchParams;
-  const [users, roles] = await Promise.all([
+  const [users, roles, branches] = await Promise.all([
     prisma.user.findMany({
       where: {
         AND: [
@@ -59,10 +59,11 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 : {},
         ],
       },
-      include: { roleRecord: true },
+      include: { roleRecord: true, branchUsers: { include: { branch: { select: { id: true, branchName: true, city: true } } }, orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.role.findMany({ orderBy: { ad: "asc" } }),
+    prisma.branch.findMany({ where: { archivedAt: null }, select: { id: true, branchName: true, city: true }, orderBy: [{ branchName: "asc" }] }),
   ]);
 
   return (
@@ -97,7 +98,10 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             <CardTitle>Yeni Kullanıcı</CardTitle>
           </CardHeader>
           <CardContent>
-            <UserCreateForm roles={roles.map((role) => ({ id: role.id, ad: role.ad, kod: role.kod }))} />
+            <UserCreateForm
+              roles={roles.map((role) => ({ id: role.id, ad: role.ad, kod: role.kod }))}
+              branches={branches.map((branch) => ({ id: branch.id, label: `${branch.branchName} · ${branch.city}` }))}
+            />
           </CardContent>
         </Card>
 
@@ -162,7 +166,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           {users.map((user) => (
             <Card key={user.id} className={`shadow-none ${user.archivedAt ? "opacity-60" : ""}`}>
               <CardContent className="p-4">
-                <form action={updateUser.bind(null, user.id)} className="grid gap-3 lg:grid-cols-[1fr_1fr_160px_190px_auto]">
+                <form action={updateUser.bind(null, user.id)} className="grid gap-3 lg:grid-cols-[1fr_1fr_160px_190px_260px_auto]">
                   <input name="name" defaultValue={user.name} className={inputClass} />
                   <input name="email" type="email" defaultValue={user.email} className={inputClass} />
                   <input name="phone" defaultValue={user.phone ?? ""} className={inputClass} />
@@ -173,12 +177,23 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       </option>
                     ))}
                   </select>
+                  <label className="grid gap-1 text-xs text-[#65705f]">
+                    <span>Bağlı Şubeler</span>
+                    <select name="branchIds" multiple defaultValue={user.branchUsers.map((item) => item.branchId)} className="min-h-24 rounded-lg border px-3 py-2 text-sm text-[#17201b]">
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.branchName} · {branch.city}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <input name="password" type="hidden" value="" />
                   <Button variant="outline">Kaydet</Button>
                 </form>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#65705f]">
                   <b>{user.roleRecord?.ad ?? user.role}</b>
+                  {user.branchUsers.length ? <span>- Şubeler: {user.branchUsers.map((item) => item.branch.branchName).join(", ")}</span> : null}
                   <span>- {user.isActive ? "Aktif" : "Pasif"}</span>
                   <span>- Son giriş {formatDate(user.lastLoginAt)}</span>
                   <span>- Oluşturma {formatDate(user.createdAt)}</span>

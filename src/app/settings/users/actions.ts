@@ -13,10 +13,46 @@ import { userSchema } from "@/lib/validations/user";
 const refreshUsers = () => revalidatePath("/settings/users");
 export type UserActionState = { success: boolean; message: string };
 type PasswordResetState = { success: boolean; message: string };
+const branchScopedRoles = new Set(["BRANCH_OWNER", "BRANCH_MANAGER"]);
+
+function branchIdsFromForm(formData: FormData) {
+  return [...new Set(formData.getAll("branchIds").map(String).filter(Boolean))];
+}
+
+async function syncUserBranches(tx: Prisma.TransactionClient, userId: string, role: string, branchIds: string[]) {
+  if (!branchScopedRoles.has(role)) {
+    await tx.branchUser.deleteMany({ where: { userId } });
+    return;
+  }
+
+  if (!branchIds.length) throw new Error("Bayi kullanıcısı için en az bir şube seçmelisiniz.");
+
+  const validBranches = await tx.branch.findMany({
+    where: { id: { in: branchIds }, archivedAt: null },
+    select: { id: true },
+  });
+  const validIds = validBranches.map((branch) => branch.id);
+  if (validIds.length !== branchIds.length) throw new Error("Seçilen şubelerden biri bulunamadı veya arşivlenmiş.");
+
+  await tx.branchUser.deleteMany({ where: { userId, branchId: { notIn: validIds } } });
+  await tx.branchUser.createMany({
+    data: validIds.map((branchId, index) => ({ userId, branchId, role, isPrimary: index === 0 })),
+    skipDuplicates: true,
+  });
+  await tx.branchUser.updateMany({
+    where: { userId, branchId: { in: validIds } },
+    data: { role, isPrimary: false },
+  });
+  await tx.branchUser.update({
+    where: { branchId_userId: { branchId: validIds[0], userId } },
+    data: { isPrimary: true },
+  });
+}
 
 export async function createUser(formData: FormData) {
   const actor = await requirePermission("users");
   const data = userSchema.parse(Object.fromEntries(formData));
+  const branchIds = branchIdsFromForm(formData);
 
   if (!data.password) {
     throw new Error("Geçici şifre zorunludur.");
@@ -25,19 +61,25 @@ export async function createUser(formData: FormData) {
   const role = await prisma.role.findUnique({ where: { kod: data.role } });
   if (!role) throw new Error("Seçilen rol sistemde bulunamadı. Rol listesini kontrol edin.");
 
-  const user = await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      phone: data.phone || null,
-      role: data.role,
-      roleId: role.id,
-      passwordHash: await hashPassword(data.password),
-    },
+  const passwordHash = await hashPassword(data.password);
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || null,
+        role: data.role,
+        roleId: role.id,
+        passwordHash,
+      },
+    });
+    await syncUserBranches(tx, created.id, data.role, branchIds);
+    return created;
   });
 
   await audit("USER_CREATED", "User", user.id, `${user.email} kullanıcısı oluşturuldu.`, actor.id);
   refreshUsers();
+  revalidatePath("/operations");
 }
 
 export async function createUserWithState(_state: UserActionState, formData: FormData): Promise<UserActionState> {
@@ -53,19 +95,24 @@ export async function updateUser(id: string, formData: FormData) {
   const actor = await requirePermission("users");
   const before = await prisma.user.findUniqueOrThrow({ where: { id } });
   const data = userSchema.parse(Object.fromEntries(formData));
+  const branchIds = branchIdsFromForm(formData);
   const role = await prisma.role.findUnique({ where: { kod: data.role } });
   if (!role) throw new Error("Seçilen rol sistemde bulunamadı. Rol listesini kontrol edin.");
+  const passwordHash = data.password ? await hashPassword(data.password) : null;
 
-  await prisma.user.update({
-    where: { id },
-    data: {
-      name: data.name,
-      email: data.email,
-      phone: data.phone || null,
-      role: data.role,
-      roleId: role.id,
-      ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || null,
+        role: data.role,
+        roleId: role.id,
+        ...(passwordHash ? { passwordHash } : {}),
+      },
+    });
+    await syncUserBranches(tx, id, data.role, branchIds);
   });
 
   await audit(
@@ -78,6 +125,7 @@ export async function updateUser(id: string, formData: FormData) {
     actor.id,
   );
   refreshUsers();
+  revalidatePath("/operations");
 }
 
 function userErrorMessage(error: unknown, fallback: string) {

@@ -4,6 +4,7 @@ import { CalendarClock, Check, CheckSquare, FileText, ShieldCheck, TrendingUp } 
 
 import { completeOperationCalendarItem, updateBranch, updateBranchNotes } from "@/app/branches/actions";
 import { cancelBranchVisit, completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
+import { startAuditAssignment, submitAudit } from "@/app/operations/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
 import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
@@ -18,6 +19,7 @@ import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
 import { canAccessBranch } from "@/lib/branch-access";
 import { currentUser } from "@/lib/auth";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
+import { AUDIT_ASSIGNMENT_STATUS_LABELS, AUDIT_RESULT_LABELS, AUDIT_TYPE_LABELS, dateTR as operationDateTR, label as operationLabel, percentTR } from "@/lib/operations/labels";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +76,8 @@ export default async function BranchDetail({
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
       audits: { orderBy: { auditDate: "desc" } },
+      auditAssignments: { include: { template: { select: { name: true } } }, orderBy: { dueAt: "asc" } },
+      operationalAudits: { include: { template: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
       visits: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: [{ plannedAt: "desc" }] },
       operationCalendarItems: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: { startAt: "asc" } },
       timeline: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 },
@@ -103,7 +107,9 @@ export default async function BranchDetail({
   const activeStage = activeOpening?.stages.find((stage) => stage.status === "IN_PROGRESS");
   const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status));
   const overdueTasks = openTasks.filter((task) => task.dueDate && task.dueDate < new Date());
+  const lastOperationalAudit = branch.operationalAudits[0];
   const lastAudit = branch.audits[0];
+  const lastAuditScore = lastOperationalAudit ? percentTR(Number(lastOperationalAudit.percentageScore)) : (lastAudit?.score ?? "—");
   const openCalendarItems = branch.operationCalendarItems.filter((item) => item.status !== "COMPLETED");
   const values = {
     ...branch,
@@ -130,7 +136,7 @@ export default async function BranchDetail({
             <div className="grid gap-2 sm:grid-cols-3">
               <Metric label="Açık Görev" value={openTasks.length} icon={CheckSquare} />
               <Metric label="Geciken Görev" value={overdueTasks.length} icon={CalendarClock} />
-              <Metric label="Son Denetim" value={lastAudit?.score ?? "—"} icon={ShieldCheck} />
+              <Metric label="Son Denetim" value={lastAuditScore} icon={ShieldCheck} />
             </div>
           </div>
         </Card>
@@ -151,7 +157,7 @@ export default async function BranchDetail({
             {tab === "Kullanıcılar" ? <UsersPanel users={branch.users} /> : null}
             {tab === "Görevler" ? <BranchTaskPanel branchId={id} tasks={branch.tasks} canReview={!["BRANCH_OWNER", "BRANCH_MANAGER"].includes(user?.role ?? "")} /> : null}
             {tab === "Dokümanlar" ? <RelatedDocumentsPanel relation="branch" relationId={id} documents={branch.documents} /> : null}
-            {tab === "Denetim Raporları" ? <AuditPanel audits={branch.audits} /> : null}
+            {tab === "Denetim Raporları" ? <AuditPanel assignments={branch.auditAssignments} operationalAudits={branch.operationalAudits} legacyAudits={branch.audits} /> : null}
             {tab === "Operasyon Ziyaretleri" ? <BranchVisitsPanel branchId={id} visits={branch.visits} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
@@ -206,10 +212,78 @@ function UsersPanel({ users }: { users: { id: string; role: string; user: { name
   return <List items={users.map((item) => `${item.user.name} · ${item.role} · ${item.user.email}`)} />;
 }
 
-function AuditPanel({ audits }: { audits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[] }) {
-  if (!audits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim raporu yok." />;
+function AuditPanel({
+  assignments,
+  operationalAudits,
+  legacyAudits,
+}: {
+  assignments: { id: string; auditType: string; status: string; dueAt: Date; priority: string; template: { name: string } }[];
+  operationalAudits: { id: string; auditType: string; status: string; result: string; percentageScore: unknown; createdAt: Date; submittedAt: Date | null; completedAt: Date | null; template: { name: string } }[];
+  legacyAudits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[];
+}) {
+  if (!assignments.length && !operationalAudits.length && !legacyAudits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim kaydı yok." />;
 
-  return <List items={audits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />;
+  return (
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <h3 className="font-semibold">Yeni Operasyon Denetimleri</h3>
+        {assignments.map((assignment) => (
+          <article key={assignment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{assignment.template.name}</p>
+                <p className="text-sm text-[#65705f]">
+                  {operationLabel(AUDIT_TYPE_LABELS, assignment.auditType)} · Son tarih {operationDateTR(assignment.dueAt)}
+                </p>
+              </div>
+              <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
+            </div>
+            {["ASSIGNED", "PLANNED"].includes(assignment.status) ? (
+              <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3">
+                <Button size="sm" variant="outline">Denetimi Başlat</Button>
+              </form>
+            ) : null}
+          </article>
+        ))}
+        {!assignments.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Atanmış yeni operasyon denetimi yok.</p> : null}
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="font-semibold">Aktif ve Tamamlanan Denetimler</h3>
+        {operationalAudits.map((audit) => (
+          <article key={audit.id} className="rounded-lg border border-[#edf0e9] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{audit.template.name}</p>
+                <p className="text-sm text-[#65705f]">
+                  {operationLabel(AUDIT_TYPE_LABELS, audit.auditType)} · {operationLabel(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}
+                </p>
+                <p className="mt-1 text-xs text-[#65705f]">
+                  Oluşturma {operationDateTR(audit.createdAt)}
+                  {audit.submittedAt ? ` · Gönderim ${operationDateTR(audit.submittedAt)}` : ""}
+                  {audit.completedAt ? ` · Tamamlanma ${operationDateTR(audit.completedAt)}` : ""}
+                </p>
+              </div>
+              <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
+            </div>
+            {audit.status === "IN_PROGRESS" ? (
+              <form action={submitAudit.bind(null, audit.id)} className="mt-3">
+                <Button size="sm" variant="outline">Denetimi Gönder</Button>
+              </form>
+            ) : null}
+          </article>
+        ))}
+        {!operationalAudits.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Başlatılmış operasyon denetimi yok.</p> : null}
+      </section>
+
+      {legacyAudits.length ? (
+        <section className="space-y-3">
+          <h3 className="font-semibold">Eski Denetim Raporları</h3>
+          <List items={legacyAudits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
 function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { id: string; title: string; visitType: string; plannedAt: Date; completedAt: Date | null; status: string; visitorName: string | null; notes: string | null; resultNotes: string | null }[] }) {
