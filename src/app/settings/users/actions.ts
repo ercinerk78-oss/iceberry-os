@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { audit, requirePermission } from "@/lib/auth";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { hashPassword } from "@/lib/password";
 import { ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -28,11 +29,11 @@ async function syncUserBranches(tx: Prisma.TransactionClient, userId: string, ro
   if (!branchIds.length) throw new Error("Bayi kullanıcısı için en az bir şube seçmelisiniz.");
 
   const validBranches = await tx.branch.findMany({
-    where: { id: { in: branchIds }, archivedAt: null },
+    where: withNonHotelMainBranchWhere({ id: { in: branchIds }, archivedAt: null }),
     select: { id: true },
   });
   const validIds = validBranches.map((branch) => branch.id);
-  if (validIds.length !== branchIds.length) throw new Error("Seçilen şubelerden biri bulunamadı veya arşivlenmiş.");
+  if (validIds.length !== branchIds.length) throw new Error("Seçilen şubelerden biri bulunamadı, arşivlenmiş veya Hotel konseptindedir.");
 
   await tx.branchUser.deleteMany({ where: { userId, branchId: { notIn: validIds } } });
   await tx.branchUser.createMany({

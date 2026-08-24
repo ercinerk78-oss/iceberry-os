@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { normalizePermissions, PERMISSION_DEFINITIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -63,7 +64,11 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       orderBy: { createdAt: "desc" },
     }),
     prisma.role.findMany({ orderBy: { ad: "asc" } }),
-    prisma.branch.findMany({ where: { archivedAt: null }, select: { id: true, branchName: true, city: true }, orderBy: [{ branchName: "asc" }] }),
+    prisma.branch.findMany({
+      where: withNonHotelMainBranchWhere({ archivedAt: null }),
+      select: { id: true, branchName: true, city: true },
+      orderBy: [{ branchName: "asc" }],
+    }),
   ]);
 
   return (
