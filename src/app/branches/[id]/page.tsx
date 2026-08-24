@@ -9,6 +9,7 @@ import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
 import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
+import { QuickAuditAnswerForm } from "@/components/operations/operation-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -77,7 +78,21 @@ export default async function BranchDetail({
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
       audits: { orderBy: { auditDate: "desc" } },
       auditAssignments: { include: { template: { select: { name: true } } }, orderBy: { dueAt: "asc" } },
-      operationalAudits: { include: { template: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
+      operationalAudits: {
+        include: {
+          template: {
+            include: {
+              sections: {
+                include: { questions: { include: { options: true } } },
+                orderBy: { sortOrder: "asc" },
+              },
+            },
+          },
+          answers: { include: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true } } } },
+          evidences: { where: { evidenceType: "PHOTO", documentId: { not: null } }, select: { id: true, caption: true, createdAt: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
       visits: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: [{ plannedAt: "desc" }] },
       operationCalendarItems: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: { startAt: "asc" } },
       timeline: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 },
@@ -272,13 +287,46 @@ function AuditPanel({
   legacyAudits,
 }: {
   assignments: { id: string; auditType: string; status: string; dueAt: Date; priority: string; template: { name: string } }[];
-  operationalAudits: { id: string; auditType: string; status: string; result: string; percentageScore: unknown; createdAt: Date; submittedAt: Date | null; completedAt: Date | null; template: { name: string } }[];
+  operationalAudits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    template: { name: string; sections: { questions: { id: string; title: string; requiresPhoto: boolean; options: { label: string; value: string }[] }[] }[] };
+    answers: { questionId: string; isNotApplicable: boolean; evidences: { id: string }[] }[];
+    evidences: { id: string; caption: string | null; createdAt: Date }[];
+  }[];
   legacyAudits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[];
 }) {
   if (!assignments.length && !operationalAudits.length && !legacyAudits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim kaydı yok." />;
+  const openQuestions = operationalAudits.filter((audit) => audit.status === "IN_PROGRESS").flatMap((audit) => {
+    const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+
+    return audit.template.sections.flatMap((section) => section.questions.filter((question) => {
+      const answer = answers.get(question.id);
+      return !answer || (question.requiresPhoto && !answer.isNotApplicable && answer.evidences.length === 0);
+    }).map((question) => {
+      const answer = answers.get(question.id);
+
+      return {
+        id: question.id,
+        title: `${audit.template.name} · ${question.title}${answer ? " · Fotoğraf bekliyor" : ""}`,
+        auditId: audit.id,
+        requiresPhoto: question.requiresPhoto,
+        photoCount: answer?.evidences.length ?? 0,
+        options: question.options.map((option) => ({ label: option.label, value: option.value })),
+      };
+    }));
+  });
 
   return (
     <div className="space-y-5">
+      {openQuestions.length ? <QuickAuditAnswerForm openQuestions={openQuestions} /> : null}
+
       <section className="space-y-3">
         <h3 className="font-semibold">Yeni Operasyon Denetimleri</h3>
         {assignments.map((assignment) => (
@@ -324,6 +372,17 @@ function AuditPanel({
               <form action={submitAudit.bind(null, audit.id)} className="mt-3">
                 <Button size="sm" variant="outline">Denetimi Gönder</Button>
               </form>
+            ) : null}
+            {audit.evidences.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {audit.evidences.map((evidence, index) => (
+                  <Button key={evidence.id} asChild size="sm" variant="outline">
+                    <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
+                      Fotoğraf {index + 1}
+                    </a>
+                  </Button>
+                ))}
+              </div>
             ) : null}
           </article>
         ))}

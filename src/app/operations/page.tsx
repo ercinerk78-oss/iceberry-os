@@ -41,7 +41,17 @@ export default async function OperationsPage() {
     prisma.branch.findMany({ where: scopedBranchWhere, select: { id: true, branchName: true, city: true, district: true, branchCode: true, healthScore: true }, orderBy: { branchName: "asc" }, take: 300 }),
     prisma.auditTemplate.findMany({ include: { sections: true }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], take: 20 }),
     prisma.auditAssignment.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true } }, template: { select: { name: true } } }, orderBy: { dueAt: "asc" }, take: 20 }),
-    prisma.audit.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true } }, template: { include: { sections: { include: { questions: { include: { options: true } } } } } }, answers: true }, orderBy: { createdAt: "desc" }, take: 12 }),
+    prisma.audit.findMany({
+      where: { branch: scopedBranchWhere },
+      include: {
+        branch: { select: { branchName: true } },
+        template: { include: { sections: { include: { questions: { include: { options: true } } } } } },
+        answers: { include: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true } } } },
+        evidences: { where: { evidenceType: "PHOTO", documentId: { not: null } }, select: { id: true, caption: true, createdAt: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
     prisma.auditFinding.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["CLOSED", "VERIFIED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { createdAt: "desc" }, take: 15 }),
     prisma.correctiveAction.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { dueAt: "asc" }, take: 15 }),
     prisma.branchHealthScoreSnapshot.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true, city: true } } }, orderBy: { calculatedAt: "desc" }, take: 12 }),
@@ -53,13 +63,21 @@ export default async function OperationsPage() {
   const canManage = canManageOperations(user.role);
   const averageHealth = branches.length ? Math.round(branches.reduce((sum, branch) => sum + (branch.healthScore ?? 0), 0) / branches.length) : 0;
   const openQuestions = activeAudits.flatMap((audit) => {
-    const answered = new Set(audit.answers.map((answer) => answer.questionId));
-    return audit.template.sections.flatMap((section) => section.questions.filter((question) => !answered.has(question.id)).map((question) => ({
+    const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+    return audit.template.sections.flatMap((section) => section.questions.filter((question) => {
+      const answer = answers.get(question.id);
+      return !answer || (question.requiresPhoto && !answer.isNotApplicable && answer.evidences.length === 0);
+    }).map((question) => {
+      const answer = answers.get(question.id);
+      return ({
       id: question.id,
-      title: `${audit.branch.branchName} · ${question.title}`,
+      title: `${audit.branch.branchName} · ${question.title}${answer ? " · Fotoğraf bekliyor" : ""}`,
       auditId: audit.id,
+      requiresPhoto: question.requiresPhoto,
+      photoCount: answer?.evidences.length ?? 0,
       options: question.options.map((option) => ({ label: option.label, value: option.value })),
-    })));
+    });
+    }));
   }).slice(0, 30);
   const metrics = [
     { title: "Ortalama Şube Sağlık Puanı", value: averageHealth ? percentTR(averageHealth) : "Veri yok", icon: TrendingUp },
@@ -134,6 +152,17 @@ export default async function OperationsPage() {
                     {audit.status === "IN_PROGRESS" ? <form action={submitAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Gönder</Button></form> : null}
                     {canManage && ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status) ? <form action={approveAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
                   </div>
+                  {audit.evidences.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      {audit.evidences.map((evidence, index) => (
+                        <Button key={evidence.id} asChild size="sm" variant="outline">
+                          <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
+                            Fotoğraf {index + 1}
+                          </a>
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {!audits.length ? <p className="py-8 text-center text-sm text-[#65705f]">Denetim kaydı yok.</p> : null}

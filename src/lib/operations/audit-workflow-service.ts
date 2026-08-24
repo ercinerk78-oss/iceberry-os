@@ -40,6 +40,7 @@ export class AuditWorkflowService {
   }
 
   async submitAudit(auditId: string, userId: string) {
+    await this.ensureSubmitRequirements(auditId);
     const score = await new AuditScoringService().scoreAudit(auditId);
     return prisma.$transaction(async (tx) => {
       const audit = await tx.audit.update({
@@ -76,6 +77,44 @@ export class AuditWorkflowService {
       });
       return audit;
     });
+  }
+
+  private async ensureSubmitRequirements(auditId: string) {
+    const audit = await prisma.audit.findUnique({
+      where: { id: auditId },
+      include: {
+        template: {
+          include: {
+            sections: {
+              where: { isActive: true },
+              include: { questions: { where: { isActive: true }, orderBy: { sortOrder: "asc" } } },
+              orderBy: { sortOrder: "asc" },
+            },
+          },
+        },
+        answers: { include: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true } } } },
+      },
+    });
+    if (!audit) throw new Error("Denetim bulunamadı.");
+
+    const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+    const unanswered = audit.template.sections.flatMap((section) =>
+      section.questions.filter((question) => !answers.has(question.id)).map((question) => `${section.name}: ${question.title}`),
+    );
+    if (unanswered.length) {
+      throw new Error(`Denetimi göndermek için tüm soruları cevaplayın: ${unanswered.slice(0, 3).join(", ")}${unanswered.length > 3 ? "..." : ""}`);
+    }
+
+    const missingPhotos = audit.template.sections.flatMap((section) =>
+      section.questions.filter((question) => {
+        const answer = answers.get(question.id);
+        return question.requiresPhoto && answer && !answer.isNotApplicable && answer.evidences.length === 0;
+      }).map((question) => `${section.name}: ${question.title}`),
+    );
+
+    if (missingPhotos.length) {
+      throw new Error(`Denetimi göndermek için fotoğraf zorunlu soruları tamamlayın: ${missingPhotos.slice(0, 3).join(", ")}${missingPhotos.length > 3 ? "..." : ""}`);
+    }
   }
 
   async approveAudit(auditId: string, reviewerId: string) {

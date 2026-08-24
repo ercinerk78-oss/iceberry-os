@@ -11,7 +11,7 @@ const initial = { message: "" };
 
 type BranchOption = { id: string; branchName: string; city?: string | null; district?: string | null; branchCode?: string | null };
 type TemplateOption = { id: string; name: string; auditType: string; version: number };
-type AuditQuestionOption = { id: string; title: string; auditId: string; options: { label: string; value: string }[] };
+type AuditQuestionOption = { id: string; title: string; auditId: string; requiresPhoto: boolean; photoCount: number; options: { label: string; value: string }[] };
 
 export function OperationForms({
   branches,
@@ -38,6 +38,10 @@ export function OperationForms({
           <input name="branchConcept" placeholder="Konsept kapsamı (opsiyonel)" className="h-10 rounded-lg border px-3" />
           <input name="ownershipType" placeholder="Sahiplik türü (opsiyonel)" className="h-10 rounded-lg border px-3" />
           <input name="passingScore" type="number" min={0} max={100} defaultValue={80} className="h-10 rounded-lg border px-3" />
+          <label className="flex items-center gap-2 rounded-lg border bg-[#f8faf6] px-3 py-2 text-sm font-medium">
+            <input name="requiresPhoto" type="checkbox" />
+            Bu şablonda fotoğraf kanıtı zorunlu olsun
+          </label>
           <Button disabled={templatePending} className="bg-[#17201b] text-white">{templatePending ? "Oluşturuluyor..." : "Şablon Oluştur"}</Button>
           {templateState.message ? <p className="text-sm text-[#65705f]">{templateState.message}</p> : null}
         </div>
@@ -79,6 +83,16 @@ export function QuickAuditAnswerForm({ openQuestions }: { openQuestions: AuditQu
         <input name="auditId" value={selectedQuestion?.auditId ?? ""} readOnly className="h-10 rounded-lg border bg-[#f8faf6] px-3 text-sm text-[#65705f]" />
         <Select name="answerValue" label="Cevap" options={[["PASS", "Uygun"], ["FAIL", "Uygun Değil"], ["NOT_APPLICABLE", "Uygulanamaz"]]} />
         <textarea name="comment" rows={3} placeholder="Açıklama" className="rounded-lg border px-3 py-2" />
+        {selectedQuestion?.requiresPhoto ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+            <p className="font-medium text-amber-900">Bu soru için fotoğraf zorunlu.</p>
+            <p className="mt-1 text-amber-800">Yüklenen fotoğraf: {selectedQuestion.photoCount}</p>
+          </div>
+        ) : null}
+        <label className="grid gap-2 text-sm font-medium">
+          <span>Denetim fotoğrafı</span>
+          <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple className="rounded-lg border px-3 py-2 text-sm" />
+        </label>
         <Button disabled={answerPending || !openQuestions.length} className="bg-[#17201b] text-white">{answerPending ? "Kaydediliyor..." : "Cevabı Kaydet"}</Button>
         {answerState.message ? <p className="text-sm text-[#65705f]">{answerState.message}</p> : null}
         {!openQuestions.length ? <p className="text-sm text-[#65705f]">Cevap bekleyen aktif denetim sorusu yok.</p> : null}
