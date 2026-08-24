@@ -54,14 +54,16 @@ export default async function OperationsPage() {
     }),
     prisma.auditFinding.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["CLOSED", "VERIFIED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { createdAt: "desc" }, take: 15 }),
     prisma.correctiveAction.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { dueAt: "asc" }, take: 15 }),
-    prisma.branchHealthScoreSnapshot.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true, city: true } } }, orderBy: { calculatedAt: "desc" }, take: 12 }),
+    prisma.branchHealthScoreSnapshot.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { id: true, branchName: true, city: true } } }, orderBy: { calculatedAt: "desc" }, take: 300 }),
     prisma.correctiveAction.count({ where: { branch: scopedBranchWhere, dueAt: { lt: now }, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } } }),
     prisma.auditFinding.count({ where: { branch: scopedBranchWhere, isCritical: true, status: { notIn: ["CLOSED", "VERIFIED"] } } }),
   ]);
   const publishedTemplates = templates.filter((template) => template.status === "PUBLISHED");
   const activeAudits = audits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
   const canManage = canManageOperations(user.role);
-  const averageHealth = branches.length ? Math.round(branches.reduce((sum, branch) => sum + (branch.healthScore ?? 0), 0) / branches.length) : 0;
+  const scoredBranches = branches.filter((branch) => branch.healthScore != null);
+  const averageHealth = scoredBranches.length ? Math.round(scoredBranches.reduce((sum, branch) => sum + Number(branch.healthScore), 0) / scoredBranches.length) : 0;
+  const latestHealthScores = [...new Map(healthScores.map((score) => [score.branchId, score])).values()];
   const openQuestions = activeAudits.flatMap((audit) => {
     const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
     return audit.template.sections.flatMap((section) => section.questions.filter((question) => {
@@ -172,13 +174,21 @@ export default async function OperationsPage() {
           <Card className="shadow-none">
             <CardHeader><CardTitle>Şube Sağlık Puanları</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {healthScores.map((score) => (
+              {latestHealthScores.map((score) => (
                 <div key={score.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
                   <div className="flex items-center justify-between gap-3"><div><p className="font-medium">{score.branch.branchName}</p><p className="text-xs text-[#65705f]">{score.branch.city} · {dateTR(score.calculatedAt)}</p></div><strong>{percentTR(Number(score.score))}</strong></div>
                   <p className="mt-2 text-xs text-[#65705f]">{score.negativeFactors || score.positiveFactors || "Açıklanabilir sağlık puanı hesaplandı."}</p>
+                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
+                    <HealthPart label="Denetim" value={score.auditComponent} />
+                    <HealthPart label="Bulgu" value={score.findingComponent} />
+                    <HealthPart label="Görev" value={score.taskComponent} />
+                    <HealthPart label="Ciro" value={score.revenueComponent} />
+                    <HealthPart label="Tedarik" value={score.supplyComponent} />
+                    <HealthPart label="Finans" value={score.financeComponent} />
+                  </div>
                 </div>
               ))}
-              {!healthScores.length ? (
+              {!latestHealthScores.length ? (
                 <div className="py-8 text-center text-sm text-[#65705f]">
                   Sağlık puanı henüz hesaplanmadı.
                   {branches[0] && canManage ? <form action={recalculateBranchHealth.bind(null, branches[0].id)} className="mt-3"><Button size="sm" variant="outline">İlk şube için hesapla</Button></form> : null}
@@ -219,5 +229,14 @@ export default async function OperationsPage() {
         </section>
       </div>
     </AppShell>
+  );
+}
+
+function HealthPart({ label: partLabel, value }: { label: string; value: unknown }) {
+  return (
+    <div className="rounded-lg border border-[#edf0e9] bg-white px-3 py-2">
+      <span className="block text-[#65705f]">{partLabel}</span>
+      <strong className="mt-1 block text-[#17201b]">{percentTR(Number(value))}</strong>
+    </div>
   );
 }
