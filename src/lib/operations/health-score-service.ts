@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export class BranchHealthScoreService {
   async calculate(branchId: string) {
-    const [previous, lastAudit, recentScoredVisits, openFindings, overdueTasks, revenueMissing, supplyAlerts, financeRisk] = await Promise.all([
+    const [previous, lastAudit, recentScoredVisits, openFindings, overdueTasks, revenueMissing, supplyAlerts] = await Promise.all([
       prisma.branchHealthScoreSnapshot.findFirst({ where: { branchId }, orderBy: { calculatedAt: "desc" } }),
       prisma.audit.findFirst({ where: { branchId, status: { in: ["COMPLETED", "REVIEW_REQUIRED", "SUBMITTED"] } }, orderBy: { createdAt: "desc" } }),
       prisma.branchVisit.findMany({
@@ -17,7 +17,6 @@ export class BranchHealthScoreService {
       prisma.branchTask.count({ where: { branchId, dueDate: { lt: new Date() }, status: { in: ["OPEN", "IN_PROGRESS", "REJECTED"] } } }),
       prisma.branchRevenueRecord.count({ where: { branchId, periodType: "MONTHLY", status: { in: ["DRAFT", "REJECTED", "SUBMITTED"] } } }),
       prisma.supplyComplianceAlert.count({ where: { branchId, status: "OPEN" } }),
-      prisma.branchLedgerAccount.count({ where: { branchId, riskLimit: { not: null }, currentBalance: { gt: prisma.branchLedgerAccount.fields.riskLimit } } }).catch(() => 0),
     ]);
     const criticalFindings = openFindings.filter((finding) => finding.isCritical || finding.severity === "CRITICAL").length;
     const majorFindings = openFindings.filter((finding) => finding.severity === "MAJOR").length;
@@ -29,14 +28,12 @@ export class BranchHealthScoreService {
     const taskComponent = new Prisma.Decimal(Math.max(0, 100 - overdueTasks * 8));
     const revenueComponent = new Prisma.Decimal(Math.max(0, 100 - revenueMissing * 6));
     const supplyComponent = new Prisma.Decimal(Math.max(0, 100 - supplyAlerts * 10));
-    const financeComponent = new Prisma.Decimal(Math.max(0, 100 - financeRisk * 15));
-    const score = auditComponent.mul(0.3)
-      .plus(visitComponent.mul(0.15))
-      .plus(findingComponent.mul(0.2))
+    const score = auditComponent.mul(0.32)
+      .plus(visitComponent.mul(0.16))
+      .plus(findingComponent.mul(0.21))
       .plus(taskComponent.mul(0.15))
       .plus(revenueComponent.mul(0.08))
       .plus(supplyComponent.mul(0.08))
-      .plus(financeComponent.mul(0.04))
       .toDecimalPlaces(2);
     const negativeFactors = [
       criticalFindings ? `${criticalFindings} kritik bulgu` : null,
@@ -56,8 +53,7 @@ export class BranchHealthScoreService {
         taskComponent,
         revenueComponent,
         supplyComponent,
-        financeComponent,
-        weightsSnapshot: JSON.stringify({ audit: 0.3, visit: 0.15, finding: 0.2, task: 0.15, revenue: 0.08, supply: 0.08, finance: 0.04 }),
+        weightsSnapshot: JSON.stringify({ audit: 0.32, visit: 0.16, finding: 0.21, task: 0.15, revenue: 0.08, supply: 0.08 }),
         positiveFactors: score.gte(85) ? "Operasyonel göstergeler güçlü." : null,
         negativeFactors: negativeFactors.join(", "),
         criticalRisks: criticalFindings ? "Kritik bulgu mevcut." : null,

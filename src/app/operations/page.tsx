@@ -190,7 +190,6 @@ export default async function OperationsPage() {
                     <HealthPart label="Görev" value={score.taskComponent} />
                     <HealthPart label="Ciro" value={score.revenueComponent} />
                     <HealthPart label="Tedarik" value={score.supplyComponent} />
-                    <HealthPart label="Finans" value={score.financeComponent} />
                   </div>
                 </div>
               ))}
