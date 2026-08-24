@@ -63,7 +63,12 @@ export default async function OperationsPage() {
   const canManage = canManageOperations(user.role);
   const scoredBranches = branches.filter((branch) => branch.healthScore != null);
   const averageHealth = scoredBranches.length ? Math.round(scoredBranches.reduce((sum, branch) => sum + Number(branch.healthScore), 0) / scoredBranches.length) : 0;
-  const latestHealthScores = [...new Map(healthScores.map((score) => [score.branchId, score])).values()];
+  const seenHealthScoreBranches = new Set<string>();
+  const latestHealthScores = healthScores.filter((score) => {
+    if (seenHealthScoreBranches.has(score.branchId)) return false;
+    seenHealthScoreBranches.add(score.branchId);
+    return true;
+  });
   const openQuestions = activeAudits.flatMap((audit) => {
     const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
     return audit.template.sections.flatMap((section) => section.questions.filter((question) => {

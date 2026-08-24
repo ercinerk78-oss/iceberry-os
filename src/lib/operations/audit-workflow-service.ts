@@ -118,6 +118,7 @@ export class AuditWorkflowService {
   }
 
   async approveAudit(auditId: string, reviewerId: string) {
+    await new AuditScoringService().scoreAudit(auditId);
     return prisma.$transaction(async (tx) => {
       const audit = await tx.audit.findUnique({ where: { id: auditId } });
       if (!audit) throw new Error("Denetim bulunamadı.");
@@ -131,7 +132,7 @@ export class AuditWorkflowService {
       }
       await tx.branch.update({
         where: { id: audit.branchId },
-        data: { lastAuditAt: new Date(), lastAuditScore: Number(audit.percentageScore) },
+        data: { lastAuditAt: completedAt, lastAuditScore: Number(updated.percentageScore) },
       });
       await tx.branchTimelineEvent.create({
         data: {
