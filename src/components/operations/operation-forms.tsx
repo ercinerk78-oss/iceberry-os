@@ -9,7 +9,7 @@ import { AUDIT_TYPE_LABELS, AUDIT_TYPES } from "@/lib/operations/labels";
 
 const initial = { message: "" };
 
-type BranchOption = { id: string; branchName: string };
+type BranchOption = { id: string; branchName: string; city?: string | null; district?: string | null; branchCode?: string | null };
 type TemplateOption = { id: string; name: string; auditType: string; version: number };
 type AuditQuestionOption = { id: string; title: string; auditId: string; options: { label: string; value: string }[] };
 
@@ -46,7 +46,7 @@ export function OperationForms({
       <form action={assignmentAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
         <h3 className="flex items-center gap-2 font-semibold"><ClipboardCheck className="size-4" /> Denetim Ataması</h3>
         <div className="mt-4 grid gap-3">
-          <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branch.branchName])} />
+          <Select name="branchId" label="Şube" options={branches.map((branch) => [branch.id, branchLabel(branch)])} />
           <Select name="templateId" label="Yayımlanmış şablon" options={templates.map((template) => [template.id, `${template.name} v${template.version}`])} />
           <input name="dueAt" type="date" defaultValue={nextWeek} className="h-10 rounded-lg border px-3" />
           <Select name="priority" label="Öncelik" options={[["LOW", "Düşük"], ["NORMAL", "Normal"], ["HIGH", "Yüksek"], ["URGENT", "Kritik"]]} />
@@ -85,6 +85,12 @@ export function QuickAuditAnswerForm({ openQuestions }: { openQuestions: AuditQu
       </div>
     </form>
   );
+}
+
+function branchLabel(branch: BranchOption) {
+  const location = [branch.city, branch.district].filter(Boolean).join(" / ");
+  const code = branch.branchCode ? ` · ${branch.branchCode}` : "";
+  return `${branch.branchName}${location ? ` · ${location}` : ""}${code}`;
 }
 
 function Select({ name, label, options }: { name: string; label: string; options: string[][] }) {

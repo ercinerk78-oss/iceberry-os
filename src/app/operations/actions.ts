@@ -132,7 +132,11 @@ export async function createAuditAssignment(_state: { message: string }, formDat
   if (!parsed.success) return { message: "Denetim ataması bilgileri eksik veya hatalı." };
   const input = parsed.data;
   await requireBranchOperationAccess(input.branchId);
-  const template = await prisma.auditTemplate.findUnique({ where: { id: input.templateId } });
+  const [template, branch] = await Promise.all([
+    prisma.auditTemplate.findUnique({ where: { id: input.templateId } }),
+    prisma.branch.findUnique({ where: { id: input.branchId }, select: { branchName: true, city: true, district: true } }),
+  ]);
+  if (!branch) return { message: "Seçilen şube bulunamadı." };
   if (!template || template.status !== "PUBLISHED") return { message: "Yalnızca yayımlanmış şablon atanabilir." };
   await prisma.auditAssignment.create({
     data: {
@@ -160,7 +164,8 @@ export async function createAuditAssignment(_state: { message: string }, formDat
   });
   revalidatePath("/operations");
   revalidatePath(`/branches/${input.branchId}`);
-  return { message: "Denetim ataması oluşturuldu." };
+  revalidatePath("/branch-portal");
+  return { message: `${branch.branchName} (${[branch.city, branch.district].filter(Boolean).join(" / ")}) için denetim ataması oluşturuldu.` };
 }
 
 export async function startAuditAssignment(assignmentId: string) {
@@ -171,6 +176,7 @@ export async function startAuditAssignment(assignmentId: string) {
   await new AuditWorkflowService().startAssignment(assignmentId, user.id);
   revalidatePath("/operations");
   revalidatePath(`/branches/${assignment.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function saveAuditAnswer(_state: { message: string }, formData: FormData) {
@@ -243,6 +249,7 @@ export async function submitAudit(auditId: string) {
   await new AuditWorkflowService().submitAudit(auditId, user.id);
   revalidatePath("/operations");
   revalidatePath(`/branches/${existing.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function approveAudit(auditId: string) {

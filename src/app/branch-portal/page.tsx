@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { CalendarClock, CheckSquare, FileWarning, ShieldCheck } from "lucide-react";
+import { CalendarClock, CheckSquare, ClipboardCheck, FileWarning, ShieldCheck } from "lucide-react";
 
+import { startAuditAssignment } from "@/app/operations/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { branchTaskStatusLabel } from "@/lib/branch-tasks";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import { formatDate } from "@/lib/franchise";
+import { AUDIT_ASSIGNMENT_STATUS_LABELS, AUDIT_RESULT_LABELS, AUDIT_TYPE_LABELS, dateTR as operationDateTR, label as operationLabel, percentTR } from "@/lib/operations/labels";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +41,30 @@ export default async function BranchPortalPage() {
         orderBy: { dueDate: "asc" },
       },
       audits: { select: { score: true }, orderBy: { auditDate: "desc" }, take: 1 },
+      auditAssignments: {
+        select: {
+          id: true,
+          auditType: true,
+          status: true,
+          dueAt: true,
+          template: { select: { name: true } },
+        },
+        where: { status: { in: ["ASSIGNED", "PLANNED", "IN_PROGRESS", "OVERDUE"] } },
+        orderBy: { dueAt: "asc" },
+      },
+      operationalAudits: {
+        select: {
+          id: true,
+          auditType: true,
+          status: true,
+          result: true,
+          percentageScore: true,
+          createdAt: true,
+          template: { select: { name: true } },
+        },
+        where: { status: { in: ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"] } },
+        orderBy: { createdAt: "desc" },
+      },
       developmentPlans: { select: { id: true }, where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { dueDate: "asc" }, take: 5 },
       operationCalendarItems: { select: { id: true, title: true, startAt: true }, where: { startAt: { gte: start } }, orderBy: { startAt: "asc" }, take: 5 },
     },
@@ -50,16 +77,20 @@ export default async function BranchPortalPage() {
   const evidenceWaiting = tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status) && (task.requiresPhoto || task.requiresVideo || task.requiresFile || task.requiresDescription));
   const approvalWaiting = tasks.filter((task) => ["SUBMITTED", "UNDER_REVIEW"].includes(task.status));
   const rejected = tasks.filter((task) => task.status === "REJECTED");
+  const auditAssignments = branches.flatMap((branch) => branch.auditAssignments.map((assignment) => ({ ...assignment, branch })));
+  const activeAudits = branches.flatMap((branch) => branch.operationalAudits.map((audit) => ({ ...audit, branch })));
+  const openAuditCount = auditAssignments.length + activeAudits.length;
 
   return (
     <AppShell activeHref="/branch-portal" eyebrow="Şube portalı" title="Şube Operasyon Paneli">
       <div className="space-y-5">
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <Metric title="Açık Görevler" value={openTasks.length} icon={CheckSquare} />
           <Metric title="Bugün Yapılacak" value={todayTasks.length} icon={CalendarClock} />
           <Metric title="Geciken Görevler" value={overdueTasks.length} icon={FileWarning} />
           <Metric title="Kanıt Bekleyen" value={evidenceWaiting.length} icon={FileWarning} />
           <Metric title="Merkez Onayı" value={approvalWaiting.length} icon={ShieldCheck} />
+          <Metric title="Açık Denetim" value={openAuditCount} icon={ClipboardCheck} />
           <Metric title="Reddedilen" value={rejected.length} icon={FileWarning} />
         </section>
 
@@ -87,6 +118,42 @@ export default async function BranchPortalPage() {
           <div className="space-y-4">
             <Card className="shadow-none">
               <CardHeader>
+                <CardTitle className="text-base">Açık Operasyon Denetimleri</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {auditAssignments.map((assignment) => (
+                  <article key={assignment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">{assignment.branch.branchName}</p>
+                        <p className="mt-1 text-[#65705f]">{assignment.template.name} · {operationLabel(AUDIT_TYPE_LABELS, assignment.auditType)}</p>
+                        <p className="mt-1 text-xs text-[#65705f]">Son tarih {operationDateTR(assignment.dueAt)}</p>
+                      </div>
+                      <Badge>{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
+                    </div>
+                    {["ASSIGNED", "PLANNED"].includes(assignment.status) ? (
+                      <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3">
+                        <Button size="sm" variant="outline">Denetimi Başlat</Button>
+                      </form>
+                    ) : null}
+                  </article>
+                ))}
+                {activeAudits.map((audit) => (
+                  <Link key={audit.id} href={`/branches/${audit.branch.id}?tab=${encodeURIComponent("Denetim Raporları")}`} className="block rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">{audit.branch.branchName}</p>
+                        <p className="mt-1 text-[#65705f]">{audit.template.name} · {operationLabel(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}</p>
+                      </div>
+                      <Badge>{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
+                    </div>
+                  </Link>
+                ))}
+                {!openAuditCount ? <p className="py-8 text-center text-sm text-[#65705f]">Açık operasyon denetimi yok.</p> : null}
+              </CardContent>
+            </Card>
+            <Card className="shadow-none">
+              <CardHeader>
                 <CardTitle className="text-base">Yaklaşan Operasyon Takvimi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -103,7 +170,9 @@ export default async function BranchPortalPage() {
                 {branches.map((branch) => (
                   <div key={branch.id} className="rounded-lg bg-[#f8faf6] p-3 text-sm">
                     <p className="font-semibold">{branch.branchName}</p>
-                    <p className="mt-1 text-[#65705f]">Son denetim: {branch.audits[0]?.score ?? "—"} · Açık gelişim: {branch.developmentPlans.length}</p>
+                    <p className="mt-1 text-[#65705f]">
+                      Son denetim: {branch.operationalAudits[0] ? percentTR(Number(branch.operationalAudits[0].percentageScore)) : (branch.audits[0]?.score ?? "—")} · Açık denetim: {branch.auditAssignments.length + branch.operationalAudits.length}
+                    </p>
                   </div>
                 ))}
               </CardContent>

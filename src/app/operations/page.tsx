@@ -37,7 +37,7 @@ export default async function OperationsPage() {
     overdueActions,
     criticalFindings,
   ] = await Promise.all([
-    prisma.branch.findMany({ where: scopedBranchWhere, select: { id: true, branchName: true, city: true, healthScore: true }, orderBy: { branchName: "asc" }, take: 300 }),
+    prisma.branch.findMany({ where: scopedBranchWhere, select: { id: true, branchName: true, city: true, district: true, branchCode: true, healthScore: true }, orderBy: { branchName: "asc" }, take: 300 }),
     prisma.auditTemplate.findMany({ include: { sections: true }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], take: 20 }),
     prisma.auditAssignment.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true } }, template: { select: { name: true } } }, orderBy: { dueAt: "asc" }, take: 20 }),
     prisma.audit.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true } }, template: { include: { sections: { include: { questions: { include: { options: true } } } } } }, answers: true }, orderBy: { createdAt: "desc" }, take: 12 }),
