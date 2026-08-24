@@ -6,6 +6,7 @@ const HIDDEN_MAIN_BRANCH_LEGACY_CONCEPTS = ["HOTEL", "Hotel", "hotel", "OTEL", "
 export const nonHotelMainBranchWhere: Prisma.BranchWhereInput = {
   NOT: [
     { conceptRelation: { is: { code: { in: HIDDEN_MAIN_BRANCH_CONCEPT_CODES } } } },
+    { conceptType: { in: HIDDEN_MAIN_BRANCH_LEGACY_CONCEPTS } },
     { concept: { in: HIDDEN_MAIN_BRANCH_LEGACY_CONCEPTS } },
   ],
 };

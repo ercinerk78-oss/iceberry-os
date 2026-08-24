@@ -6,6 +6,7 @@ import { OperationForms, QuickAuditAnswerForm } from "@/components/operations/op
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { canManageOperations, operationBranchWhere, requireOperationsUser } from "@/lib/operations/access";
 import {
   AUDIT_ASSIGNMENT_STATUS_LABELS,
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function OperationsPage() {
   const user = await requireOperationsUser();
   const branchWhere = await operationBranchWhere();
-  const scopedBranchWhere = { archivedAt: null, ...branchWhere };
+  const scopedBranchWhere = withNonHotelMainBranchWhere({ archivedAt: null, ...branchWhere });
   const now = new Date();
   const [
     branches,

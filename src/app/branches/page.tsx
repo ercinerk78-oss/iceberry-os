@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { branchScopeWhere } from "@/lib/branch-access";
 import { branchConceptColor, branchConceptLabel } from "@/lib/branch-concepts";
+import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive } from "@/lib/search";
@@ -27,7 +28,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const overdue = value(params, "overdue");
   const critical = value(params, "critical");
   const scope = await branchScopeWhere();
-  const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
+  const where: Prisma.BranchWhereInput = withNonHotelMainBranchWhere({ archivedAt: null, ...scope });
   const andFilters: Prisma.BranchWhereInput[] = [];
 
   if (q) andFilters.push({ OR: [{ branchName: containsInsensitive(q) }, { city: containsInsensitive(q) }, { district: containsInsensitive(q) }] });
@@ -55,12 +56,13 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
         plannedOpeningDate: true,
         tasks: { select: { id: true, status: true, dueDate: true } },
         audits: { select: { score: true, criticalCount: true, auditDate: true }, orderBy: { auditDate: "desc" }, take: 1 },
+        visits: { where: { status: "COMPLETED" }, select: { completedAt: true, plannedAt: true }, orderBy: { completedAt: "desc" }, take: 1 },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
-    prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
-    prisma.branchConcept.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null }), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ where: visibleMainBranchConceptWhere, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   return (
@@ -105,10 +107,10 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
 
         <Card className="overflow-hidden shadow-none">
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
                 <tr>
-                  {["Şube", "Konsept", "Şehir", "Durum", "Sorumlu", "Açılış", "Denetim", "Açık Görev", "Geciken", "İşlem"].map((header) => (
+                  {["Şube", "Konsept", "Şehir", "Durum", "Sorumlu", "Açılış", "Denetim", "Son Ziyaret", "Açık Görev", "Geciken", "İşlem"].map((header) => (
                     <th key={header} className="px-4 py-3">{header}</th>
                   ))}
                 </tr>
@@ -118,6 +120,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status)).length;
                   const lateTasks = branch.tasks.filter((task) => task.dueDate && task.dueDate < new Date() && ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status)).length;
                   const lastAudit = branch.audits[0];
+                  const lastVisit = branch.visits[0];
 
                   return (
                     <tr key={branch.id}>
@@ -132,6 +135,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                       <td className="px-4 py-4">{branch.operationsManager ?? "-"}</td>
                       <td className="px-4 py-4">{formatDate(branch.openingDate ?? branch.plannedOpeningDate)}</td>
                       <td className="px-4 py-4">{lastAudit?.score ?? "-"}</td>
+                      <td className="px-4 py-4">{formatDate(lastVisit?.completedAt ?? lastVisit?.plannedAt)}</td>
                       <td className="px-4 py-4">{openTasks}</td>
                       <td className="px-4 py-4">{lateTasks}</td>
                       <td className="px-4 py-4">
@@ -142,7 +146,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                     </tr>
                   );
                 })}
-                {!items.length ? <tr><td colSpan={10} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
+                {!items.length ? <tr><td colSpan={11} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -151,6 +155,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
             {items.map((branch) => {
               const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status)).length;
               const lateTasks = branch.tasks.filter((task) => task.dueDate && task.dueDate < new Date() && ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status)).length;
+              const lastVisit = branch.visits[0];
 
               return (
                 <Link key={branch.id} href={`/branches/${branch.id}`} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
@@ -163,6 +168,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#65705f]">
                     <span>{branchConceptLabel(branch.conceptRelation, branch.concept)}</span>
+                    <span>Son ziyaret: {formatDate(lastVisit?.completedAt ?? lastVisit?.plannedAt)}</span>
                     <span>Açık görev: {openTasks}</span>
                     <span>Geciken: {lateTasks}</span>
                   </div>
