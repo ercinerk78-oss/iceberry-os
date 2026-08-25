@@ -1,6 +1,7 @@
 import { upsertShipmentBackorder } from "@/lib/backorders";
 import { ORDER_FINANCIAL_STATUSES } from "@/lib/integrations/constants";
 import { ParasutInvoiceService } from "@/lib/integrations/parasut/invoice-service";
+import { nextPickedQuantity } from "@/lib/product-barcodes";
 import { prisma } from "@/lib/prisma";
 import { reserveStock, releaseReservation, shipReservedStock } from "@/lib/stock-service";
 import { orderSchema } from "@/lib/validations/order";
@@ -160,6 +161,11 @@ export async function scanOrderBarcode(orderId: string, barcodeInput: string, us
                 id: true,
                 name: true,
                 barcode: true,
+                unit: true,
+                barcodes: {
+                  where: { isActive: true },
+                  select: { barcode: true, unitName: true, conversionFactor: true, barcodeType: true },
+                },
               },
             },
           },
@@ -171,22 +177,32 @@ export async function scanOrderBarcode(orderId: string, barcodeInput: string, us
       throw new Error("Kapalı sipariş için barkod okutulamaz.");
     }
 
-    const item = order.items.find((row) => row.product.barcode === barcode);
+    const item = order.items.find((row) => row.product.barcode === barcode || row.product.barcodes.some((itemBarcode) => itemBarcode.barcode === barcode));
     if (!item) {
-      const product = await tx.product.findUnique({ where: { barcode }, select: { id: true } });
+      const [product, productBarcode] = await Promise.all([
+        tx.product.findUnique({ where: { barcode }, select: { id: true } }),
+        tx.productBarcode.findUnique({ where: { barcode }, select: { id: true } }),
+      ]);
+      if (productBarcode) throw new Error("Bu ürün siparişte bulunmuyor.");
       throw new Error(product ? "Bu ürün siparişte bulunmuyor." : "Bu barkod sistemde tanımlı değil.");
     }
-    if (!item.product.barcode) throw new Error("Bu ürün için barkod tanımlanmamış.");
-    if (item.pickedQuantity >= item.quantity) throw new Error("Sipariş miktarı aşılamaz.");
+    const matchedBarcode = item.product.barcodes.find((itemBarcode) => itemBarcode.barcode === barcode);
+    const scannedQuantity = matchedBarcode?.conversionFactor ?? 1;
+    const scannedUnit = matchedBarcode?.unitName ?? item.product.unit;
 
-    const nextPickedQuantity = item.pickedQuantity + 1;
-    const nextMissingQuantity = Math.max(0, item.quantity - nextPickedQuantity);
+    if (!item.product.barcode && !matchedBarcode) throw new Error("Bu ürün için barkod tanımlanmamış.");
+    const updatedPickedQuantity = nextPickedQuantity({
+      currentPickedQuantity: item.pickedQuantity,
+      orderedQuantity: item.quantity,
+      scannedConversionFactor: scannedQuantity,
+    });
+    const nextMissingQuantity = Math.max(0, item.quantity - updatedPickedQuantity);
 
     await tx.franchiseOrderItem.update({
       where: { id: item.id },
       data: {
-        pickedQuantity: nextPickedQuantity,
-        preparedQuantity: nextPickedQuantity,
+        pickedQuantity: updatedPickedQuantity,
+        preparedQuantity: updatedPickedQuantity,
         missingQuantity: nextMissingQuantity,
       },
     });
@@ -197,10 +213,10 @@ export async function scanOrderBarcode(orderId: string, barcodeInput: string, us
         orderItemId: item.id,
         productId: item.productId,
         barcode,
-        quantity: 1,
+        quantity: scannedQuantity,
         scannedById: userId,
         scanType: "BARCODE_SCAN",
-        note: `${item.productName} barkodla hazırlandı.`,
+        note: `${item.productName} ${scannedUnit} barkoduyla hazırlandı. Ana stok karşılığı: ${scannedQuantity} ${item.unit}.`,
       },
     });
 
@@ -212,14 +228,14 @@ export async function scanOrderBarcode(orderId: string, barcodeInput: string, us
         activities: {
           create: {
             type: "BARCODE_PICKED",
-            description: `${item.productName} barkodu okutuldu. Hazırlanan: ${nextPickedQuantity}/${item.quantity}`,
+            description: `${item.productName} ${scannedUnit} barkodu okutuldu. Hazırlanan: ${updatedPickedQuantity}/${item.quantity}`,
             createdBy: userId,
           },
         },
       },
     });
 
-    return { productName: item.productName, pickedQuantity: nextPickedQuantity, orderedQuantity: item.quantity };
+    return { productName: item.productName, pickedQuantity: updatedPickedQuantity, orderedQuantity: item.quantity, scannedQuantity, scannedUnit };
   });
 }
 

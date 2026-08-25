@@ -13,6 +13,7 @@ type PickingItem = {
   productName: string;
   sku: string;
   barcode: string | null;
+  barcodeSummary: string;
   quantity: number;
   reservedQuantity: number;
   pickedQuantity: number;
@@ -117,7 +118,7 @@ export function WarehousePickingPanel({
                     <div>
                       <h3 className="text-base font-semibold">{item.productName}</h3>
                       <p className="text-sm text-[#65705f]">
-                        SKU: {item.sku} · Barkod: {item.barcode ?? "Tanımlı değil"}
+                        SKU: {item.sku} · Barkodlar: {item.barcodeSummary || item.barcode || "Tanımlı değil"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">

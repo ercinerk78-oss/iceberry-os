@@ -90,11 +90,94 @@ export async function scanBarcodeForOrder(_: ActionResult, formData: FormData): 
     refresh();
     return {
       ok: true,
-      message: `${result.productName} hazırlandı: ${result.pickedQuantity}/${result.orderedQuantity}`,
+      message: `${result.productName} hazırlandı: +${result.scannedQuantity} ${result.scannedUnit} karşılığı · ${result.pickedQuantity}/${result.orderedQuantity}`,
     };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Barkod okutma işlemi başarısız oldu." };
   }
+}
+
+export async function saveProductUnit(formData: FormData) {
+  await requirePermission("stock_manage");
+  const productId = String(formData.get("productId") || "");
+  const code = String(formData.get("code") || "").trim().toUpperCase();
+  const name = String(formData.get("name") || "").trim();
+  const conversionFactor = Number(formData.get("conversionFactor") || 1);
+
+  if (!productId || !code || !name) throw new Error("Ürün birimi için ürün, kod ve ad zorunludur.");
+  if (!Number.isFinite(conversionFactor) || conversionFactor <= 0) throw new Error("Birim dönüşüm miktarı sıfırdan büyük olmalıdır.");
+
+  await prisma.productUnit.upsert({
+    where: { productId_code: { productId, code } },
+    create: {
+      productId,
+      code,
+      name,
+      conversionFactor,
+      isBase: formData.get("isBase") === "on",
+      isPurchaseDefault: formData.get("isPurchaseDefault") === "on",
+      isShipmentDefault: formData.get("isShipmentDefault") === "on",
+      notes: optionalFormText(formData.get("notes")),
+    },
+    update: {
+      name,
+      conversionFactor,
+      isBase: formData.get("isBase") === "on",
+      isPurchaseDefault: formData.get("isPurchaseDefault") === "on",
+      isShipmentDefault: formData.get("isShipmentDefault") === "on",
+      notes: optionalFormText(formData.get("notes")),
+    },
+  });
+  await audit("PRODUCT_UNIT_SAVED", "Product", productId, `${name} ürün birimi kaydedildi.`);
+  refresh();
+}
+
+export async function saveProductBarcode(formData: FormData) {
+  await requirePermission("stock_manage");
+  const productId = String(formData.get("productId") || "");
+  const productUnitId = optionalFormText(formData.get("productUnitId"));
+  const barcode = String(formData.get("barcode") || "").trim();
+  const productUnit = productUnitId
+    ? await prisma.productUnit.findFirst({ where: { id: productUnitId, productId }, select: { name: true, conversionFactor: true } })
+    : null;
+  const unitName = String(formData.get("unitName") || productUnit?.name || "Adet").trim();
+  const conversionFactor = Number(formData.get("conversionFactor") || productUnit?.conversionFactor || 1);
+
+  if (!productId || !barcode) throw new Error("Barkod için ürün ve barkod zorunludur.");
+  if (!Number.isFinite(conversionFactor) || conversionFactor <= 0) throw new Error("Barkod dönüşüm miktarı sıfırdan büyük olmalıdır.");
+
+  const productConflict = await prisma.product.findFirst({
+    where: { barcode, id: { not: productId } },
+    select: { id: true },
+  });
+  if (productConflict) throw new Error("Bu barkod başka bir ürünün ana barkodu olarak kayıtlı.");
+
+  await prisma.productBarcode.upsert({
+    where: { barcode },
+    create: {
+      productId,
+      productUnitId,
+      barcode,
+      barcodeType: String(formData.get("barcodeType") || "UNIT"),
+      unitName,
+      conversionFactor,
+      source: String(formData.get("source") || "INTERNAL"),
+      isActive: formData.get("isActive") !== "off",
+      notes: optionalFormText(formData.get("notes")),
+    },
+    update: {
+      productId,
+      productUnitId,
+      barcodeType: String(formData.get("barcodeType") || "UNIT"),
+      unitName,
+      conversionFactor,
+      source: String(formData.get("source") || "INTERNAL"),
+      isActive: formData.get("isActive") !== "off",
+      notes: optionalFormText(formData.get("notes")),
+    },
+  });
+  await audit("PRODUCT_BARCODE_SAVED", "Product", productId, `${barcode} ürün barkodu kaydedildi.`);
+  refresh();
 }
 
 export async function overridePickingItem(_: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -169,4 +252,9 @@ export async function adjustStock(formData: FormData) {
 export async function goToOrder(id: string) {
   await requirePermission("warehouse");
   redirect(`/warehouse/orders/${id}`);
+}
+
+function optionalFormText(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim();
+  return text || null;
 }

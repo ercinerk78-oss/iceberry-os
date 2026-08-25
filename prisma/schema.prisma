@@ -2503,6 +2503,8 @@ model Product {
   mappingQueueMatches     ProductMappingQueue[]    @relation("MatchedProduct")
   lots                    InventoryLot[]
   goodsReceiptItems       GoodsReceiptItem[]
+  units                   ProductUnit[]
+  barcodes                ProductBarcode[]
   pickingScans            OrderPickingScan[]
   pickingItems            PickingListItem[]
   shipmentItems           ShipmentItem[]
@@ -2516,6 +2518,46 @@ model Product {
   @@index([name])
   @@index([centralSupplyPolicy])
   @@index([isOrderable, isActive])
+}
+
+model ProductUnit {
+  id                String           @id @default(cuid())
+  productId         String
+  code              String
+  name              String
+  conversionFactor  Float            @default(1)
+  isBase            Boolean          @default(false)
+  isPurchaseDefault Boolean          @default(false)
+  isShipmentDefault Boolean          @default(false)
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  product           Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  barcodes          ProductBarcode[]
+
+  @@unique([productId, code])
+  @@index([productId, isBase])
+}
+
+model ProductBarcode {
+  id               String       @id @default(cuid())
+  productId        String
+  productUnitId    String?
+  barcode          String       @unique
+  barcodeType      String       @default("UNIT")
+  unitName         String       @default("Adet")
+  conversionFactor Float        @default(1)
+  source           String       @default("INTERNAL")
+  isActive         Boolean      @default(true)
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productUnit      ProductUnit? @relation(fields: [productUnitId], references: [id], onDelete: SetNull)
+
+  @@index([productId, isActive])
+  @@index([productUnitId])
+  @@index([barcodeType])
 }
 
 model Warehouse {

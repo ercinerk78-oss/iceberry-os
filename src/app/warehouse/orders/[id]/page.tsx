@@ -41,6 +41,11 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
           product: {
             select: {
               barcode: true,
+              unit: true,
+              barcodes: {
+                where: { isActive: true },
+                select: { barcode: true, unitName: true, conversionFactor: true },
+              },
               stocks: { select: { warehouseId: true, quantity: true } },
             },
           },
@@ -75,6 +80,10 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
     productName: item.productName,
     sku: item.sku,
     barcode: item.product.barcode,
+    barcodeSummary: [
+      item.product.barcode ? `Ana: ${item.product.barcode}` : null,
+      ...item.product.barcodes.map((barcode) => `${barcode.unitName}: ${barcode.barcode} (${barcode.conversionFactor} ${item.unit})`),
+    ].filter(Boolean).join(" · "),
     quantity: item.quantity,
     reservedQuantity: item.reservedQuantity,
     pickedQuantity: item.pickedQuantity,
