@@ -2503,6 +2503,7 @@ model Product {
   mappingQueueMatches     ProductMappingQueue[]    @relation("MatchedProduct")
   lots                    InventoryLot[]
   goodsReceiptItems       GoodsReceiptItem[]
+  pickingScans            OrderPickingScan[]
   pickingItems            PickingListItem[]
   shipmentItems           ShipmentItem[]
   shipmentBackorders      ShipmentBackorder[]
@@ -2663,6 +2664,7 @@ model FranchiseOrder {
   items                 FranchiseOrderItem[]
   activities            OrderActivity[]
   shipment              Shipment?
+  pickingScans          OrderPickingScan[]
   pickingLists          PickingList[]
   returnRequests        ReturnRequest[]
   deliveryIssues        DeliveryIssue[]
@@ -2708,6 +2710,7 @@ model FranchiseOrderItem {
   updatedAt          DateTime            @updatedAt
   order              FranchiseOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
   product            Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pickingScans       OrderPickingScan[]
   pickingItems       PickingListItem[]
   shipmentItems      ShipmentItem[]
   returnItems        ReturnItem[]
@@ -2715,6 +2718,28 @@ model FranchiseOrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+model OrderPickingScan {
+  id          String             @id @default(cuid())
+  orderId     String
+  orderItemId String
+  productId   String
+  barcode     String?
+  quantity    Float              @default(1)
+  scannedById String?
+  scannedAt   DateTime           @default(now())
+  scanType    String             @default("BARCODE_SCAN")
+  note        String?
+  order       FranchiseOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem   FranchiseOrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  product     Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, scannedAt])
+  @@index([orderItemId, scannedAt])
+  @@index([productId, scannedAt])
+  @@index([barcode])
+  @@index([scanType, scannedAt])
 }
 
 model OrderActivity {

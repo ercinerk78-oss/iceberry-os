@@ -23,7 +23,7 @@ export default async function WarehouseOrders() {
   });
 
   return (
-    <AppShell activeHref="/warehouse/orders" eyebrow="Merkez depo" title="Hazırlanacak Siparişler">
+    <AppShell activeHref="/warehouse/orders" eyebrow="Merkez depo" title="Depo Hazırlık">
       <OrderTable orders={orders} />
     </AppShell>
   );

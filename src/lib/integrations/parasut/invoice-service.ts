@@ -20,6 +20,7 @@ import { idempotencyKey, stringifyPayload } from "@/lib/integrations/payload";
 import { ParasutClient } from "@/lib/integrations/parasut/client";
 import type { ParasutInvoicePayload } from "@/lib/integrations/parasut/types";
 import { BranchLedgerService } from "@/lib/finance/ledger-service";
+import { shipmentBasedInvoiceSummary } from "@/lib/order-invoicing";
 import { prisma } from "@/lib/prisma";
 import { syncPurchaseOrderReceiptProgress } from "@/lib/procurement-service";
 
@@ -209,6 +210,10 @@ export class ParasutInvoiceService {
     if (!order) throw new Error("Sipariş bulunamadı.");
     if (invoiceBlockedOrderTypes.includes(order.orderType)) throw new Error("İç transfer veya operasyonel transfer için satış faturası oluşturulamaz.");
     if (order.parasutInvoiceId) return { entityType: "FranchiseOrder", entityId: order.id, status: "EXISTING" };
+    if (!order.readyToShipAt) throw new Error("Depo kontrolü onaylanmadan satış faturası oluşturulamaz.");
+
+    const invoiceSummary = shipmentBasedInvoiceSummary(order.items);
+    if (!invoiceSummary.lines.length) throw new Error("Faturalanacak sevk onaylı ürün bulunamadı.");
 
     const customerMapping = order.branchId ? await prisma.externalCustomerMapping.findFirst({
       where: { branchId: order.branchId, provider: "PARASUT", isActive: true },
@@ -220,12 +225,12 @@ export class ParasutInvoiceService {
       orderId,
       orderNumber: order.orderNumber,
       contactExternalId: customerMapping.externalCustomerId,
-      total: order.grandTotal,
+      total: invoiceSummary.grandTotal,
       currency: order.currency,
-      lines: order.items.map((item) => ({
+      lines: invoiceSummary.lines.map(({ item, quantity }) => ({
         name: item.productName,
         sku: item.sku,
-        quantity: item.quantity,
+        quantity,
         unit: item.unit,
         unitPrice: item.unitPrice,
         vatRate: item.vatRate,
@@ -240,9 +245,9 @@ export class ParasutInvoiceService {
         invoiceStatus: response.status ?? "CREATED",
         financialStatus: ORDER_FINANCIAL_STATUSES.INVOICE_CREATED,
         invoicedAt: new Date(),
-        invoiceTotal: new Prisma.Decimal(response.total ?? order.grandTotal),
+        invoiceTotal: new Prisma.Decimal(response.total ?? invoiceSummary.grandTotal),
         invoiceCurrency: response.currency ?? order.currency,
-        activities: { create: { type: "PARASUT_SALES_INVOICE_CREATED", description: `Paraşüt satış faturası oluşturuldu: ${response.number ?? response.id}` } },
+        activities: { create: { type: "PARASUT_SALES_INVOICE_CREATED", description: `Paraşüt satış faturası sevk onaylı miktarlara göre oluşturuldu: ${response.number ?? response.id}` } },
       },
     });
 

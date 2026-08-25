@@ -88,7 +88,7 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
   const outstandingTotal = backorders.filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + item.outstandingQuantity, 0);
 
   return (
-    <AppShell activeHref="/warehouse/shipments" eyebrow="Merkez depo" title="Sevkiyatlar">
+    <AppShell activeHref="/warehouse/shipments" eyebrow="Merkez depo" title="Sevkiyat ve Eksik Ürünler">
       <div className="space-y-5">
         <form className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-[1fr_auto]">
           <input name="q" defaultValue={q} placeholder="Sevkiyat, sipariş, bayi, şube veya ürün ara" className="h-10 rounded-lg border px-3" />

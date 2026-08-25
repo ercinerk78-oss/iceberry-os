@@ -123,7 +123,7 @@ export function OrderForm({
           <label className="block text-sm">
             Fatura işlemi
             <select name="invoicePreference" defaultValue="CREATE_LATER" className="mt-1 h-10 w-full rounded-lg border px-3">
-              <option value="CREATE_PARASUT_INVOICE">Paraşüt faturası oluştur</option>
+              <option value="CREATE_PARASUT_INVOICE">Depo onayından sonra Paraşüt faturası oluştur</option>
               <option value="CREATE_LATER">Faturayı daha sonra oluştur</option>
               <option value="NOT_REQUIRED">Fatura gerekmiyor</option>
             </select>

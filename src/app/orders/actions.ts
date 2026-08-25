@@ -4,7 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { audit, requirePermission } from "@/lib/auth";
-import { approveOrder, changeOrderStatus, createInvoice, createOrder, prepareOrder, releaseOrder, shipOrder } from "@/lib/order-service";
+import {
+  approveOrder,
+  changeOrderStatus,
+  confirmWarehouseControl,
+  createInvoice,
+  createOrder,
+  overrideOrderPickingItem,
+  prepareOrder,
+  releaseOrder,
+  scanOrderBarcode,
+  shipOrder,
+} from "@/lib/order-service";
 import { prisma } from "@/lib/prisma";
 import { setPhysicalStock } from "@/lib/stock-service";
 import { productSchema } from "@/lib/validations/order";
@@ -31,23 +42,17 @@ export async function submitOrder(_: ActionResult, formData: FormData): Promise<
       items,
     });
     if (formData.get("invoicePreference") === "CREATE_PARASUT_INVOICE") {
-      try {
-        await createInvoice(order.id);
-      } catch (error) {
-        await prisma.franchiseOrder.update({
-          where: { id: order.id },
-          data: {
-            financialStatus: "INVOICE_FAILED",
-            invoiceStatus: "FAILED",
-            activities: {
-              create: {
-                type: "PARASUT_INVOICE_CREATE_FAILED",
-                description: error instanceof Error ? error.message : "Paraşüt faturası oluşturulamadı.",
-              },
+      await prisma.franchiseOrder.update({
+        where: { id: order.id },
+        data: {
+          activities: {
+            create: {
+              type: "PARASUT_INVOICE_DEFERRED_UNTIL_WAREHOUSE_APPROVAL",
+              description: "Paraşüt faturası depo kontrolü onaylandıktan sonra oluşturulacak.",
             },
           },
-        });
-      }
+        },
+      });
     }
     refresh();
 
@@ -62,7 +67,7 @@ export async function orderCommand(id: string, command: string, formData?: FormD
   if (command === "approve") await approveOrder(id);
   else if (command === "invoice") await createInvoice(id);
   else if (command === "queue") await changeOrderStatus(id, "WAREHOUSE_QUEUE");
-  else if (command === "ready") await changeOrderStatus(id, "READY");
+  else if (command === "ready") await confirmWarehouseControl(id, user.id);
   else if (command === "reject") await releaseOrder(id, "REJECTED");
   else if (command === "cancel") await releaseOrder(id, "CANCELLED");
   else if (command === "ship") await shipOrder(id, String(formData?.get("carrierName") || ""), String(formData?.get("trackingNumber") || ""), {
@@ -73,6 +78,56 @@ export async function orderCommand(id: string, command: string, formData?: FormD
   });
   await audit(command === "approve" ? "ORDER_APPROVED" : command === "invoice" ? "INVOICE_CREATED" : command === "ship" ? "ORDER_SHIPPED" : "ORDER_UPDATED", "FranchiseOrder", id, `Sipariş işlemi: ${command}`, user.id);
   refresh();
+}
+
+export async function scanBarcodeForOrder(_: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requirePermission("warehouse");
+    const orderId = String(formData.get("orderId") || "");
+    const barcode = String(formData.get("barcode") || "");
+    const result = await scanOrderBarcode(orderId, barcode, user.id);
+    await audit("ORDER_BARCODE_SCANNED", "FranchiseOrder", orderId, `${result.productName} barkodla hazırlandı.`, user.id);
+    refresh();
+    return {
+      ok: true,
+      message: `${result.productName} hazırlandı: ${result.pickedQuantity}/${result.orderedQuantity}`,
+    };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Barkod okutma işlemi başarısız oldu." };
+  }
+}
+
+export async function overridePickingItem(_: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requirePermission("warehouse");
+    const orderId = String(formData.get("orderId") || "");
+    await overrideOrderPickingItem({
+      orderId,
+      orderItemId: String(formData.get("orderItemId") || ""),
+      pickedQuantity: Number(formData.get("pickedQuantity") || 0),
+      reason: String(formData.get("reason") || ""),
+      note: String(formData.get("note") || ""),
+      userId: user.id,
+    });
+    await audit("ORDER_PICKING_MANUAL_OVERRIDE", "FranchiseOrder", orderId, "Depo hazırlığında manuel miktar değişikliği yapıldı.", user.id);
+    refresh();
+    return { ok: true, message: "Manuel hazırlık miktarı kaydedildi." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Manuel hazırlık kaydedilemedi." };
+  }
+}
+
+export async function confirmPickingControl(_: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requirePermission("warehouse");
+    const orderId = String(formData.get("orderId") || "");
+    await confirmWarehouseControl(orderId, user.id);
+    await audit("ORDER_WAREHOUSE_CONTROL_APPROVED", "FranchiseOrder", orderId, "Depo kontrolü onaylandı.", user.id);
+    refresh();
+    return { ok: true, message: "Depo kontrolü onaylandı. Sipariş sevkiyata hazır." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Depo kontrolü onaylanamadı." };
+  }
 }
 
 export async function savePreparation(id: string, formData: FormData) {

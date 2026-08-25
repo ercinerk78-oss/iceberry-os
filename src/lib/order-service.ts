@@ -8,6 +8,16 @@ import { orderNumber } from "@/lib/warehouse";
 
 type Input = Parameters<typeof orderSchema.parse>[0];
 
+export const MANUAL_PICKING_REASONS = {
+  DAMAGED_BARCODE: "Barkod hasarlı",
+  UNREADABLE_BARCODE: "Barkod okunmuyor",
+  TEMPORARY_NO_BARCODE: "Geçici barkodsuz ürün",
+  SYSTEM_ISSUE: "Sistem problemi",
+  OTHER: "Diğer",
+} as const;
+
+const manualReasonKeys = Object.keys(MANUAL_PICKING_REASONS);
+
 export async function createOrder(input: Input) {
   const data = orderSchema.parse(input);
 
@@ -135,6 +145,218 @@ export async function changeOrderStatus(id: string, status: string) {
   });
 }
 
+export async function scanOrderBarcode(orderId: string, barcodeInput: string, userId?: string) {
+  const barcode = barcodeInput.trim();
+  if (!barcode) throw new Error("Barkod okutmalısınız.");
+
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.franchiseOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                barcode: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!order) throw new Error("Sipariş bulunamadı.");
+    if (["SHIPPED", "DELIVERED", "CANCELLED", "REJECTED"].includes(order.status)) {
+      throw new Error("Kapalı sipariş için barkod okutulamaz.");
+    }
+
+    const item = order.items.find((row) => row.product.barcode === barcode);
+    if (!item) {
+      const product = await tx.product.findUnique({ where: { barcode }, select: { id: true } });
+      throw new Error(product ? "Bu ürün siparişte bulunmuyor." : "Bu barkod sistemde tanımlı değil.");
+    }
+    if (!item.product.barcode) throw new Error("Bu ürün için barkod tanımlanmamış.");
+    if (item.pickedQuantity >= item.quantity) throw new Error("Sipariş miktarı aşılamaz.");
+
+    const nextPickedQuantity = item.pickedQuantity + 1;
+    const nextMissingQuantity = Math.max(0, item.quantity - nextPickedQuantity);
+
+    await tx.franchiseOrderItem.update({
+      where: { id: item.id },
+      data: {
+        pickedQuantity: nextPickedQuantity,
+        preparedQuantity: nextPickedQuantity,
+        missingQuantity: nextMissingQuantity,
+      },
+    });
+
+    await tx.orderPickingScan.create({
+      data: {
+        orderId: order.id,
+        orderItemId: item.id,
+        productId: item.productId,
+        barcode,
+        quantity: 1,
+        scannedById: userId,
+        scanType: "BARCODE_SCAN",
+        note: `${item.productName} barkodla hazırlandı.`,
+      },
+    });
+
+    await tx.franchiseOrder.update({
+      where: { id: order.id },
+      data: {
+        status: "PREPARING",
+        pickingStartedAt: order.pickingStartedAt ?? new Date(),
+        activities: {
+          create: {
+            type: "BARCODE_PICKED",
+            description: `${item.productName} barkodu okutuldu. Hazırlanan: ${nextPickedQuantity}/${item.quantity}`,
+            createdBy: userId,
+          },
+        },
+      },
+    });
+
+    return { productName: item.productName, pickedQuantity: nextPickedQuantity, orderedQuantity: item.quantity };
+  });
+}
+
+export async function overrideOrderPickingItem(input: {
+  orderId: string;
+  orderItemId: string;
+  pickedQuantity: number;
+  reason: string;
+  note?: string;
+  userId?: string;
+}) {
+  if (!manualReasonKeys.includes(input.reason)) throw new Error("Manuel işlem için geçerli bir neden seçmelisiniz.");
+  if (input.pickedQuantity < 0) throw new Error("Hazırlanan miktar negatif olamaz.");
+  const note = input.note?.trim();
+  if (!note) throw new Error("Manuel işlem notu zorunludur.");
+
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.franchiseOrderItem.findUnique({
+      where: { id: input.orderItemId },
+      include: { order: true, product: { select: { barcode: true } } },
+    });
+    if (!item || item.orderId !== input.orderId) throw new Error("Sipariş kalemi bulunamadı.");
+    if (["SHIPPED", "DELIVERED", "CANCELLED", "REJECTED"].includes(item.order.status)) {
+      throw new Error("Kapalı sipariş kalemi değiştirilemez.");
+    }
+    if (input.pickedQuantity > item.quantity) throw new Error("Sipariş miktarı aşılamaz.");
+
+    const nextMissingQuantity = Math.max(0, item.quantity - input.pickedQuantity);
+    const delta = input.pickedQuantity - item.pickedQuantity;
+    await tx.franchiseOrderItem.update({
+      where: { id: item.id },
+      data: {
+        pickedQuantity: input.pickedQuantity,
+        preparedQuantity: input.pickedQuantity,
+        missingQuantity: nextMissingQuantity,
+      },
+    });
+    await tx.orderPickingScan.create({
+      data: {
+        orderId: item.orderId,
+        orderItemId: item.id,
+        productId: item.productId,
+        barcode: item.product.barcode,
+        quantity: delta,
+        scannedById: input.userId,
+        scanType: "MANUAL_OVERRIDE",
+        note: `${MANUAL_PICKING_REASONS[input.reason as keyof typeof MANUAL_PICKING_REASONS]}: ${note}`,
+      },
+    });
+    return tx.franchiseOrder.update({
+      where: { id: item.orderId },
+      data: {
+        status: "PREPARING",
+        pickingStartedAt: item.order.pickingStartedAt ?? new Date(),
+        activities: {
+          create: {
+            type: "PICKING_MANUAL_OVERRIDE",
+            description: `${item.productName} için manuel hazırlık miktarı ${input.pickedQuantity} olarak güncellendi.`,
+            createdBy: input.userId,
+          },
+        },
+      },
+    });
+  });
+}
+
+export async function confirmWarehouseControl(orderId: string, userId?: string) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.franchiseOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                barcode: true,
+                stocks: { select: { warehouseId: true, quantity: true, reservedQuantity: true } },
+              },
+            },
+            pickingScans: true,
+          },
+        },
+      },
+    });
+    if (!order) throw new Error("Sipariş bulunamadı.");
+    if (["SHIPPED", "DELIVERED", "CANCELLED", "REJECTED"].includes(order.status)) {
+      throw new Error("Kapalı sipariş onaylanamaz.");
+    }
+
+    for (const item of order.items) {
+      if (item.pickedQuantity > item.quantity) throw new Error(`${item.productName} için sipariş miktarı aşılamaz.`);
+      const stock = item.product.stocks.find((row) => row.warehouseId === order.warehouseId);
+      if ((stock?.quantity ?? 0) < item.pickedQuantity) throw new Error(`${item.productName} için fiziksel stok yetersiz.`);
+
+      const barcodeScanTotal = item.pickingScans
+        .filter((scan) => scan.scanType === "BARCODE_SCAN")
+        .reduce((sum, scan) => sum + scan.quantity, 0);
+      const hasManualOverride = item.pickingScans.some((scan) => scan.scanType === "MANUAL_OVERRIDE" && scan.note);
+
+      if (item.product.barcode && item.pickedQuantity > barcodeScanTotal && !hasManualOverride) {
+        throw new Error(`${item.productName} için barkod doğrulaması tamamlanmadı.`);
+      }
+      if (!item.product.barcode && item.pickedQuantity > 0 && !hasManualOverride) {
+        throw new Error(`${item.productName} barkodsuz olduğu için manuel işlem gerekçesi zorunludur.`);
+      }
+    }
+
+    for (const item of order.items) {
+      const preparedQuantity = item.pickedQuantity;
+      await tx.franchiseOrderItem.update({
+        where: { id: item.id },
+        data: {
+          preparedQuantity,
+          packedQuantity: preparedQuantity,
+          missingQuantity: Math.max(0, item.quantity - preparedQuantity),
+        },
+      });
+    }
+
+    return tx.franchiseOrder.update({
+      where: { id: order.id },
+      data: {
+        status: "READY",
+        readyToShipAt: new Date(),
+        packedAt: new Date(),
+        activities: {
+          create: {
+            type: "WAREHOUSE_CONTROL_APPROVED",
+            description: "Depo kontrolü onaylandı ve sipariş sevkiyata hazırlandı.",
+            createdBy: userId,
+          },
+        },
+      },
+    });
+  });
+}
+
 export async function releaseOrder(id: string, status: "REJECTED" | "CANCELLED") {
   return prisma.$transaction(async (tx) => {
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
@@ -207,19 +429,25 @@ export async function shipOrder(
       throw new Error("Sipariş bulunamadı.");
     }
     if (order.status === "SHIPPED") return order;
-    if (order.invoiceStatus !== "CREATED") {
-      throw new Error("Fatura oluşmadan sevkiyat yapılamaz.");
+    if (!order.readyToShipAt) {
+      throw new Error("Depo kontrolü onaylanmadan sevkiyat yapılamaz.");
+    }
+    if (!["CREATED", "NOT_REQUIRED"].includes(order.invoiceStatus)) {
+      throw new Error("Depo onaylı fatura oluşmadan sevkiyat yapılamaz.");
     }
 
+    let hasShipmentQuantity = false;
     for (const item of order.items) {
       if (item.preparedQuantity + item.missingQuantity < item.quantity) {
         throw new Error("Tüm kalemler kontrol edilmeden sevkiyat yapılamaz.");
       }
-      if ((item.preparedQuantity || item.quantity) > item.quantity) {
+      if (item.preparedQuantity > item.quantity) {
         throw new Error("Sevk miktarı sipariş miktarını aşamaz.");
       }
 
-      const shipQuantity = item.preparedQuantity || item.quantity;
+      const shipQuantity = Math.max(0, item.preparedQuantity - item.shippedQuantity);
+      if (shipQuantity <= 0) continue;
+      hasShipmentQuantity = true;
       await shipReservedStock(tx, {
         warehouseId: order.warehouseId,
         productId: item.productId,
@@ -228,8 +456,15 @@ export async function shipOrder(
         referenceId: id,
         description: `${order.orderNumber} sevkiyatı.`,
       });
-      await tx.franchiseOrderItem.update({ where: { id: item.id }, data: { shippedQuantity: shipQuantity, reservedQuantity: 0 } });
+      await tx.franchiseOrderItem.update({
+        where: { id: item.id },
+        data: {
+          shippedQuantity: item.shippedQuantity + shipQuantity,
+          reservedQuantity: Math.max(0, item.reservedQuantity - shipQuantity),
+        },
+      });
     }
+    if (!hasShipmentQuantity) throw new Error("Sevk edilecek yeni ürün miktarı yok.");
 
     const shipment = await tx.shipment.upsert({
       where: { orderId: id },
@@ -246,22 +481,25 @@ export async function shipOrder(
     });
 
     for (const item of order.items) {
-      const shipQuantity = item.preparedQuantity || item.quantity;
+      const totalShippedQuantity = item.preparedQuantity;
       const shipmentItem = await tx.shipmentItem.findFirst({
         where: { shipmentId: shipment.id, orderItemId: item.id },
         select: { id: true },
       });
 
       if (shipmentItem) {
-        await tx.shipmentItem.update({ where: { id: shipmentItem.id }, data: { shippedQuantity: shipQuantity } });
+        await tx.shipmentItem.update({
+          where: { id: shipmentItem.id },
+          data: { packedQuantity: totalShippedQuantity, shippedQuantity: totalShippedQuantity },
+        });
       } else {
         await tx.shipmentItem.create({
           data: {
             shipmentId: shipment.id,
             orderItemId: item.id,
             productId: item.productId,
-            packedQuantity: shipQuantity,
-            shippedQuantity: shipQuantity,
+            packedQuantity: totalShippedQuantity,
+            shippedQuantity: totalShippedQuantity,
           },
         });
       }
@@ -273,7 +511,7 @@ export async function shipOrder(
         branchId: order.branchId,
         productId: item.productId,
         orderedQuantity: item.quantity,
-        shippedQuantity: shipQuantity,
+        shippedQuantity: totalShippedQuantity,
         unit: item.unit,
         reason: options?.reason,
         note: options?.note,
@@ -282,7 +520,7 @@ export async function shipOrder(
       });
     }
 
-    const hasBackorder = order.items.some((item) => (item.preparedQuantity || item.quantity) < item.quantity);
+    const hasBackorder = order.items.some((item) => item.preparedQuantity < item.quantity);
     return tx.franchiseOrder.update({
       where: { id },
       data: {

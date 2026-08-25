@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { adjustStock, createProduct } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ export default async function StockPage() {
         id: true,
         name: true,
         sku: true,
+        barcode: true,
         salePrice: true,
         currency: true,
         minimumStockLevel: true,
@@ -111,7 +114,7 @@ export default async function StockPage() {
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
-                {["Ürün", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı"].map((header) => (
+                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı", "Etiket"].map((header) => (
                   <th key={header} className="p-3 text-left">
                     {header}
                   </th>
@@ -130,6 +133,7 @@ export default async function StockPage() {
                           {product.name}
                           <div className="text-xs text-[#65705f]">{product.sku}</div>
                         </td>
+                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
                         <td className="p-3">{product.category.name}</td>
                         <td className="p-3">{stock.warehouse.name}</td>
                         <td className="p-3">{stock.quantity}</td>
@@ -137,13 +141,19 @@ export default async function StockPage() {
                         <td className="p-3 font-semibold">{stock.availableQuantity}</td>
                         <td className="p-3">{product.minimumStockLevel}</td>
                         <td className="p-3">{money(product.salePrice, product.currency)}</td>
+                        <td className="p-3">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/warehouse/stock/labels/${product.id}`}>Etiket</Link>
+                          </Button>
+                        </td>
                       </tr>
                     ))
                   : [
                       <tr key={product.id} className="border-t">
                         <td className="p-3 font-semibold">{product.name}</td>
+                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
                         <td className="p-3">{product.category.name}</td>
-                        <td colSpan={6} className="p-3 text-amber-700">
+                        <td colSpan={7} className="p-3 text-amber-700">
                           Henüz stok kaydı yok.
                         </td>
                       </tr>,
