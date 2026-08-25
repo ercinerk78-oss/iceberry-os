@@ -214,10 +214,15 @@ export function CandidateList({
               Sıfırla
             </Button>
           </div>
-          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.35fr_0.8fr]">
-            <MultiFilter title="Konsept filtresi" items={conceptFilterOptions} selected={selectedConcepts} setSelected={setSelectedConcepts} />
+          <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_0.8fr]">
+            <MultiFilter
+              title="Konsept filtresi"
+              items={conceptFilterOptions}
+              selected={selectedConcepts}
+              setSelected={setSelectedConcepts}
+              footer={<CandidateScoreDistributionBox distribution={scoreDistribution} />}
+            />
             <MultiFilter title="Etiket filtresi" items={values([...tagOptions, ...candidates.flatMap((candidate) => candidate.tags.map((tag) => tag.name))])} selected={selectedTags} setSelected={setSelectedTags} />
-            <CandidateScoreDistributionBox distribution={scoreDistribution} />
             <Select value={temperature} set={setTemperature} items={temperatureOptions} label="Sıcaklık" />
           </div>
           <div className="overflow-x-auto rounded-lg border border-[#dfe4dc]">
@@ -335,7 +340,7 @@ function CandidateScoreDistributionBox({ distribution }: { distribution: Candida
   ] as const;
 
   return (
-    <div className="min-h-11 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3 py-2 text-sm">
+    <div className="border-t border-[#dfe4dc] pt-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="font-medium text-[#17201b]">Yatırımcı puanı</span>
         {items.map(([label, value]) => (
@@ -413,8 +418,27 @@ function dateValue(value?: string) {
   return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
 }
 
-function MultiFilter({ title, items, selected, setSelected }: { title: string; items: string[]; selected: string[]; setSelected: (value: string[]) => void }) {
-  if (!items.length) return <div className="rounded-lg border border-dashed border-[#d3d9cf] p-3 text-sm text-[#65705f]">{title}: seçenek yok</div>;
+function MultiFilter({
+  title,
+  items,
+  selected,
+  setSelected,
+  footer,
+}: {
+  title: string;
+  items: string[];
+  selected: string[];
+  setSelected: (value: string[]) => void;
+  footer?: React.ReactNode;
+}) {
+  if (!items.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-[#d3d9cf] p-3 text-sm text-[#65705f]">
+        {title}: seçenek yok
+        {footer ? <div className="mt-3">{footer}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <fieldset className="rounded-lg border border-[#d3d9cf] bg-[#f8faf6] p-3">
@@ -435,6 +459,7 @@ function MultiFilter({ title, items, selected, setSelected }: { title: string; i
           );
         })}
       </div>
+      {footer ? <div className="mt-3">{footer}</div> : null}
     </fieldset>
   );
 }
