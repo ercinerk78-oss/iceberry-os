@@ -6,6 +6,7 @@ import { AcademyLmsClient } from "@/components/academy/academy-lms-client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -112,7 +113,7 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       }),
       prisma.trainingCategory.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } }),
       prisma.user.findMany({ where: { isActive: true, archivedAt: null }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" }, take: 100 }),
-      prisma.branch.findMany({ where: { archivedAt: null }, select: { id: true, branchName: true, city: true }, orderBy: { branchName: "asc" }, take: 100 }),
+      prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null }), select: { id: true, branchName: true, city: true }, orderBy: { branchName: "asc" }, take: 100 }),
       prisma.trainingProgram.count({ where: { archivedAt: null } }),
       prisma.trainingProgram.count({ where: { archivedAt: null, status: "PUBLISHED" } }),
       prisma.academyMediaAsset.count({ where: { archivedAt: null } }),

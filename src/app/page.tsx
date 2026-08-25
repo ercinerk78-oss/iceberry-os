@@ -14,6 +14,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
+import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { getTranslations } from "@/lib/i18n/server";
 import {
   isActiveReportLead,
@@ -69,8 +70,8 @@ export default async function Home() {
     branchConceptDistribution,
     branchConceptStatusCounts,
   ] = await Promise.all([
-    prisma.branch.count({ where: { archivedAt: null, status: "ACTIVE" } }),
-    prisma.branch.count({ where: { archivedAt: null } }),
+    prisma.branch.count({ where: withNonHotelMainBranchWhere({ archivedAt: null, status: "ACTIVE" }) }),
+    prisma.branch.count({ where: withNonHotelMainBranchWhere({ archivedAt: null }) }),
     safe(
       prisma.lead.findMany({
         select: {
@@ -119,12 +120,13 @@ export default async function Home() {
       take: 6,
     }), []),
     safe(prisma.branchConcept.findMany({
+      where: visibleMainBranchConceptWhere,
       select: { id: true, name: true, color: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }), []),
     safe(prisma.branch.groupBy({
       by: ["conceptId", "status"],
-      where: { archivedAt: null, conceptId: { not: null } },
+      where: withNonHotelMainBranchWhere({ archivedAt: null, conceptId: { not: null } }),
       _count: { _all: true },
     }), []),
   ]);

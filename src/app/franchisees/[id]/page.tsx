@@ -10,6 +10,7 @@ import { FranchiseeForm } from "@/components/franchisees/franchisee-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { visibleMainBranchConceptWhere } from "@/lib/branch-visibility";
 import { BRANCH_STATUSES, FRANCHISEE_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
@@ -55,7 +56,7 @@ export default async function FranchiseeDetail({
   };
   const update = updateFranchisee.bind(null, id);
   const conceptOptions = await prisma.branchConcept.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...visibleMainBranchConceptWhere },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
   const defaultConcept = conceptOptions.find((concept) => concept.code === "CORNER") ?? conceptOptions[0];

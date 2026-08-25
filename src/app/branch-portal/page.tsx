@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { branchTaskStatusLabel } from "@/lib/branch-tasks";
 import { accessibleBranchIds } from "@/lib/branch-access";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { formatDate } from "@/lib/franchise";
 import { AUDIT_ASSIGNMENT_STATUS_LABELS, AUDIT_RESULT_LABELS, AUDIT_TYPE_LABELS, dateTR as operationDateTR, label as operationLabel, percentTR } from "@/lib/operations/labels";
 import { prisma } from "@/lib/prisma";
@@ -21,7 +22,7 @@ export default async function BranchPortalPage() {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const branches = await prisma.branch.findMany({
-    where: { archivedAt: null, ...branchWhere },
+    where: withNonHotelMainBranchWhere({ archivedAt: null, ...branchWhere }),
     select: {
       id: true,
       branchName: true,

@@ -2,6 +2,7 @@ import { createBranch } from "@/app/branches/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { visibleMainBranchConceptWhere } from "@/lib/branch-visibility";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function NewBranchPage() {
       orderBy: { createdAt: "asc" },
     }),
     prisma.branchConcept.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...visibleMainBranchConceptWhere },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
   ]);

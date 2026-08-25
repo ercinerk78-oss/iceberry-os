@@ -17,6 +17,7 @@ import { branchConceptLabel } from "@/lib/branch-concepts";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { VISIBLE_REVENUE_STATUSES, formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
+import { visibleMainBranchConceptWhere } from "@/lib/branch-visibility";
 import { canAccessBranch } from "@/lib/branch-access";
 import { currentUser } from "@/lib/auth";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
@@ -113,7 +114,7 @@ export default async function BranchDetail({
       take: 36,
     }),
     prisma.branchConcept.findMany({
-      where: { OR: [{ isActive: true }, ...(branch.conceptId ? [{ id: branch.conceptId }] : [])] },
+      where: { OR: [{ isActive: true, ...visibleMainBranchConceptWhere }, ...(branch.conceptId ? [{ id: branch.conceptId }] : [])] },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
   ]);

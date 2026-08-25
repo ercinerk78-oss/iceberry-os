@@ -56,8 +56,9 @@ const visibleRevenueStatuses: string[] = [...VISIBLE_REVENUE_STATUSES];
 export default async function BranchRevenuesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const now = new Date();
-  const year = Number(get(params, "year") || now.getFullYear());
-  const month = Number(get(params, "month") || now.getMonth() + 1);
+  const defaultPeriod = previousMonth(now.getFullYear(), now.getMonth() + 1);
+  const year = Number(get(params, "year") || defaultPeriod.year);
+  const month = Number(get(params, "month") || defaultPeriod.month);
   const q = get(params, "q");
   const city = get(params, "city");
   const concept = get(params, "concept");

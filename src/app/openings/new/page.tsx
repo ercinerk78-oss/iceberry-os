@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { OpeningForm } from "@/components/openings/opening-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -33,11 +34,11 @@ async function loadOpeningFormData() {
   try {
     const [branches, templates, users] = await Promise.all([
       prisma.branch.findMany({
-        where: {
+        where: withNonHotelMainBranchWhere({
           archivedAt: null,
           status: { in: ["PLANNED", "SETUP", "IN_SETUP", "CONTRACTED"] },
           openingProjects: { none: { archivedAt: null, status: { notIn: ["COMPLETED", "CANCELLED"] } } },
-        },
+        }),
         select: { id: true, branchName: true, city: true },
         orderBy: { branchName: "asc" },
       }),

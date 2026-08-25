@@ -1,310 +1,143 @@
-import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
-import { BarChart3, CalendarCheck2, FileText, LineChart, PhoneOff, Star, Store, Target, UsersRound } from "lucide-react";
+import { CalendarCheck2, LineChart, MessageSquareText, Star, UsersRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeCandidateWhere } from "@/lib/active-records";
-import { appointmentStatusLabel } from "@/lib/appointments";
 import { requirePermission } from "@/lib/auth";
-import { VISIBLE_REVENUE_STATUSES } from "@/lib/branch-revenue";
-import {
-  isActiveReportLead,
-  isClosedLead,
-  isCountableAppointment,
-  isConvertedLead,
-  isInvalidLead,
-  isLeadStatus,
-  isReportableAppointment,
-  isReportableLead,
-} from "@/lib/lead-reporting";
+import { formatPercent, percentChange } from "@/lib/branch-revenue";
+import { isReportableLead } from "@/lib/lead-reporting";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const APPOINTMENT_CALL_UNREACHABLE_STATUSES = ["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"] as const;
-const APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES = ["APPOINTMENT_NO_SHOW_FOLLOW_UP"] as const;
+type ReportLead = {
+  id: string;
+  leadDate: Date;
+  leadCategory: string | null;
+  convertedCandidateId: string | null;
+  appointments: { status: string }[];
+};
+
+type MonthReportRow = {
+  key: string;
+  label: string;
+  leadCount: number;
+  monthlyChange: number;
+  appointmentLeadCount: number;
+  completedLeadCount: number;
+  appointmentRate: number | null;
+  interviewRate: number | null;
+  averageScore: number | null;
+};
+
 export default async function ReportsPage() {
   await requirePermission("reports");
 
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const [
-    leadRows,
-    appointmentRows,
-    activeCandidateCount,
-    passiveCandidateCount,
-    activeCandidateRows,
-    branchCount,
-    openingCount,
-    revenueRows,
-    documentCount,
-    branchConcepts,
-  ] = await Promise.all([
-    safe(
-      prisma.lead.findMany({
-        select: {
-          id: true,
-          fullName: true,
-          city: true,
-          status: true,
-          processStatus: true,
-          leadCategory: true,
-          convertedCandidateId: true,
-          leadDate: true,
-        },
-      }),
-      [],
-    ),
-    safe(
-      prisma.leadAppointment.findMany({
-        select: {
-          id: true,
-          leadId: true,
-          status: true,
-          appointmentDate: true,
-          cancellationReason: true,
-          lead: {
-            select: {
-              id: true,
-              fullName: true,
-              city: true,
-              leadCategory: true,
-              convertedCandidateId: true,
-              processStatus: true,
-              status: true,
-            },
-          },
-        },
-        orderBy: { appointmentDate: "desc" },
-      }),
-      [],
-    ),
-    safe(prisma.franchiseCandidate.count({ where: activeCandidateWhere() }), 0),
-    safe(prisma.franchiseCandidate.count({ where: { archivedAt: { not: null } } }), 0),
-    safe(
-      prisma.franchiseCandidate.findMany({
-        where: activeCandidateWhere(),
-        select: { id: true, fullName: true, city: true, qualificationScore: true },
-        orderBy: [{ qualificationScore: "desc" }, { createdAt: "desc" }],
-      }),
-      [],
-    ),
-    safe(prisma.branch.count({ where: { archivedAt: null } }), 0),
-    safe(prisma.openingProject.count({ where: { archivedAt: null } }), 0),
-    safe(
-      prisma.branchRevenueRecord.findMany({
-        where: { periodStart: { gte: new Date(now.getFullYear(), now.getMonth(), 1) }, status: { in: [...VISIBLE_REVENUE_STATUSES] } },
-        select: { grossRevenue: true, netRevenue: true },
-      }),
-      [],
-    ),
-    safe(prisma.document.count({ where: { archivedAt: null } }), 0),
-    safe(
-      prisma.branchConcept.findMany({
-        select: {
-          id: true,
-          name: true,
-          color: true,
-          branches: { where: { archivedAt: null }, select: { status: true } },
-        },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      [],
-    ),
-  ]);
+  const year = now.getFullYear();
+  const reportEnd = new Date(year + 1, 0, 1);
+  const previousDecemberStart = new Date(year - 1, 11, 1);
 
-  const totalLeadCount = leadRows.length;
-  const reportableLeads = leadRows.filter(isReportableLead);
-  const activeLeadCount = leadRows.filter(isActiveReportLead).length;
-  const convertedLeadCount = reportableLeads.filter(isConvertedLead).length;
-  const closedLeadCount = reportableLeads.filter(isClosedLead).length;
-  const invalidLeadCount = leadRows.filter(isInvalidLead).length;
-  const reportableAppointments = appointmentRows.filter(isReportableAppointment);
-  const countableAppointments = appointmentRows.filter(isCountableAppointment);
-  const appointmentLeadIds = new Set(countableAppointments.map((appointment) => appointment.leadId));
-  const completedAppointments = countableAppointments.filter((appointment) => appointment.status === "COMPLETED");
-  const noShowAppointments = countableAppointments.filter((appointment) => appointment.status === "NO_SHOW");
-  const cancelledAppointments = reportableAppointments.filter((appointment) => appointment.status === "CANCELLED");
-  const rescheduledAppointments = countableAppointments.filter((appointment) => appointment.status === "RESCHEDULED");
-  const scheduledAppointments = countableAppointments.filter((appointment) => appointment.status === "SCHEDULED");
-
-  const completedLeadIds = new Set(completedAppointments.map((appointment) => appointment.leadId));
-  const appointmentCallUnreachableLeadIds = new Set(
-    leadRows
-      .filter((lead) => isReportableLead(lead) && APPOINTMENT_CALL_UNREACHABLE_STATUSES.some((status) => isLeadStatus(lead, status)))
-      .map((lead) => lead.id),
+  const leads = await safe(
+    prisma.lead.findMany({
+      where: { leadDate: { gte: previousDecemberStart, lt: reportEnd } },
+      select: {
+        id: true,
+        leadDate: true,
+        leadCategory: true,
+        convertedCandidateId: true,
+        appointments: { select: { status: true } },
+      },
+      orderBy: { leadDate: "asc" },
+    }),
+    [],
   );
-  const appointmentNoShowFollowUpLeadIds = new Set([
-    ...noShowAppointments.map((appointment) => appointment.leadId),
-    ...leadRows
-      .filter((lead) => APPOINTMENT_NO_SHOW_FOLLOW_UP_STATUSES.some((status) => isLeadStatus(lead, status)))
-      .filter(isReportableLead)
-      .map((lead) => lead.id),
-  ]);
-  const unreachableLeadIds = new Set([...appointmentCallUnreachableLeadIds, ...appointmentNoShowFollowUpLeadIds]);
-  const closedWithoutConversionCount = reportableLeads.filter((lead) => isClosedLead(lead) && !isConvertedLead(lead)).length;
-
-  const scoredCandidates = activeCandidateRows;
-  const scoreValues = scoredCandidates.map((candidate) => candidate.qualificationScore).filter((score): score is number => typeof score === "number");
-  const averageScore = scoreValues.length ? scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length : 0;
-  const highScoreCandidates = scoredCandidates.filter((candidate) => (candidate.qualificationScore ?? 0) >= 8);
-  const lowScoreCandidates = scoredCandidates.filter((candidate) => (candidate.qualificationScore ?? 0) > 0 && (candidate.qualificationScore ?? 0) <= 4);
-  const unscoredCompletedCandidates = scoredCandidates.filter((candidate) => !candidate.qualificationScore);
-  const latestCompleted = completedAppointments.slice(0, 6);
-  const revenueTotal = revenueRows.reduce((sum, row) => sum + Number(row.netRevenue ?? row.grossRevenue), 0);
-
-  const cards = [
-    { title: "Lead Raporu", value: totalLeadCount, href: "#lead-raporu", icon: Target, note: "Toplam, aktif, pasif ve dönüşen lead görünümü" },
-    { title: "Randevu Raporu", value: countableAppointments.length, href: "#randevu-raporu", icon: CalendarCheck2, note: "Planlanan, görüşülen ve ulaşılamayan lead özeti" },
-    { title: "Aday Raporu", value: activeCandidateCount, href: "#aday-raporu", icon: UsersRound, note: "Aktif ve pasif franchise adayı görünümü" },
-    { title: "Şube Raporu", value: branchCount, href: "/branches", icon: Store, note: "Aktif ve toplam şube görünümü" },
-    { title: "Açılış Raporu", value: openingCount, href: "/openings", icon: BarChart3, note: "Kurulum projeleri ve aşamalar" },
-    { title: "Ciro Raporu", value: revenueTotal, href: "/branch-revenues", icon: LineChart, note: "Bu ay kayıtlı net ciro" },
-    { title: "Doküman Raporu", value: documentCount, href: "/documents", icon: FileText, note: "Aktif doküman kayıtları" },
+  const reportableLeads = leads.filter(isReportableLead);
+  const convertedCandidateIds = [
+    ...new Set(reportableLeads.map((lead) => lead.convertedCandidateId).filter((id): id is string => Boolean(id))),
   ];
+  const candidateScores = convertedCandidateIds.length
+    ? await safe(
+        prisma.franchiseCandidate.findMany({
+          where: { id: { in: convertedCandidateIds } },
+          select: { id: true, qualificationScore: true },
+        }),
+        [],
+      )
+    : [];
+  const scoreByCandidate = new Map(candidateScores.map((candidate) => [candidate.id, candidate.qualificationScore]));
+  const rows = buildMonthRows(year, now.getMonth(), reportableLeads, scoreByCandidate);
+  const latestRow = rows.at(-1);
+  const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
+  const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
+  const totalCompletedLeads = rows.reduce((sum, row) => sum + row.completedLeadCount, 0);
+  const monthlyScoreValues = rows.flatMap((row) => (row.averageScore == null ? [] : [row.averageScore]));
+  const averageMonthlyScore = average(monthlyScoreValues);
+  const averageMonthlyLeadCount = rows.length ? totalLeads / rows.length : 0;
+  const maxLeadCount = Math.max(...rows.map((row) => row.leadCount), 1);
 
   return (
-    <AppShell activeHref="/reports" eyebrow="Yönetim raporları" title="Raporlar">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => (
-          <Link key={card.title} href={card.href} className="block">
-            <Card className="h-full shadow-none transition hover:border-[#6fbe44]">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-3 text-base">
-                  <span className="flex items-center gap-2">
-                    <card.icon className="size-5 text-[#2f5f20]" />
-                    {card.title}
-                  </span>
-                  <Badge variant="secondary">{formatValue(card.value)}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm leading-6 text-[#65705f]">{card.note}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+    <AppShell activeHref="/reports" eyebrow="Lead ve randevu analitiği" title="Raporlar">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard title="Bu Yıl Toplam Başvuru" value={formatValue(totalLeads)} note="Hatalı form hariç" icon={MessageSquareText} />
+        <MetricCard title="Aylık Ortalama Talep" value={averageMonthlyLeadCount.toFixed(1)} note="Ay bazlı ortalama başvuru" icon={LineChart} />
+        <MetricCard title="Randevuya Dönüşüm" value={formatPercent(ratio(totalAppointmentLeads, totalLeads))} note="Başvurudan randevuya" icon={CalendarCheck2} />
+        <MetricCard title="Görüşme Gerçekleşme" value={formatPercent(ratio(totalCompletedLeads, totalAppointmentLeads))} note="Randevudan görüşmeye" icon={UsersRound} />
+        <MetricCard title="Ortalama Görüşme Puanı" value={averageMonthlyScore == null ? "—" : averageMonthlyScore.toFixed(1)} note="Ayların ortalama puanı" icon={Star} />
       </div>
 
-      <Card className="mt-5 p-4 text-sm text-[#65705f] shadow-none">
-        Rapor sekmesi canlı modüllere bağlıdır.
-        <span className="ml-2">Gün başlangıcı: {startOfDay.toLocaleDateString("tr-TR")}</span>
-      </Card>
-
-      <Card id="lead-raporu" className="mt-5 scroll-mt-24 shadow-none">
+      <Card className="mt-5 shadow-none">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Target className="size-5 text-[#2f5f20]" />
-            Lead Raporu
+          <CardTitle className="flex items-center justify-between gap-3 text-base">
+            <span>Aylık Başvuru ve Randevu Dönüşüm Raporu</span>
+            {latestRow ? <Badge variant="secondary">Son ay değişimi: {formatPercent(latestRow.monthlyChange)}</Badge> : null}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReportMetric title="Toplam Lead" value={totalLeadCount} note="Sisteme gelen tüm lead kayıtları" icon={Target} />
-            <ReportMetric title="Aktif Lead" value={activeLeadCount} note="Pasif, hatalı form ve adaya dönüşenler hariç takipteki lead" icon={Target} />
-            <ReportMetric title="Adaya Dönüşen" value={convertedLeadCount} note="Franchise adayına çevrilen lead" icon={UsersRound} />
-            <ReportMetric title="Pasife Alınan" value={closedLeadCount} note="Kapatıldı/pasif durumundaki lead" icon={PhoneOff} />
-            <ReportMetric title="Hatalı Form" value={invalidLeadCount} note="Hatalı/geçersiz başvuru kategorisindeki lead" icon={PhoneOff} />
-            <ReportMetric title="Randevu İçin Ulaşılamayan" value={appointmentCallUnreachableLeadIds.size} note="Randevu almak için arandı ama ulaşılamadı" icon={PhoneOff} />
-            <ReportMetric title="Randevuda Ulaşılamayan" value={appointmentNoShowFollowUpLeadIds.size} note="Randevu saatinde ulaşılamayan lead" icon={PhoneOff} />
-            <ReportMetric title="Dönüşsüz Kapanan" value={closedWithoutConversionCount} note="Adaya dönüşmeden kapatılan lead" icon={PhoneOff} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card id="aday-raporu" className="mt-5 scroll-mt-24 shadow-none">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UsersRound className="size-5 text-[#2f5f20]" />
-            Franchise Adayı Raporu
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReportMetric title="Aktif Aday" value={activeCandidateCount} note="Franchise adayları ana listesindeki aktif aday" icon={UsersRound} />
-            <ReportMetric title="Pasif Aday" value={passiveCandidateCount} note="Pasife alınan franchise adayları" icon={PhoneOff} />
-            <ReportMetric title="Toplam Aday" value={activeCandidateCount + passiveCandidateCount} note="Aktif ve pasif aday toplamı" icon={Target} />
-            <ReportMetric title="Puansız Aktif Aday" value={unscoredCompletedCandidates.length} note="Aktif adaylarda puan bekleyen kayıt" icon={Star} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card id="randevu-raporu" className="mt-5 scroll-mt-24 shadow-none">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarCheck2 className="size-5 text-[#2f5f20]" />
-            Randevu Raporu
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ReportMetric title="Randevu Kaydı" value={countableAppointments.length} note="İptal ve hatalı form hariç randevu kaydı" icon={CalendarCheck2} />
-            <ReportMetric title="Randevu Alınan Lead" value={appointmentLeadIds.size} note="İptal ve hatalı form hariç tekil lead" icon={CalendarCheck2} />
-            <ReportMetric title="Görüşülen Lead" value={completedLeadIds.size} note="Tamamlandı durumundaki tekil lead" icon={UsersRound} />
-            <ReportMetric title="Görüşülemeyen Lead" value={unreachableLeadIds.size} note="Ulaşılamayan ve randevuda ulaşılamayan tekil lead" icon={PhoneOff} />
-            <ReportMetric title="Planlı Randevu" value={scheduledAppointments.length} note="Henüz tamamlanmamış aktif randevular" icon={CalendarCheck2} />
-            <ReportMetric title="Randevuda Ulaşılamadı" value={noShowAppointments.length} note="NO_SHOW durumundaki randevu kayıtları" icon={PhoneOff} />
-            <ReportMetric title="İptal" value={cancelledAppointments.length} note="İptal edilen randevular" icon={PhoneOff} />
-            <ReportMetric title="Ertelenen" value={rescheduledAppointments.length} note="Yeni zamana alınan randevular" icon={CalendarCheck2} />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
-              <h3 className="font-semibold">Görüşülen Yatırımcı Puan Özeti</h3>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                <ScoreBox label="Ortalama Puan" value={scoreValues.length ? averageScore.toFixed(1) : "—"} note={`${scoreValues.length} puanlı aday`} />
-                <ScoreBox label="Yüksek Puan" value={highScoreCandidates.length} note="8-10 arası" />
-                <ScoreBox label="Düşük Puan" value={lowScoreCandidates.length} note="1-4 arası" />
-                <ScoreBox label="Puansız" value={unscoredCompletedCandidates.length} note="Puan bekliyor" />
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <CandidateScoreList title="En Yüksek Puanlılar" candidates={highScoreCandidates.slice(0, 5)} />
-                <CandidateScoreList title="Düşük Puanlılar" candidates={lowScoreCandidates.slice(0, 5)} />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-[#edf0e9] bg-white p-4">
-              <h3 className="font-semibold">Son Görüşülenler</h3>
-              <div className="mt-3 space-y-3">
-                {latestCompleted.map((appointment) => (
-                  <div key={appointment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{appointment.lead.fullName}</p>
-                        <p className="text-xs text-[#65705f]">{appointment.lead.city} · {dateTR(appointment.appointmentDate)}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="text-xs uppercase text-[#65705f]">
+                <tr className="border-b border-[#edf0e9]">
+                  <th className="px-3 py-3 font-medium">Ay</th>
+                  <th className="px-3 py-3 font-medium">Başvuru</th>
+                  <th className="px-3 py-3 font-medium">Aylık Değişim</th>
+                  <th className="px-3 py-3 font-medium">Randevuya Dönüşüm</th>
+                  <th className="px-3 py-3 font-medium">Görüşme Oranı</th>
+                  <th className="px-3 py-3 font-medium">Görüşme Ortalama Puanı</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.key} className="border-b border-[#edf0e9] last:border-0">
+                    <td className="px-3 py-4 font-medium capitalize">{row.label}</td>
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="w-12 font-semibold">{formatValue(row.leadCount)}</span>
+                        <span className="h-2 flex-1 rounded-full bg-[#eef5ea]">
+                          <span
+                            className="block h-2 rounded-full bg-[#6fbe44]"
+                            style={{ width: `${Math.max((row.leadCount / maxLeadCount) * 100, row.leadCount ? 8 : 0)}%` }}
+                          />
+                        </span>
                       </div>
-                      <Badge>{appointmentStatusLabel(appointment.status)}</Badge>
-                    </div>
-                  </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <ChangeBadge value={row.monthlyChange} />
+                    </td>
+                    <td className="px-3 py-4">
+                      <RateWithCount rate={row.appointmentRate} count={row.appointmentLeadCount} suffix="randevu" />
+                    </td>
+                    <td className="px-3 py-4">
+                      <RateWithCount rate={row.interviewRate} count={row.completedLeadCount} suffix="görüşme" />
+                    </td>
+                    <td className="px-3 py-4">{row.averageScore == null ? "—" : `${row.averageScore.toFixed(1)} / 10`}</td>
+                  </tr>
                 ))}
-                {!latestCompleted.length ? <p className="py-6 text-center text-sm text-[#65705f]">Henüz tamamlanan görüşme yok.</p> : null}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
+          {!rows.length ? <p className="py-10 text-center text-sm text-[#65705f]">Bu yıl için raporlanabilir lead kaydı bulunmuyor.</p> : null}
         </CardContent>
-      </Card>
-
-      <Card className="mt-5 p-4 shadow-none">
-        <h2 className="font-semibold">Konsept Bazlı Şube Özeti</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {branchConcepts.map((concept) => {
-            const active = concept.branches.filter((branch) => branch.status === "ACTIVE").length;
-            const opening = concept.branches.filter((branch) => ["PLANNED", "IN_SETUP", "READY_TO_OPEN", "CONTRACTED"].includes(branch.status)).length;
-
-            return (
-              <Link key={concept.id} href={`/branches?concept=${concept.id}`} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4 hover:border-[#17201b]">
-                <span className="inline-flex items-center gap-2 font-medium">
-                  <span className="size-3 rounded-full" style={{ backgroundColor: concept.color }} />
-                  {concept.name}
-                </span>
-                <p className="mt-3 text-2xl font-semibold">{formatValue(concept.branches.length)}</p>
-                <p className="text-sm text-[#65705f]">Aktif: {formatValue(active)} · Açılış: {formatValue(opening)}</p>
-              </Link>
-            );
-          })}
-        </div>
       </Card>
     </AppShell>
   );
@@ -319,72 +152,100 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
-function ReportMetric({
-  title,
-  value,
-  note,
-  icon: Icon,
-}: {
-  title: string;
-  value: number;
-  note: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="rounded-lg border border-[#edf0e9] bg-white p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-[#65705f]">{title}</p>
-        <Icon className="size-4 text-[#2f5f20]" />
-      </div>
-      <p className="mt-3 text-2xl font-semibold">{formatValue(value)}</p>
-      <p className="mt-1 text-xs text-[#65705f]">{note}</p>
-    </div>
-  );
+function buildMonthRows(year: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>): MonthReportRow[] {
+  const leadCountsByMonth = new Map<string, number>();
+  for (const lead of leads) {
+    const key = monthKey(lead.leadDate);
+    leadCountsByMonth.set(key, (leadCountsByMonth.get(key) ?? 0) + 1);
+  }
+
+  return Array.from({ length: currentMonthIndex + 1 }, (_, monthIndex) => {
+    const date = new Date(year, monthIndex, 1);
+    const key = monthKey(date);
+    const previousKey = monthKey(new Date(year, monthIndex - 1, 1));
+    const monthLeads = leads.filter((lead) => monthKey(lead.leadDate) === key);
+    const leadCount = monthLeads.length;
+    const appointmentLeads = monthLeads.filter(hasCountableAppointment);
+    const completedLeads = monthLeads.filter(hasCompletedAppointment);
+    const scoreValues = completedLeads
+      .map((lead) => (lead.convertedCandidateId ? scoreByCandidate.get(lead.convertedCandidateId) : null))
+      .filter((score): score is number => typeof score === "number");
+
+    return {
+      key,
+      label: date.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
+      leadCount,
+      monthlyChange: percentChange(leadCount, leadCountsByMonth.get(previousKey) ?? 0),
+      appointmentLeadCount: appointmentLeads.length,
+      completedLeadCount: completedLeads.length,
+      appointmentRate: ratio(appointmentLeads.length, leadCount),
+      interviewRate: ratio(completedLeads.length, appointmentLeads.length),
+      averageScore: average(scoreValues),
+    };
+  });
 }
 
-function ScoreBox({ label, value, note }: { label: string; value: string | number; note: string }) {
-  return (
-    <div className="rounded-lg border border-[#dfe4dc] bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-[#65705f]">{label}</span>
-        <Star className="size-3.5 text-[#6fbe44]" />
-      </div>
-      <p className="mt-2 text-xl font-semibold">{typeof value === "number" ? formatValue(value) : value}</p>
-      <p className="text-xs text-[#65705f]">{note}</p>
-    </div>
-  );
+function hasCountableAppointment(lead: ReportLead) {
+  return lead.appointments.some((appointment) => appointment.status !== "CANCELLED");
 }
 
-function CandidateScoreList({
-  title,
-  candidates,
-}: {
-  title: string;
-  candidates: { id: string; fullName: string; city: string; qualificationScore: number | null }[];
-}) {
-  return (
-    <div className="rounded-lg border border-[#dfe4dc] bg-white p-3">
-      <h4 className="text-sm font-semibold">{title}</h4>
-      <div className="mt-3 space-y-2">
-        {candidates.map((candidate) => (
-          <Link key={candidate.id} href={`/candidates/${candidate.id}`} className="flex items-center justify-between gap-3 rounded-lg bg-[#f8faf6] px-3 py-2 hover:bg-[#eef5ea]">
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{candidate.fullName}</span>
-              <span className="block text-xs text-[#65705f]">{candidate.city}</span>
-            </span>
-            <Badge>{candidate.qualificationScore ?? "—"}/10</Badge>
-          </Link>
-        ))}
-        {!candidates.length ? <p className="py-4 text-center text-xs text-[#65705f]">Bu grupta aday yok.</p> : null}
-      </div>
-    </div>
-  );
+function hasCompletedAppointment(lead: ReportLead) {
+  return lead.appointments.some((appointment) => appointment.status === "COMPLETED");
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function ratio(value: number, total: number) {
+  if (!total) return null;
+
+  return (value / total) * 100;
+}
+
+function average(values: number[]) {
+  if (!values.length) return null;
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function formatValue(value: number) {
   return value.toLocaleString("tr-TR", { maximumFractionDigits: 0 });
 }
 
-function dateTR(value: Date) {
-  return value.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+function MetricCard({ title, value, note, icon: Icon }: { title: string; value: string; note: string; icon: typeof MessageSquareText }) {
+  return (
+    <Card className="shadow-none">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between gap-3 text-sm">
+          <span>{title}</span>
+          <Icon className="size-4 text-[#2f5f20]" />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-semibold">{value}</p>
+        <p className="mt-1 text-xs text-[#65705f]">{note}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChangeBadge({ value }: { value: number }) {
+  const tone = value > 0 ? "bg-emerald-50 text-emerald-800" : value < 0 ? "bg-rose-50 text-rose-800" : "bg-[#f8faf6] text-[#65705f]";
+  const sign = value > 0 ? "+" : "";
+
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
+      {sign}{formatPercent(value)}
+    </span>
+  );
+}
+
+function RateWithCount({ rate, count, suffix }: { rate: number | null; count: number; suffix: string }) {
+  return (
+    <div>
+      <p className="font-semibold">{formatPercent(rate)}</p>
+      <p className="text-xs text-[#65705f]">{formatValue(count)} {suffix}</p>
+    </div>
+  );
 }
