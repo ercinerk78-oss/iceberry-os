@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/candidates";
-import { LEAD_SOURCES, leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
+import { leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
 import { relativeTime } from "@/lib/qualification";
 import type { Candidate } from "@/types/candidate";
 
@@ -66,7 +66,6 @@ export function CandidateList({
   const [query, setQuery] = useState(initialQuery);
   const [city, setCity] = useState(ALL);
   const [status, setStatus] = useState(initialStatus || ALL);
-  const [source, setSource] = useState(ALL);
   const [followUp, setFollowUp] = useState(initialFollowUp || ALL);
   const [selectedConcepts, setSelectedConcepts] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -104,7 +103,6 @@ export function CandidateList({
     ...candidates.map((candidate) => candidate.status),
     ...leads.flatMap((lead) => [lead.processStatus || lead.status, lead.status]),
   ]);
-  const sourceOptions = values([...LEAD_SOURCES, ...candidates.map((candidate) => candidate.source), ...leads.map((lead) => lead.source)]);
   const temperatureOptions = values(candidates.map((candidate) => candidate.temperature));
   const conceptFilterOptions = values([
     ...conceptOptions,
@@ -122,7 +120,6 @@ export function CandidateList({
       const concepts = row.type === "candidate" ? row.candidate.concepts.map((concept) => concept.name) : row.lead.concepts.map((concept) => concept.name);
       const primaryConcept = row.type === "candidate" ? row.candidate.interestedConcept : row.lead.requestedConcept;
       const rowStatus = row.type === "candidate" ? row.candidate.status : row.lead.processStatus || row.lead.status;
-      const rowSource = row.type === "candidate" ? row.candidate.source : row.lead.source;
       const rowTemperature = row.type === "candidate" ? row.candidate.temperature : "";
       const rowTags = row.type === "candidate" ? row.candidate.tags.map((tag) => tag.name) : [];
       const nextFollowUpAt = row.type === "candidate" ? row.candidate.nextFollowUpAt : row.lead.nextFollowUpAt;
@@ -150,7 +147,6 @@ export function CandidateList({
         (!q || text.includes(q)) &&
         (city === ALL || item.city === city) &&
         (status === ALL || rowStatus === status) &&
-        (source === ALL || rowSource === source) &&
         (followUp !== "overdue" || (!!nextFollowUpAt && new Date(nextFollowUpAt).getTime() < effectiveReferenceNow)) &&
         (!selectedConcepts.length || selectedConcepts.some((concept) => concepts.includes(concept) || primaryConcept === concept)) &&
         (!selectedTags.length || selectedTags.some((tag) => rowTags.includes(tag))) &&
@@ -164,13 +160,12 @@ export function CandidateList({
       if (sort === "Takip yakın") return dateValue(rowFollowUp(a)) - dateValue(rowFollowUp(b));
       return dateValue(b.date) - dateValue(a.date);
     });
-  }, [city, effectiveReferenceNow, followUp, query, rows, selectedConcepts, selectedTags, sort, source, status, temperature]);
+  }, [city, effectiveReferenceNow, followUp, query, rows, selectedConcepts, selectedTags, sort, status, temperature]);
 
   const reset = () => {
     setQuery("");
     setCity(ALL);
     setStatus(ALL);
-    setSource(ALL);
     setFollowUp(ALL);
     setSelectedConcepts([]);
     setSelectedTags([]);
@@ -206,14 +201,13 @@ export function CandidateList({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 xl:grid-cols-[1.3fr_repeat(4,0.8fr)_auto]">
+          <div className="grid gap-3 xl:grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_auto]">
             <label className="flex h-11 items-center gap-2 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3">
               <Search className="size-4" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="İsim, not, etiket, konsept veya telefon ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
             </label>
             <Select value={city} set={setCity} items={cityOptions} label="Şehir" />
             <Select value={status} set={setStatus} items={statusOptions} label="Durum" />
-            <Select value={source} set={setSource} items={sourceOptions} label="Kaynak" />
             <Select value={sort} set={setSort} items={["Puan öncelikli", "Görüşme yeni", "Takip yakın"]} label="Sıralama" includeAll={false} />
             <Button variant="outline" onClick={reset}>
               <Filter className="size-4" />
@@ -333,21 +327,24 @@ function UnifiedTableRow({ row, onOpenLead }: { row: UnifiedRow; onOpenLead: (le
 
 function CandidateScoreDistributionBox({ distribution }: { distribution: CandidateScoreDistribution }) {
   const items = [
-    ["9-10", distribution.score9To10],
-    ["7-8", distribution.score7To8],
-    ["5-6", distribution.score5To6],
-    ["3-4", distribution.score3To4],
-    ["1-2", distribution.score1To2],
+    ["9-10 puan", distribution.score9To10],
+    ["7-8 puan", distribution.score7To8],
+    ["5-6 puan", distribution.score5To6],
+    ["3-4 puan", distribution.score3To4],
+    ["1-2 puan", distribution.score1To2],
   ] as const;
 
   return (
-    <div className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3 text-sm">
-      {items.map(([label, value]) => (
-        <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
-          <span className="text-xs font-medium text-[#65705f]">{label}</span>
-          <span className="font-semibold text-[#17201b]">{value}</span>
-        </span>
-      ))}
+    <div className="min-h-11 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-medium text-[#17201b]">Yatırımcı puanı</span>
+        {items.map(([label, value]) => (
+          <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+            <span className="text-xs text-[#65705f]">{label}:</span>
+            <span className="font-semibold text-[#17201b]">{value}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
