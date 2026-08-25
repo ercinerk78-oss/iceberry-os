@@ -12,6 +12,13 @@ export const dynamic = "force-dynamic";
 const CANDIDATE_LIST_LIMIT = 250;
 const LIST_INTERACTION_LIMIT = 1;
 const LIST_TASK_LIMIT = 5;
+const SCORE_RANGES = [
+  { key: "score9To10", min: 9, max: 10 },
+  { key: "score7To8", min: 7, max: 8 },
+  { key: "score5To6", min: 5, max: 6 },
+  { key: "score3To4", min: 3, max: 4 },
+  { key: "score1To2", min: 1, max: 2 },
+] as const;
 
 type Params = {
   q?: string;
@@ -59,7 +66,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
       : activeCandidateWhere(searchWhere);
   const tagCandidateWhere: Prisma.FranchiseCandidateWhereInput = view === "passive" ? { archivedAt: { not: null } } : activeCandidateWhere();
 
-  const [records, concepts, tags, availableLocations, activeCount, passiveCount] = await Promise.all([
+  const [records, concepts, tags, availableLocations, activeCount, passiveCount, scoreCounts] = await Promise.all([
     prisma.franchiseCandidate.findMany({
       where: candidateWhere,
       include: {
@@ -91,7 +98,21 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
     }),
     prisma.franchiseCandidate.count({ where: activeCandidateWhere() }),
     prisma.franchiseCandidate.count({ where: { archivedAt: { not: null } } }),
+    Promise.all(
+      SCORE_RANGES.map((range) =>
+        prisma.franchiseCandidate.count({
+          where: activeCandidateWhere({ qualificationScore: { gte: range.min, lte: range.max } }),
+        }),
+      ),
+    ),
   ]);
+  const scoreDistribution = {
+    score9To10: scoreCounts[0] ?? 0,
+    score7To8: scoreCounts[1] ?? 0,
+    score5To6: scoreCounts[2] ?? 0,
+    score3To4: scoreCounts[3] ?? 0,
+    score1To2: scoreCounts[4] ?? 0,
+  };
 
   return (
     <AppShell activeHref="/candidates" eyebrow="Franchise CRM" title={view === "passive" ? "Pasif Franchise Adayları" : "Franchise Adayları"}>
@@ -107,6 +128,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         view={view}
         activeCount={activeCount}
         passiveCount={passiveCount}
+        scoreDistribution={scoreDistribution}
       />
     </AppShell>
   );

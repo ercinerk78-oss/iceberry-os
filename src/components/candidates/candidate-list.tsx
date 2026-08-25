@@ -32,6 +32,15 @@ type CandidateListProps = {
   view?: "active" | "passive";
   activeCount?: number;
   passiveCount?: number;
+  scoreDistribution?: CandidateScoreDistribution;
+};
+
+type CandidateScoreDistribution = {
+  score9To10: number;
+  score7To8: number;
+  score5To6: number;
+  score3To4: number;
+  score1To2: number;
 };
 
 type UnifiedRow =
@@ -52,6 +61,7 @@ export function CandidateList({
   view = "active",
   activeCount = candidates.length,
   passiveCount = 0,
+  scoreDistribution = { score9To10: 0, score7To8: 0, score5To6: 0, score3To4: 0, score1To2: 0 },
 }: CandidateListProps) {
   const [query, setQuery] = useState(initialQuery);
   const [city, setCity] = useState(ALL);
@@ -210,9 +220,10 @@ export function CandidateList({
               Sıfırla
             </Button>
           </div>
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.35fr_0.8fr]">
             <MultiFilter title="Konsept filtresi" items={conceptFilterOptions} selected={selectedConcepts} setSelected={setSelectedConcepts} />
             <MultiFilter title="Etiket filtresi" items={values([...tagOptions, ...candidates.flatMap((candidate) => candidate.tags.map((tag) => tag.name))])} selected={selectedTags} setSelected={setSelectedTags} />
+            <CandidateScoreDistributionBox distribution={scoreDistribution} />
             <Select value={temperature} set={setTemperature} items={temperatureOptions} label="Sıcaklık" />
           </div>
           <div className="overflow-x-auto rounded-lg border border-[#dfe4dc]">
@@ -317,6 +328,27 @@ function UnifiedTableRow({ row, onOpenLead }: { row: UnifiedRow; onOpenLead: (le
         <div className="text-xs text-[#65705f]">{task ? formatDate(task.dueDate) : formatDate(isLead ? row.lead.nextFollowUpAt : row.candidate.nextFollowUpAt)}</div>
       </td>
     </tr>
+  );
+}
+
+function CandidateScoreDistributionBox({ distribution }: { distribution: CandidateScoreDistribution }) {
+  const items = [
+    ["9-10", distribution.score9To10],
+    ["7-8", distribution.score7To8],
+    ["5-6", distribution.score5To6],
+    ["3-4", distribution.score3To4],
+    ["1-2", distribution.score1To2],
+  ] as const;
+
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-2 rounded-lg border border-[#d3d9cf] bg-[#f8faf6] px-3 text-sm">
+      {items.map(([label, value]) => (
+        <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+          <span className="text-xs font-medium text-[#65705f]">{label}</span>
+          <span className="font-semibold text-[#17201b]">{value}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
