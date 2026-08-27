@@ -98,7 +98,7 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "procurement", "openings", "tasks", "academy.view"],
   MUHASEBE: ["dashboard", "orders", "order_admin", "procurement", "invoice", "integrations", "reports", "finance", "openings", "documents"],
   APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  ARCHITECTURE_PROJECT_IMPLEMENTATION: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ARCHITECTURE_PROJECT_IMPLEMENTATION: ["dashboard", "openings", "branches", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
   ADVERTISING_OPERATIONS: ["dashboard", "leads", "appointments", "candidates", "pipeline", "reports", "integrations", "academy.view"],
   OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
@@ -113,8 +113,10 @@ const branchRoleAllowedPermissions = new Set<Permission>(["operations", "academy
 
 function hasRoutePermission(role: string, permission: Permission, permissions?: Permission[]) {
   if (branchRoles.has(role) && !branchRoleAllowedPermissions.has(permission)) return false;
-  if (permissions?.length) return permissions.includes(permission);
-  return rolePermissions[role]?.includes(permission) ?? false;
+  const defaults = rolePermissions[role] ?? [];
+  if (!permissions?.length) return defaults.includes(permission);
+
+  return new Set([...defaults, ...permissions]).has(permission);
 }
 
 function routePermission(path: string): Permission | null {
@@ -151,6 +153,7 @@ function routePermission(path: string): Permission | null {
 function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
   if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
+  if (role === "ARCHITECTURE_PROJECT_IMPLEMENTATION") return "/openings";
   if (["BRANCH_OWNER", "BRANCH_MANAGER"].includes(role)) return "/operations";
   if (role === "FRANCHISE_MANAGER") return "/branch-portal";
 
