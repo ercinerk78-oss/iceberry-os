@@ -1,9 +1,10 @@
 import Link from "next/link";
 
-import { adjustStock, createProduct, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
+import { adjustStock, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProductCreateForm } from "@/components/warehouse/product-create-form";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/warehouse";
 
@@ -68,27 +69,7 @@ export default async function StockPage() {
               <CardTitle>Yeni Ürün</CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={createProduct} className="grid gap-2 sm:grid-cols-2">
-                <input name="name" placeholder="Ürün adı" className={input} required />
-                <input name="sku" placeholder="SKU" className={input} required />
-                <input name="barcode" placeholder="Barkod" className={input} />
-                <select name="categoryId" className={input} required>
-                  <option value="">Kategori</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                <input name="unit" defaultValue="Adet" className={input} />
-                <input name="vatRate" type="number" defaultValue="20" className={input} />
-                <input name="purchasePrice" type="number" step="0.01" placeholder="Alış fiyatı" className={input} />
-                <input name="salePrice" type="number" step="0.01" placeholder="Satış fiyatı" className={input} required />
-                <input name="currency" defaultValue="TRY" className={input} />
-                <input name="minimumStockLevel" type="number" defaultValue="0" className={input} />
-                <textarea name="description" placeholder="Açıklama" className="rounded-lg border p-3 sm:col-span-2" />
-                <Button className="sm:col-span-2">Ürünü Kaydet</Button>
-              </form>
+              <ProductCreateForm categories={categories} />
             </CardContent>
           </Card>
 

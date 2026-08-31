@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 
 import { audit, requirePermission } from "@/lib/auth";
 import {
@@ -222,11 +223,19 @@ export async function savePreparation(id: string, formData: FormData) {
   refresh();
 }
 
-export async function createProduct(formData: FormData) {
-  await requirePermission("stock_manage");
-  const data = productSchema.parse(Object.fromEntries(formData));
-  await prisma.product.create({ data: { ...data, barcode: data.barcode || null } });
-  refresh();
+export async function createProduct(_: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    await requirePermission("stock_manage");
+    const parsed = productSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, message: parsed.error.issues.map((issue) => issue.message).join(" ") };
+
+    const data = parsed.data;
+    await prisma.product.create({ data: { ...data, barcode: data.barcode || null } });
+    refresh();
+    return { ok: true, message: "Ürün başarıyla kaydedildi." };
+  } catch (error) {
+    return { ok: false, message: productCreateErrorMessage(error) };
+  }
 }
 
 export async function adjustStock(formData: FormData) {
@@ -257,4 +266,15 @@ export async function goToOrder(id: string) {
 function optionalFormText(value: FormDataEntryValue | null) {
   const text = String(value || "").trim();
   return text || null;
+}
+
+function productCreateErrorMessage(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    const target = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
+    if (target.includes("sku")) return "Bu SKU zaten kayıtlı. Lütfen farklı bir SKU girin.";
+    if (target.includes("barcode")) return "Bu barkod zaten kayıtlı. Lütfen farklı bir barkod girin veya barkod alanını boş bırakın.";
+    return "Bu ürün bilgileriyle daha önce kayıt oluşturulmuş. Lütfen benzersiz alanları kontrol edin.";
+  }
+
+  return error instanceof Error ? error.message : "Ürün kaydedilemedi. Lütfen zorunlu alanları kontrol edin.";
 }
