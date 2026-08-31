@@ -52,6 +52,7 @@ async function main() {
   const categories = await Promise.all([
     ["Sarf Malzemeleri", "Günlük operasyon sarfları"], ["Ambalaj", "Paketleme ve servis ürünleri"],
     ["Ekipman", "Şube operasyon ekipmanları"], ["Tekstil", "Markalı tekstil ürünleri"],
+    ["Gıda", "Gıda ürünleri"],
     ["Temizlik", "Hijyen ve temizlik ürünleri"], ["Pazarlama", "Marka ve tanıtım materyalleri"],
   ].map(([name,description],orderIndex)=>prisma.productCategory.create({data:{name,description,orderIndex}})));
   const warehouse=await prisma.warehouse.create({data:{name:"Iceberry Merkez Depo",city:"İstanbul",district:"Ümraniye",address:"Iceberry Lojistik Merkezi",responsiblePerson:"Depo Operasyon",phone:"+90 216 555 10 10"}});
@@ -59,8 +60,8 @@ async function main() {
     ["Iceberry Karton Bardak 12 oz","AMB-1201",0,"Koli",500,720,20,24],
     ["Logolu Taşıma Çantası","AMB-1202",1,"Paket",180,290,20,40],
     ["Barista Önlüğü","TEK-3101",3,"Adet",350,590,20,12],
-    ["Tezgâh Menü Panosu","PAZ-5101",5,"Adet",1200,1850,20,5],
-    ["Hijyen Başlangıç Seti","TEM-4101",4,"Set",450,690,20,10],
+    ["Tezgâh Menü Panosu","PAZ-5101",6,"Adet",1200,1850,20,5],
+    ["Hijyen Başlangıç Seti","TEM-4101",5,"Set",450,690,20,10],
     ["Self Cafe Servis Tepsisi","EKP-2101",2,"Adet",280,430,20,16],
   ] as const;
   for(const [name,sku,categoryIndex,unit,purchasePrice,salePrice,vatRate,minimumStockLevel] of samples){const product=await prisma.product.create({data:{name,sku,categoryId:categories[categoryIndex].id,unit,purchasePrice,salePrice,vatRate,minimumStockLevel}});await prisma.warehouseStock.create({data:{warehouseId:warehouse.id,productId:product.id,quantity:100,reservedQuantity:0,availableQuantity:100}})}
