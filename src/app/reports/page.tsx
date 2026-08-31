@@ -71,9 +71,10 @@ export default async function ReportsPage() {
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
   const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
   const totalCompletedLeads = rows.reduce((sum, row) => sum + row.completedLeadCount, 0);
+  const rowsWithLeadData = rows.filter((row) => row.leadCount > 0);
   const monthlyScoreValues = rows.flatMap((row) => (row.averageScore == null ? [] : [row.averageScore]));
   const averageMonthlyScore = average(monthlyScoreValues);
-  const averageMonthlyLeadCount = rows.length ? totalLeads / rows.length : 0;
+  const averageMonthlyLeadCount = rowsWithLeadData.length ? totalLeads / rowsWithLeadData.length : 0;
   const maxLeadCount = Math.max(...rows.map((row) => row.leadCount), 1);
 
   return (
