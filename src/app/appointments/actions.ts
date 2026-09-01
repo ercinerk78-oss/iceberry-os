@@ -60,6 +60,10 @@ const sequentialMessageSchema = z.object({
   step: z.coerce.number().int().min(1).max(3),
 });
 
+const sequentialMessageNoteSchema = z.object({
+  note: z.string().trim().min(2, "Not en az 2 karakter olmalıdır.").max(500, "Not çok uzun."),
+});
+
 const invalidAppointmentLeadSchema = z.object({
   note: z.string().trim().max(500, "Not çok uzun.").optional(),
 });
@@ -827,6 +831,35 @@ export async function markAppointmentSequentialMessageSent(leadId: string, formD
 
 export async function markAppointmentSequentialMessageSentForm(leadId: string, formData: FormData) {
   await markAppointmentSequentialMessageSent(leadId, formData);
+}
+
+export async function addSequentialMessageLeadNote(leadId: string, formData: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = sequentialMessageNoteSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.leadActivity.create({
+    data: {
+      leadId: lead.id,
+      type: "APPOINTMENT_SEQUENTIAL_MESSAGE_NOTE",
+      description: `${user.name}, sıralı mesaj sürecine not ekledi: ${parsed.data.note}`,
+    },
+  });
+
+  refresh(lead.id);
+}
+
+export async function addSequentialMessageLeadNoteForm(leadId: string, formData: FormData) {
+  await addSequentialMessageLeadNote(leadId, formData);
 }
 
 export async function moveLeadToSequentialMessageFlow(leadId: string) {

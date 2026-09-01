@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { PhoneCall, Search, XCircle } from "lucide-react";
 
 import {
+  addSequentialMessageLeadNoteForm,
   deactivateAppointmentLeadForm,
   markAppointmentLeadInvalidFormForm,
   markAppointmentNoShowFollowUpUnreachableForm,
@@ -334,6 +335,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                             label="Randevu Oluştur"
                           />
                           <SequentialMessageButtons leadId={lead.id} lead={lead} />
+                          <SequentialMessageNoteForm leadId={lead.id} />
                           {allSequentialMessagesSent(lead) ? <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" /> : null}
                         </div>
                       </div>
@@ -460,6 +462,23 @@ function SequentialMessageButtons({
         );
       })}
     </div>
+  );
+}
+
+function SequentialMessageNoteForm({ leadId }: { leadId: string }) {
+  return (
+    <form action={addSequentialMessageLeadNoteForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-blue-200 bg-white p-2 sm:col-span-2">
+      <textarea
+        name="note"
+        placeholder="Sıralı mesaj notu"
+        className="min-h-20 resize-y rounded-lg border px-3 py-2 text-sm"
+        maxLength={500}
+        required
+      />
+      <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Kaydediliyor..." className="w-full">
+        Not Ekle
+      </AppointmentSubmitButton>
+    </form>
   );
 }
 
