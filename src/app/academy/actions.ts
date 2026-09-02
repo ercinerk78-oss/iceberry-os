@@ -75,7 +75,7 @@ export async function createTrainingProgram(_: AcademyState, formData: FormData)
 
   try {
     const normalizedCode = parsed.data.code.toLocaleUpperCase("tr-TR").replace(/[^A-Z0-9_]/g, "_");
-    await prisma.trainingProgram.create({
+    const program = await prisma.trainingProgram.create({
       data: {
         ...parsed.data,
         code: normalizedCode,
@@ -91,6 +91,7 @@ export async function createTrainingProgram(_: AcademyState, formData: FormData)
         description: `${parsed.data.title} eğitimi oluşturuldu.`,
       },
     });
+    await attachOptionalMedia(program.id, formData, user.id);
     revalidatePath("/academy");
     return { success: true, message: "Eğitim programı oluşturuldu." };
   } catch (error) {
@@ -121,6 +122,7 @@ export async function updateTrainingProgram(programId: string, _: AcademyState, 
         },
       }),
     ]);
+    await attachOptionalMedia(programId, formData, user.id);
     revalidatePath("/academy");
     return { success: true, message: "Eğitim güncellendi." };
   } catch (error) {
@@ -318,6 +320,119 @@ export async function addAcademyMediaLink(_: AcademyState, formData: FormData): 
   }
 }
 
+async function attachOptionalMedia(programId: string, formData: FormData, userId: string) {
+  const mediaTitle = optionalString(formData.get("mediaTitle"));
+  const mediaDescription = optionalString(formData.get("mediaDescription"));
+  const thumbnailUrl = optionalString(formData.get("thumbnailUrl"));
+  const durationSeconds = optionalNumber(formData.get("durationSeconds"));
+  const mediaSortOrder = optionalNumber(formData.get("mediaSortOrder")) ?? 0;
+  const files = formData.getAll("files").filter((item): item is File => item instanceof File && item.size > 0);
+  const uploaded: { file: File; stored: Awaited<ReturnType<typeof storage.save>>; mediaType: string }[] = [];
+
+  try {
+    for (const file of files) {
+      if (file.size > ACADEMY_MAX_FILE_SIZE) throw new Error("Dosya başına en fazla 100 MB yüklenebilir.");
+      const mediaType = academyMediaTypeFromFile(file);
+      if (!mediaType) throw new Error(`${file.name} desteklenen eğitim formatlarından biri değil.`);
+      uploaded.push({ file, mediaType, stored: await storage.save(file) });
+    }
+
+    const linkTitle = optionalString(formData.get("linkTitle"));
+    const linkUrl = optionalString(formData.get("linkUrl"));
+    const linkDescription = optionalString(formData.get("linkDescription"));
+    const sourceType = linkUrl ? sourceTypeFromUrl(linkUrl) : null;
+    if (linkUrl && !sourceType) throw new Error("Yalnızca YouTube veya Vimeo linki eklenebilir.");
+    if (linkUrl && !linkTitle) throw new Error("Video linki için video başlığı zorunludur.");
+
+    if (!uploaded.length && !linkUrl) return;
+
+    await prisma.$transaction(async (tx) => {
+      const program = await tx.trainingProgram.findUnique({ where: { id: programId }, select: { id: true } });
+      if (!program) throw new Error("Eğitim bulunamadı.");
+      const contentModule = await ensureContentModule(tx, program.id);
+
+      for (const [index, item] of uploaded.entries()) {
+        const title = mediaTitle || item.file.name;
+        const sortOrder = mediaSortOrder + index;
+        const lesson = await tx.trainingLesson.create({
+          data: {
+            moduleId: contentModule.id,
+            title,
+            description: mediaDescription || null,
+            lessonType: lessonTypeFromMediaType(item.mediaType),
+            sortOrder,
+            estimatedDurationMinutes: Math.ceil((durationSeconds || 0) / 60),
+            minimumWatchPercentage: item.mediaType === "VIDEO" ? 90 : 100,
+          },
+        });
+        await tx.academyMediaAsset.create({
+          data: {
+            programId: program.id,
+            lessonId: lesson.id,
+            title,
+            description: mediaDescription || null,
+            mediaType: item.mediaType,
+            sourceType: "FILE",
+            originalFileName: item.file.name,
+            fileName: item.stored.fileName,
+            filePath: item.stored.filePath,
+            fileUrl: item.stored.fileUrl || item.stored.filePath,
+            mimeType: item.file.type || "application/octet-stream",
+            fileSize: item.file.size,
+            durationSeconds: durationSeconds || null,
+            sortOrder,
+            thumbnailUrl: thumbnailUrl || null,
+            uploadedById: userId,
+          },
+        });
+      }
+
+      if (linkUrl && linkTitle && sourceType) {
+        const lesson = await tx.trainingLesson.create({
+          data: {
+            moduleId: contentModule.id,
+            title: linkTitle,
+            description: linkDescription || null,
+            lessonType: "VIDEO",
+            sortOrder: mediaSortOrder + uploaded.length,
+            estimatedDurationMinutes: Math.ceil((durationSeconds || 0) / 60),
+            externalUrl: linkUrl,
+            minimumWatchPercentage: 90,
+          },
+        });
+        await tx.academyMediaAsset.create({
+          data: {
+            programId: program.id,
+            lessonId: lesson.id,
+            title: linkTitle,
+            description: linkDescription || null,
+            mediaType: sourceType,
+            sourceType,
+            fileUrl: linkUrl,
+            durationSeconds: durationSeconds || null,
+            sortOrder: mediaSortOrder + uploaded.length,
+            thumbnailUrl: thumbnailUrl || null,
+            uploadedById: userId,
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "ACADEMY_MEDIA_ADDED_FROM_PROGRAM_FORM",
+          entityType: "TrainingProgram",
+          entityId: program.id,
+          description: "Eğitim formundan içerik eklendi.",
+        },
+      });
+    });
+  } catch (error) {
+    await Promise.all(uploaded.map((item) => storage.remove(item.stored.filePath)));
+    throw error;
+  }
+}
+
 export async function recordLessonProgress(input: { lessonId: string; progressPercentage: number; watchedSeconds: number; lastPositionSeconds: number; completed?: boolean }) {
   const user = await requireUser();
   const lesson = await prisma.trainingLesson.findUnique({
@@ -330,31 +445,27 @@ export async function recordLessonProgress(input: { lessonId: string; progressPe
   const completed = input.completed || progressPercentage >= lesson.minimumWatchPercentage;
 
   await prisma.$transaction(async (tx) => {
-    const assignment = await tx.trainingAssignment.upsert({
-      where: {
-        programId_programVersion_userId_sourceType_sourceId: {
-          programId: lesson.module.programId,
-          programVersion: lesson.module.program.version,
-          userId: user.id,
-          sourceType: "OTHER",
-          sourceId: `SELF:${lesson.module.programId}`,
-        },
-      },
-      update: {
-        status: completed ? "COMPLETED" : "IN_PROGRESS",
-        startedAt: new Date(),
-      },
-      create: {
-        programId: lesson.module.programId,
-        programVersion: lesson.module.program.version,
-        userId: user.id,
-        sourceType: "OTHER",
-        sourceId: `SELF:${lesson.module.programId}`,
-        assignedById: user.id,
-        status: completed ? "COMPLETED" : "IN_PROGRESS",
-        startedAt: new Date(),
-      },
+    const assigned = await tx.trainingAssignment.findFirst({
+      where: { programId: lesson.module.programId, programVersion: lesson.module.program.version, userId: user.id },
+      orderBy: { assignedAt: "desc" },
     });
+    const assignment = assigned
+      ? await tx.trainingAssignment.update({
+          where: { id: assigned.id },
+          data: { status: completed ? "COMPLETED" : "IN_PROGRESS", startedAt: assigned.startedAt ?? new Date() },
+        })
+      : await tx.trainingAssignment.create({
+          data: {
+            programId: lesson.module.programId,
+            programVersion: lesson.module.program.version,
+            userId: user.id,
+            sourceType: "OTHER",
+            sourceId: `SELF:${lesson.module.programId}`,
+            assignedById: user.id,
+            status: completed ? "COMPLETED" : "IN_PROGRESS",
+            startedAt: new Date(),
+          },
+        });
 
     await tx.lessonProgress.upsert({
       where: { assignmentId_lessonId: { assignmentId: assignment.id, lessonId: lesson.id } },
@@ -484,6 +595,18 @@ export async function acknowledgeDocument(acknowledgementId: string) {
     },
   });
   revalidatePath("/academy");
+}
+
+function optionalString(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim();
+  return text || undefined;
+}
+
+function optionalNumber(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim();
+  if (!text) return undefined;
+  const number = Number(text);
+  return Number.isFinite(number) ? number : undefined;
 }
 
 type AcademyTransaction = Prisma.TransactionClient;

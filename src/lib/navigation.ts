@@ -80,6 +80,7 @@ export const navigationGroups: NavigationGroup[] = [
       item("branches", "navigation.branches", "/branches", "Store"),
       item("branchVisits", "navigation.branchVisits", "/branch-visits", "CalendarCheck2"),
       item("branchPortal", "navigation.branchPortal", "/branch-portal", "CheckSquare"),
+      item("academy", "navigation.academy", "/academy", "GraduationCap"),
       item("branchRevenues", "navigation.branchRevenues", "/branch-revenues", "LineChart"),
       item("operations", "navigation.operations", "/operations", "ShieldCheck"),
       item("branchMap", "navigation.branchMap", "/branch-map", "MapPinned"),
@@ -116,12 +117,6 @@ export const navigationGroups: NavigationGroup[] = [
       item("compliance", "navigation.compliance", "/warehouse/compliance", "Bell"),
       item("movements", "navigation.movements", "/warehouse/movements", "LineChart"),
     ],
-  },
-  {
-    id: "academy",
-    key: "navigationGroups.academy",
-    icon: "GraduationCap",
-    children: [item("academy", "navigation.academy", "/academy", "GraduationCap")],
   },
   {
     id: "documents",

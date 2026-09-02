@@ -18,13 +18,10 @@ import {
   Play,
   Plus,
   Search,
-  Upload,
   UsersRound,
 } from "lucide-react";
 
 import {
-  addAcademyMediaFiles,
-  addAcademyMediaLink,
   assignTraining,
   createTrainingProgram,
   recordLessonProgress,
@@ -35,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { academyMediaAccept, academyMediaTypeLabels, formatAcademyFileSize } from "@/lib/academy-lms";
-import { difficultyLabels, percentTR, programStatusLabels } from "@/lib/academy";
+import { assignmentStatusLabels, difficultyLabels, percentTR, programStatusLabels } from "@/lib/academy";
 
 type Category = { id: string; name: string };
 type UserOption = { id: string; name: string; role: string };
@@ -91,6 +88,17 @@ type Metrics = {
   completionRate: number;
   activeLearners: number;
 };
+type AssignmentRow = {
+  id: string;
+  programId: string;
+  programTitle: string;
+  branchId: string | null;
+  userId: string;
+  status: string;
+  progressPercentage: number;
+  dueAt: string | null;
+  completedAt: string | null;
+};
 
 const initialState = { success: false, message: "" };
 const inputClass = "h-10 rounded-lg border bg-background px-3 text-sm outline-none focus:border-[#93d957]";
@@ -101,26 +109,33 @@ export function AcademyLmsClient({
   categories,
   users,
   branches,
+  assignmentRows,
   metrics,
   filters,
   canManage,
   canAssign,
+  isBranchView,
 }: {
   programs: Program[];
   categories: Category[];
   users: UserOption[];
   branches: BranchOption[];
+  assignmentRows: AssignmentRow[];
   metrics: Metrics;
   filters: { q: string; categoryId: string; mediaType: string; tag: string; instructor: string };
   canManage: boolean;
   canAssign: boolean;
+  isBranchView: boolean;
 }) {
   const [activeProgramId, setActiveProgramId] = useState(programs[0]?.id || "");
   const activeProgram = useMemo(() => programs.find((program) => program.id === activeProgramId) || programs[0], [activeProgramId, programs]);
   const topMedia = activeProgram?.mediaAssets[0] || null;
+  const activeAssignments = assignmentRows.filter((assignment) => assignment.status !== "COMPLETED");
+  const completedAssignments = assignmentRows.filter((assignment) => assignment.status === "COMPLETED");
 
   return (
     <div className="space-y-6">
+      {isBranchView ? <BranchAcademySummary active={activeAssignments} completed={completedAssignments} /> : null}
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <MetricCard title="Toplam eğitim" value={metrics.totalPrograms} icon={<GraduationCap />} />
         <MetricCard title="Yayındaki eğitim" value={metrics.publishedPrograms} icon={<BadgeCheck />} />
@@ -174,6 +189,7 @@ export function AcademyLmsClient({
       </Card>
 
       <FilterBar categories={categories} filters={filters} />
+      {!isBranchView && canAssign ? <BranchTrainingStatus assignments={assignmentRows} branches={branches} users={users} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <section className="space-y-5">
@@ -190,11 +206,65 @@ export function AcademyLmsClient({
         <aside className="space-y-5">
           {canManage ? <ProgramCreateForm categories={categories} /> : null}
           {canManage && activeProgram ? <ProgramEditForm program={activeProgram} categories={categories} /> : null}
-          {canManage && activeProgram ? <MediaForms program={activeProgram} /> : null}
           {canAssign ? <AssignmentForm programs={programs.filter((program) => program.status === "PUBLISHED")} users={users} branches={branches} /> : null}
         </aside>
       </div>
     </div>
+  );
+}
+
+function BranchAcademySummary({ active, completed }: { active: AssignmentRow[]; completed: AssignmentRow[] }) {
+  return (
+    <Card className="p-5 shadow-none">
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Şube Eğitimleri</h2>
+          <p className="text-sm text-[#65705f]">Sadece size veya şubenize atanmış eğitimler listelenir.</p>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline">Yeni: {active.length}</Badge>
+          <Badge>Tamamlanan: {completed.length}</Badge>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function BranchTrainingStatus({ assignments, branches, users }: { assignments: AssignmentRow[]; branches: BranchOption[]; users: UserOption[] }) {
+  const branchName = new Map(branches.map((branch) => [branch.id, branch.branchName]));
+  const userName = new Map(users.map((user) => [user.id, user.name]));
+  const visible = assignments.filter((assignment) => assignment.branchId).slice(0, 12);
+
+  return (
+    <Card className="p-5 shadow-none">
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Şube Bazlı Eğitim Takibi</h2>
+          <p className="text-sm text-[#65705f]">Merkez bu alandan hangi şubenin eğitimi beklediğini ve tamamladığını izler.</p>
+        </div>
+        <Badge variant="outline">{visible.length} kayıt</Badge>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
+            <tr>{["Şube", "Eğitim", "Kullanıcı", "Durum", "İlerleme", "Tarih"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y">
+            {visible.map((assignment) => (
+              <tr key={assignment.id}>
+                <td className="px-3 py-3 font-semibold">{branchName.get(assignment.branchId || "") || "Şube bağlantısı yok"}</td>
+                <td className="px-3 py-3">{assignment.programTitle}</td>
+                <td className="px-3 py-3">{userName.get(assignment.userId) || "Kullanıcı"}</td>
+                <td className="px-3 py-3"><Badge variant="outline">{assignmentStatusText(assignment.status)}</Badge></td>
+                <td className="px-3 py-3">{percentTR(assignment.progressPercentage)}</td>
+                <td className="px-3 py-3">{assignment.completedAt ? dateText(assignment.completedAt) : assignment.dueAt ? `Son tarih ${dateText(assignment.dueAt)}` : "-"}</td>
+              </tr>
+            ))}
+            {!visible.length ? <tr><td colSpan={6} className="p-8 text-center text-[#65705f]">Şubeye atanmış eğitim kaydı yok.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -424,47 +494,27 @@ function ProgramFields({
       <label className="flex items-center gap-2 text-sm"><input name="isMandatory" type="checkbox" defaultChecked={program?.isMandatory ?? false} />Zorunlu eğitim</label>
       <label className="flex items-center gap-2 text-sm"><input name="requiresCertificate" type="checkbox" defaultChecked={program?.requiresCertificate ?? false} />Sertifika üret</label>
       <label className="flex items-center gap-2 text-sm"><input name="requiresFinalExam" type="checkbox" defaultChecked={program?.requiresFinalExam ?? false} />Final sınavı gerekli</label>
-      {state.message ? <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
-      <Button disabled={pending}>{pending ? "Kaydediliyor..." : submitLabel}</Button>
-    </form>
-  );
-}
-
-function MediaForms({ program }: { program: Program }) {
-  const [uploadState, uploadAction, uploadPending] = useActionState(addAcademyMediaFiles, initialState);
-  const [linkState, linkAction, linkPending] = useActionState(addAcademyMediaLink, initialState);
-  return (
-    <Card className="p-5 shadow-none">
-      <h2 className="font-semibold">İçerik Ekle</h2>
-      <form action={uploadAction} className="mt-4 grid gap-3">
-        <input type="hidden" name="programId" value={program.id} />
-        <input name="title" placeholder="Başlık boşsa dosya adı kullanılır" className={inputClass} />
-        <textarea name="description" placeholder="Açıklama" rows={2} className={textAreaClass} />
+      <div className="mt-2 grid gap-3 rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-3">
+        <p className="text-sm font-semibold">İçerik Yükle</p>
+        <input name="mediaTitle" placeholder="İçerik başlığı boşsa dosya adı kullanılır" className={inputClass} />
+        <textarea name="mediaDescription" placeholder="İçerik açıklaması" rows={2} className={textAreaClass} />
         <input name="thumbnailUrl" placeholder="Thumbnail URL (opsiyonel)" className={inputClass} />
         <div className="grid grid-cols-2 gap-2">
           <input name="durationSeconds" type="number" min={0} placeholder="Süre sn" className={inputClass} />
-          <input name="sortOrder" type="number" min={0} defaultValue={program.mediaAssets.length + 1} aria-label="Sıralama" className={inputClass} />
+          <input name="mediaSortOrder" type="number" min={0} defaultValue={(program?.mediaAssets.length ?? 0) + 1} aria-label="İçerik sıralaması" className={inputClass} />
         </div>
         <input name="files" type="file" multiple accept={academyMediaAccept} className="rounded-lg border bg-background p-2 text-sm" />
         <p className="text-xs text-[#65705f]">MP4, MOV, WEBM, PDF, Word, Excel, PowerPoint, JPG, PNG ve ZIP desteklenir. Dosya başına 100 MB.</p>
-        {uploadState.message ? <p className={`rounded-lg p-3 text-sm ${uploadState.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{uploadState.message}</p> : null}
-        <Button disabled={uploadPending}><Upload className="size-4" />{uploadPending ? "Yükleniyor..." : "Dosya Yükle"}</Button>
-      </form>
-
-      <form action={linkAction} className="mt-5 grid gap-3 border-t pt-5">
-        <input type="hidden" name="programId" value={program.id} />
-        <input name="title" required placeholder="Video başlığı" className={inputClass} />
-        <input name="url" required placeholder="YouTube veya Vimeo linki" className={inputClass} />
-        <input name="thumbnailUrl" placeholder="Thumbnail URL (opsiyonel)" className={inputClass} />
-        <div className="grid grid-cols-2 gap-2">
-          <input name="durationSeconds" type="number" min={0} placeholder="Süre sn" className={inputClass} />
-          <input name="sortOrder" type="number" min={0} defaultValue={program.mediaAssets.length + 1} aria-label="Sıralama" className={inputClass} />
-        </div>
-        <textarea name="description" placeholder="Açıklama" rows={2} className={textAreaClass} />
-        {linkState.message ? <p className={`rounded-lg p-3 text-sm ${linkState.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{linkState.message}</p> : null}
-        <Button disabled={linkPending} variant="outline"><LinkIcon className="size-4" />{linkPending ? "Ekleniyor..." : "Video Linki Ekle"}</Button>
-      </form>
-    </Card>
+      </div>
+      <div className="grid gap-3 rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-3">
+        <p className="text-sm font-semibold">Video Linki Yükle</p>
+        <input name="linkTitle" placeholder="Video başlığı" className={inputClass} />
+        <input name="linkUrl" placeholder="YouTube veya Vimeo linki" className={inputClass} />
+        <textarea name="linkDescription" placeholder="Video açıklaması" rows={2} className={textAreaClass} />
+      </div>
+      {state.message ? <p className={`rounded-lg p-3 text-sm ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{state.message}</p> : null}
+      <Button disabled={pending}>{pending ? "Kaydediliyor..." : submitLabel}</Button>
+    </form>
   );
 }
 
@@ -517,6 +567,14 @@ function HeroStat({ label, value }: { label: string; value: string | number }) {
 
 function EmptyState({ text }: { text: string }) {
   return <p className="rounded-lg border border-dashed p-10 text-center text-sm text-[#65705f]">{text}</p>;
+}
+
+function assignmentStatusText(status: string) {
+  return assignmentStatusLabels[status as keyof typeof assignmentStatusLabels] ?? status;
+}
+
+function dateText(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" }).format(new Date(value));
 }
 
 function MediaIcon({ mediaType }: { mediaType: string }) {

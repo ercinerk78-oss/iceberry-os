@@ -6,6 +6,7 @@ import { AcademyLmsClient } from "@/components/academy/academy-lms-client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
+import { accessibleBranchIds, isBranchScopedRole } from "@/lib/branch-access";
 import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -39,10 +40,12 @@ export default async function AcademyPage({ searchParams }: { searchParams: Sear
         categories={data.categories}
         users={data.users}
         branches={data.branches}
+        assignmentRows={data.assignmentRows}
         metrics={data.metrics}
         filters={filters}
         canManage={canManage}
         canAssign={canAssign}
+        isBranchView={isBranchScopedRole(user.role)}
       />
     </AppShell>
   );
@@ -65,8 +68,24 @@ function normalizeFilters(params: Record<string, string | string[] | undefined>)
 
 async function loadAcademyData(userId: string, filters: ReturnType<typeof normalizeFilters>) {
   try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const branchScoped = isBranchScopedRole(user?.role ?? "");
+    const branchIds = branchScoped ? await accessibleBranchIds(userId, user?.role ?? "") : null;
     const where: Prisma.TrainingProgramWhereInput = {
       archivedAt: null,
+      ...(branchScoped
+        ? {
+            status: "PUBLISHED",
+            assignments: {
+              some: {
+                OR: [
+                  { userId },
+                  ...(branchIds?.length ? [{ branchId: { in: branchIds } }] : []),
+                ],
+              },
+            },
+          }
+        : {}),
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
       ...(filters.mediaType ? { mediaAssets: { some: { mediaType: filters.mediaType, archivedAt: null } } } : {}),
       ...(filters.tag ? { tags: { contains: filters.tag, mode: "insensitive" } } : {}),
@@ -84,7 +103,16 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
         : {}),
     };
 
-    const [programs, categories, users, branches, allProgramCount, publishedProgramCount, mediaCount, videoDuration] = await Promise.all([
+    const assignmentWhere: Prisma.TrainingAssignmentWhereInput = branchScoped
+      ? {
+          OR: [
+            { userId },
+            ...(branchIds?.length ? [{ branchId: { in: branchIds } }] : []),
+          ],
+        }
+      : {};
+
+    const [programs, categories, users, branches, allProgramCount, publishedProgramCount, mediaCount, videoDuration, assignments] = await Promise.all([
       prisma.trainingProgram.findMany({
         where,
         include: {
@@ -118,6 +146,15 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       prisma.trainingProgram.count({ where: { archivedAt: null, status: "PUBLISHED" } }),
       prisma.academyMediaAsset.count({ where: { archivedAt: null } }),
       prisma.academyMediaAsset.aggregate({ where: { archivedAt: null, mediaType: { in: ["VIDEO", "YOUTUBE", "VIMEO"] } }, _sum: { durationSeconds: true } }),
+      prisma.trainingAssignment.findMany({
+        where: assignmentWhere,
+        include: {
+          program: { select: { id: true, title: true } },
+          lessonProgress: { select: { status: true, progressPercentage: true } },
+        },
+        orderBy: { assignedAt: "desc" },
+        take: branchScoped ? 100 : 300,
+      }),
     ]);
     const programIds = programs.map((program) => program.id);
     const progressRows = programIds.length
@@ -202,6 +239,17 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       categories,
       users,
       branches,
+      assignmentRows: assignments.map((assignment) => ({
+        id: assignment.id,
+        programId: assignment.programId,
+        programTitle: assignment.program.title,
+        branchId: assignment.branchId,
+        userId: assignment.userId,
+        status: assignment.status,
+        progressPercentage: assignment.progressPercentage,
+        dueAt: assignment.dueAt?.toISOString() ?? null,
+        completedAt: assignment.completedAt?.toISOString() ?? null,
+      })),
       metrics: {
         totalPrograms: allProgramCount,
         publishedPrograms: publishedProgramCount,
@@ -219,6 +267,7 @@ async function loadAcademyData(userId: string, filters: ReturnType<typeof normal
       categories: [],
       users: [],
       branches: [],
+      assignmentRows: [],
       metrics: { totalPrograms: 0, publishedPrograms: 0, totalMedia: 0, totalVideoDurationMinutes: 0, completionRate: 0, activeLearners: 0 },
     };
   }
