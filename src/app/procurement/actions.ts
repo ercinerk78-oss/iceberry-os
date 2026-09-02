@@ -13,6 +13,7 @@ import {
   markPurchaseOrderSent,
   upsertSupplierProduct,
 } from "@/lib/procurement-service";
+import { prisma } from "@/lib/prisma";
 
 export type ProcurementActionState = { ok: boolean; message: string };
 
@@ -85,6 +86,35 @@ export async function purchaseOrderCommand(id: string, command: string) {
   else throw new Error("Geçersiz satın alma işlemi.");
 
   await audit("PURCHASE_ORDER_UPDATED", "PurchaseOrder", id, `Satın alma işlemi: ${command}`, user.id);
+  refresh();
+}
+
+export async function createSupplierDirect(formData: FormData) {
+  const user = await requirePermission("procurement");
+  const name = String(formData.get("name") || "").trim();
+  const code = optionalString(formData.get("code"));
+
+  if (!name) throw new Error("Tedarikçi adı zorunludur.");
+  if (code) {
+    const existing = await prisma.supplier.findUnique({ where: { code }, select: { id: true } });
+    if (existing) throw new Error("Bu tedarikçi kodu zaten kullanılıyor.");
+  }
+
+  const supplier = await prisma.supplier.create({
+    data: {
+      name,
+      code,
+      taxNumber: optionalString(formData.get("taxNumber")),
+      taxOffice: optionalString(formData.get("taxOffice")),
+      phone: optionalString(formData.get("phone")),
+      email: optionalString(formData.get("email")),
+      address: optionalString(formData.get("address")),
+      status: String(formData.get("status") || "ACTIVE"),
+      notes: optionalString(formData.get("notes")),
+    },
+  });
+
+  await audit("SUPPLIER_CREATED", "Supplier", supplier.id, `${supplier.name} tedarikçi kartı oluşturuldu.`, user.id);
   refresh();
 }
 

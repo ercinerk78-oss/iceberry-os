@@ -1,4 +1,4 @@
-import { saveSupplierProductDirect } from "@/app/procurement/actions";
+import { createSupplierDirect, saveSupplierProductDirect } from "@/app/procurement/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,46 +75,71 @@ export default async function PurchaseSuppliersPage() {
           </Card>
         </div>
 
-        <Card className="h-fit shadow-none">
-          <CardHeader><CardTitle>Ürün-Tedarikçi Fiyatı Ekle</CardTitle></CardHeader>
-          <CardContent>
-            <form action={saveSupplierProductDirect} className="space-y-3 text-sm">
-              <label className="block">
-                Tedarikçi
-                <select name="supplierId" required className="mt-1 h-10 w-full rounded-lg border px-3">
-                  <option value="">Seçin</option>
-                  {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                Ürün
-                <select name="productId" required className="mt-1 h-10 w-full rounded-lg border px-3">
-                  <option value="">Seçin</option>
-                  {products.map((product) => <option key={product.id} value={product.id}>{product.name} - {product.sku}</option>)}
-                </select>
-              </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <input name="supplierSku" placeholder="Tedarikçi SKU" className="h-10 rounded-lg border px-3" />
-                <input name="supplierProductName" placeholder="Tedarikçi ürün adı" className="h-10 rounded-lg border px-3" />
-                <input name="unitPrice" type="number" min="0" step="0.01" placeholder="Birim fiyat" className="h-10 rounded-lg border px-3" />
-                <select name="currency" defaultValue="TRY" className="h-10 rounded-lg border px-3">
-                  <option value="TRY">TRY</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
-                <input name="minimumOrderQuantity" type="number" min="1" step="0.01" defaultValue="1" placeholder="Minimum sipariş" className="h-10 rounded-lg border px-3" />
-                <input name="orderIncrement" type="number" min="1" step="0.01" defaultValue="1" placeholder="Sipariş artışı" className="h-10 rounded-lg border px-3" />
-                <input name="leadTimeDays" type="number" min="0" placeholder="Termin günü" className="h-10 rounded-lg border px-3" />
-                <input name="paymentTermDays" type="number" min="0" placeholder="Vade günü" className="h-10 rounded-lg border px-3" />
-              </div>
-              <label className="flex items-center gap-2">
-                <input name="isPreferred" type="checkbox" /> Tercihli tedarikçi olarak işaretle
-              </label>
-              <textarea name="notes" placeholder="Not" className="min-h-20 w-full rounded-lg border p-3" />
-              <Button className="w-full">Kaydet</Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card className="h-fit shadow-none">
+            <CardHeader><CardTitle>Yeni Tedarikçi Kartı</CardTitle></CardHeader>
+            <CardContent>
+              <form action={createSupplierDirect} className="space-y-3 text-sm">
+                <input name="name" required placeholder="Tedarikçi adı" className="h-10 w-full rounded-lg border px-3" />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input name="code" placeholder="Tedarikçi kodu" className="h-10 rounded-lg border px-3" />
+                  <select name="status" defaultValue="ACTIVE" className="h-10 rounded-lg border px-3">
+                    <option value="ACTIVE">Aktif</option>
+                    <option value="PASSIVE">Pasif</option>
+                  </select>
+                  <input name="phone" placeholder="Telefon" className="h-10 rounded-lg border px-3" />
+                  <input name="email" type="email" placeholder="E-posta" className="h-10 rounded-lg border px-3" />
+                  <input name="taxNumber" placeholder="Vergi no" className="h-10 rounded-lg border px-3" />
+                  <input name="taxOffice" placeholder="Vergi dairesi" className="h-10 rounded-lg border px-3" />
+                </div>
+                <textarea name="address" placeholder="Adres" className="min-h-20 w-full rounded-lg border p-3" />
+                <textarea name="notes" placeholder="Not" className="min-h-20 w-full rounded-lg border p-3" />
+                <Button className="w-full">Tedarikçiyi Kaydet</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card className="h-fit shadow-none">
+            <CardHeader><CardTitle>Ürün-Tedarikçi Fiyatı Ekle</CardTitle></CardHeader>
+            <CardContent>
+              <form action={saveSupplierProductDirect} className="space-y-3 text-sm">
+                <label className="block">
+                  Tedarikçi
+                  <select name="supplierId" required className="mt-1 h-10 w-full rounded-lg border px-3">
+                    <option value="">Seçin</option>
+                    {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  Ürün
+                  <select name="productId" required className="mt-1 h-10 w-full rounded-lg border px-3">
+                    <option value="">Seçin</option>
+                    {products.map((product) => <option key={product.id} value={product.id}>{product.name} - {product.sku}</option>)}
+                  </select>
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input name="supplierSku" placeholder="Tedarikçi SKU" className="h-10 rounded-lg border px-3" />
+                  <input name="supplierProductName" placeholder="Tedarikçi ürün adı" className="h-10 rounded-lg border px-3" />
+                  <input name="unitPrice" type="number" min="0" step="0.01" placeholder="Birim fiyat" className="h-10 rounded-lg border px-3" />
+                  <select name="currency" defaultValue="TRY" className="h-10 rounded-lg border px-3">
+                    <option value="TRY">TRY</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                  <input name="minimumOrderQuantity" type="number" min="1" step="0.01" defaultValue="1" placeholder="Minimum sipariş" className="h-10 rounded-lg border px-3" />
+                  <input name="orderIncrement" type="number" min="1" step="0.01" defaultValue="1" placeholder="Sipariş artışı" className="h-10 rounded-lg border px-3" />
+                  <input name="leadTimeDays" type="number" min="0" placeholder="Termin günü" className="h-10 rounded-lg border px-3" />
+                  <input name="paymentTermDays" type="number" min="0" placeholder="Vade günü" className="h-10 rounded-lg border px-3" />
+                </div>
+                <label className="flex items-center gap-2">
+                  <input name="isPreferred" type="checkbox" /> Tercihli tedarikçi olarak işaretle
+                </label>
+                <textarea name="notes" placeholder="Not" className="min-h-20 w-full rounded-lg border p-3" />
+                <Button className="w-full">Kaydet</Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AppShell>
   );
