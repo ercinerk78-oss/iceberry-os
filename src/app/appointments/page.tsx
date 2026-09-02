@@ -8,7 +8,6 @@ import {
   markAppointmentNoShowFollowUpUnreachableForm,
   markLeadUnreachableForm,
   markAppointmentSequentialMessageSentForm,
-  moveLeadToSequentialMessageFlowForm,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentLeadEditDialog } from "@/components/appointments/appointment-lead-edit-dialog";
@@ -113,7 +112,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const invalidApplicationLeadIds = new Set(invalidApplicationLeads.map((lead) => lead.id));
   const sequentialMessageLeads = visibleLeads
-    .filter((lead) => !invalidApplicationLeadIds.has(lead.id) && (manuallyMovedToSequentialMessageFlow(lead) || ((appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) || appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead))) && unreachableAttemptCount(lead) >= 5)))
+    .filter((lead) => {
+      const status = leadStatusOf(lead);
+      const isUnreachableFlow = appointmentCallUnreachableStatuses.has(status) || appointmentNoShowFollowUpStatuses.has(status);
+
+      return !invalidApplicationLeadIds.has(lead.id) && isUnreachableFlow && (manuallyMovedToSequentialMessageFlow(lead) || unreachableAttemptCount(lead) >= 5);
+    })
     .sort((first, second) => latestActionTime(second) - latestActionTime(first));
   const sequentialMessageLeadIds = new Set(sequentialMessageLeads.map((lead) => lead.id));
   const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id));
@@ -551,11 +555,6 @@ function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: strin
 function QuickLeadActions({ leadId }: { leadId: string }) {
   return (
     <div className="grid gap-2">
-      <form action={moveLeadToSequentialMessageFlowForm.bind(null, leadId)}>
-        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
-          Sıralı Mesajlar
-        </AppointmentSubmitButton>
-      </form>
       <form action={markAppointmentLeadInvalidFormForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2">
         <input name="note" placeholder="Hatalı başvuru notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
         <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
