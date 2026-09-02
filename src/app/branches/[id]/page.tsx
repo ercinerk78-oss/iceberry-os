@@ -304,6 +304,11 @@ function AuditPanel({
   legacyAudits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[];
 }) {
   if (!assignments.length && !operationalAudits.length && !legacyAudits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim kaydı yok." />;
+  const newAssignments = assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status));
+  const inProgressAudits = operationalAudits.filter((audit) => audit.status === "IN_PROGRESS");
+  const reviewAudits = operationalAudits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const completedAudits = operationalAudits.filter((audit) => ["APPROVED", "COMPLETED"].includes(audit.status));
+  const otherAudits = operationalAudits.filter((audit) => !["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED", "APPROVED", "COMPLETED"].includes(audit.status));
   const openQuestions = operationalAudits.filter((audit) => audit.status === "IN_PROGRESS").flatMap((audit) => {
     const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
 
@@ -346,12 +351,18 @@ function AuditPanel({
 
   return (
     <div className="space-y-5">
+      <section className="grid gap-3 md:grid-cols-3">
+        <AuditWorkStatus title="Yeni Denetim" value={newAssignments.length} text="Başlatılmayı bekleyen denetim" />
+        <AuditWorkStatus title="Cevap Bekleyen" value={openQuestions.length} text="Şube tarafından tamamlanacak madde" />
+        <AuditWorkStatus title="Merkez İncelemesi" value={reviewAudits.length} text="Gönderilmiş ve kapanmayı bekleyen denetim" />
+      </section>
+
       {activeProgress.length ? <AuditProgressSummary items={activeProgress} /> : null}
       {openQuestions.length ? <QuickAuditAnswerForm openQuestions={openQuestions} /> : null}
 
-      <section className="space-y-3">
+      <section className="space-y-3 rounded-lg border border-[#dfe4dc] bg-white p-4">
         <h3 className="font-semibold">Yeni Operasyon Denetimleri</h3>
-        {assignments.map((assignment) => (
+        {newAssignments.map((assignment) => (
           <article key={assignment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -369,55 +380,124 @@ function AuditPanel({
             ) : null}
           </article>
         ))}
-        {!assignments.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Atanmış yeni operasyon denetimi yok.</p> : null}
+        {!newAssignments.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Başlatılmayı bekleyen yeni denetim yok.</p> : null}
       </section>
 
-      <section className="space-y-3">
-        <h3 className="font-semibold">Aktif ve Tamamlanan Denetimler</h3>
-        {operationalAudits.map((audit) => (
-          <article key={audit.id} className="rounded-lg border border-[#edf0e9] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">{audit.template.name}</p>
-                <p className="text-sm text-[#65705f]">
-                  {operationLabel(AUDIT_TYPE_LABELS, audit.auditType)} · {operationLabel(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}
-                </p>
-                <p className="mt-1 text-xs text-[#65705f]">
-                  Oluşturma {operationDateTR(audit.createdAt)}
-                  {audit.submittedAt ? ` · Gönderim ${operationDateTR(audit.submittedAt)}` : ""}
-                  {audit.completedAt ? ` · Tamamlanma ${operationDateTR(audit.completedAt)}` : ""}
-                </p>
-              </div>
-              <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
-            </div>
-            {audit.status === "IN_PROGRESS" ? (
-              <form action={submitAudit.bind(null, audit.id)} className="mt-3">
-                <Button size="sm" variant="outline">Denetimi Gönder</Button>
-              </form>
-            ) : null}
-            {audit.evidences.length ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {audit.evidences.map((evidence, index) => (
-                  <Button key={evidence.id} asChild size="sm" variant="outline">
-                    <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
-                      Fotoğraf {index + 1}
-                    </a>
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        ))}
-        {!operationalAudits.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Başlatılmış operasyon denetimi yok.</p> : null}
-      </section>
+      <AuditList
+        title="Devam Eden Denetimler"
+        emptyText="Devam eden operasyon denetimi yok."
+        audits={inProgressAudits}
+        showSubmit
+      />
+
+      <AuditList
+        title="Merkez İncelemesindeki Denetimler"
+        emptyText="Merkez incelemesinde denetim yok."
+        audits={reviewAudits}
+      />
+
+      {otherAudits.length ? (
+        <AuditList
+          title="Diğer Denetimler"
+          emptyText="Diğer denetim kaydı yok."
+          audits={otherAudits}
+        />
+      ) : null}
+
+      <details className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+        <summary className="cursor-pointer font-semibold">Tamamlanan Denetimler ({completedAudits.length})</summary>
+        <div className="mt-3">
+          <AuditList
+            title=""
+            emptyText="Tamamlanan denetim yok."
+            audits={completedAudits}
+          />
+        </div>
+      </details>
 
       {legacyAudits.length ? (
-        <section className="space-y-3">
-          <h3 className="font-semibold">Eski Denetim Raporları</h3>
-          <List items={legacyAudits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />
-        </section>
+        <details className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+          <summary className="cursor-pointer font-semibold">Eski Denetim Raporları ({legacyAudits.length})</summary>
+          <div className="mt-3">
+            <List items={legacyAudits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />
+          </div>
+        </details>
       ) : null}
     </div>
+  );
+}
+
+function AuditWorkStatus({ title, value, text }: { title: string; value: number; text: string }) {
+  return (
+    <div className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
+      <p className="text-sm text-[#65705f]">{title}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs text-[#65705f]">{text}</p>
+    </div>
+  );
+}
+
+function AuditList({
+  title,
+  emptyText,
+  audits,
+  showSubmit = false,
+}: {
+  title: string;
+  emptyText: string;
+  audits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    template: { name: string };
+    evidences: { id: string }[];
+  }[];
+  showSubmit?: boolean;
+}) {
+  return (
+    <section className="space-y-3 rounded-lg border border-[#dfe4dc] bg-white p-4">
+      {title ? <h3 className="font-semibold">{title}</h3> : null}
+      {audits.map((audit) => (
+        <article key={audit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">{audit.template.name}</p>
+              <p className="text-sm text-[#65705f]">
+                {operationLabel(AUDIT_TYPE_LABELS, audit.auditType)} · {operationLabel(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}
+              </p>
+              <p className="mt-1 text-xs text-[#65705f]">
+                Oluşturma {operationDateTR(audit.createdAt)}
+                {audit.submittedAt ? ` · Gönderim ${operationDateTR(audit.submittedAt)}` : ""}
+                {audit.completedAt ? ` · Tamamlanma ${operationDateTR(audit.completedAt)}` : ""}
+              </p>
+            </div>
+            <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
+          </div>
+          {showSubmit && audit.status === "IN_PROGRESS" ? (
+            <form action={submitAudit.bind(null, audit.id)} className="mt-3">
+              <Button size="sm" variant="outline">Denetimi Gönder</Button>
+            </form>
+          ) : null}
+          {audit.evidences.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {audit.evidences.map((evidence, index) => (
+                <Button key={evidence.id} asChild size="sm" variant="outline">
+                  <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
+                    Fotoğraf {index + 1}
+                  </a>
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </article>
+      ))}
+      {!audits.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">{emptyText}</p> : null}
+    </section>
   );
 }
 

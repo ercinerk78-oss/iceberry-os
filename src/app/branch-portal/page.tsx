@@ -78,6 +78,7 @@ export default async function BranchPortalPage() {
   const evidenceWaiting = tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status) && (task.requiresPhoto || task.requiresVideo || task.requiresFile || task.requiresDescription));
   const approvalWaiting = tasks.filter((task) => ["SUBMITTED", "UNDER_REVIEW"].includes(task.status));
   const rejected = tasks.filter((task) => task.status === "REJECTED");
+  const actionTasks = uniqueById([...rejected, ...overdueTasks, ...todayTasks, ...evidenceWaiting, ...openTasks]).slice(0, 12);
   const auditAssignments = branches.flatMap((branch) => branch.auditAssignments.map((assignment) => ({ ...assignment, branch })));
   const activeAudits = branches.flatMap((branch) => branch.operationalAudits.map((audit) => ({ ...audit, branch })));
   const openAuditCount = auditAssignments.length + activeAudits.length;
@@ -98,10 +99,10 @@ export default async function BranchPortalPage() {
         <section className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
           <Card className="shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">Görev Akışı</CardTitle>
+              <CardTitle className="text-base">Bugünkü Aksiyonlar</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {tasks.slice(0, 12).map((task) => (
+              {actionTasks.map((task) => (
                 <Link key={task.id} href={`/branches/${task.branchId}?tab=${encodeURIComponent("Görevler")}`} className="block rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -112,7 +113,7 @@ export default async function BranchPortalPage() {
                   </div>
                 </Link>
               ))}
-              {!tasks.length ? <p className="py-10 text-center text-sm text-[#65705f]">Bu portal için görev yok.</p> : null}
+              {!actionTasks.length ? <p className="py-10 text-center text-sm text-[#65705f]">Bugün aksiyon bekleyen görev yok.</p> : null}
             </CardContent>
           </Card>
 
@@ -188,6 +189,10 @@ export default async function BranchPortalPage() {
       </div>
     </AppShell>
   );
+}
+
+function uniqueById<T extends { id: string }>(items: T[]) {
+  return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 
 function Metric({ title, value, icon: Icon }: { title: string; value: number; icon: typeof CheckSquare }) {
