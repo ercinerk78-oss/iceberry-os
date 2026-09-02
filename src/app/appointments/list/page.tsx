@@ -40,7 +40,7 @@ export default async function AppointmentListPage({ searchParams }: { searchPara
 
   const appointments = await prisma.leadAppointment.findMany({
     where,
-    include: { lead: { select: { id: true, fullName: true, city: true, phone: true, leadCategory: true } } },
+    include: { lead: { select: { id: true, fullName: true, city: true, phone: true, investmentBudget: true, requestedConcept: true, leadCategory: true } } },
     orderBy: { appointmentDate: "asc" },
     take: APPOINTMENT_LIST_LIMIT,
   }).catch((error) => {
@@ -107,6 +107,11 @@ export default async function AppointmentListPage({ searchParams }: { searchPara
                           <span>{appointment.lead.city}</span>
                           <span>-</span>
                           <span>{formatAppointmentRange(appointment.appointmentDate, appointment.endDateTime)}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#65705f]">
+                          <span>Yatırım bütçesi: {appointment.lead.investmentBudget || "Belirtilmemiş"}</span>
+                          <span>-</span>
+                          <span>Konsept tercihi: {appointment.lead.requestedConcept || "Belirtilmemiş"}</span>
                         </div>
                         {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
                         {appointment.meetingLink ? (
