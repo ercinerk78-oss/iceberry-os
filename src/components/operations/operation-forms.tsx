@@ -16,11 +16,9 @@ type AuditQuestionOption = { id: string; title: string; auditId: string; require
 export function OperationForms({
   branches,
   templates,
-  openQuestions,
 }: {
   branches: BranchOption[];
   templates: TemplateOption[];
-  openQuestions: AuditQuestionOption[];
 }) {
   const [templateState, templateAction, templatePending] = useActionState(createAuditTemplate, initial);
   const [assignmentState, assignmentAction, assignmentPending] = useActionState(createAuditAssignment, initial);
@@ -28,7 +26,7 @@ export function OperationForms({
   const nextWeek = new Date(today.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10);
 
   return (
-    <section className="grid gap-4 xl:grid-cols-3">
+    <section className="grid gap-4 xl:grid-cols-2">
       <form action={templateAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
         <h3 className="flex items-center gap-2 font-semibold"><ShieldCheck className="size-4" /> Denetim Şablonu</h3>
         <div className="mt-4 grid gap-3">
@@ -59,8 +57,6 @@ export function OperationForms({
           {assignmentState.message ? <p className="text-sm text-[#65705f]">{assignmentState.message}</p> : null}
         </div>
       </form>
-
-      <QuickAuditAnswerForm openQuestions={openQuestions} />
     </section>
   );
 }

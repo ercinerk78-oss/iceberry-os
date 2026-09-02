@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, ClipboardList, ShieldCheck, TrendingUp } from "lucide-react";
 
 import { approveAudit, publishAuditTemplate, recalculateBranchHealth, startAuditAssignment, submitAudit } from "@/app/operations/actions";
 import { AppShell } from "@/components/app-shell";
@@ -13,6 +13,7 @@ import {
   AUDIT_RESULT_LABELS,
   AUDIT_TEMPLATE_STATUS_LABELS,
   AUDIT_TYPE_LABELS,
+  CORRECTIVE_ACTION_STATUS_LABELS,
   dateTR,
   FINDING_SEVERITY_LABELS,
   label,
@@ -36,7 +37,6 @@ export default async function OperationsPage() {
     correctiveActions,
     healthScores,
     overdueActions,
-    criticalFindings,
   ] = await Promise.all([
     prisma.branch.findMany({ where: scopedBranchWhere, select: { id: true, branchName: true, city: true, district: true, branchCode: true, healthScore: true }, orderBy: { branchName: "asc" }, take: 300 }),
     prisma.auditTemplate.findMany({ include: { sections: true }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], take: 20 }),
@@ -56,10 +56,11 @@ export default async function OperationsPage() {
     prisma.correctiveAction.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { dueAt: "asc" }, take: 15 }),
     prisma.branchHealthScoreSnapshot.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { id: true, branchName: true, city: true } } }, orderBy: { calculatedAt: "desc" }, take: 300 }),
     prisma.correctiveAction.count({ where: { branch: scopedBranchWhere, dueAt: { lt: now }, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } } }),
-    prisma.auditFinding.count({ where: { branch: scopedBranchWhere, isCritical: true, status: { notIn: ["CLOSED", "VERIFIED"] } } }),
   ]);
   const publishedTemplates = templates.filter((template) => template.status === "PUBLISHED");
   const activeAudits = audits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const assignedAuditCount = assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status)).length;
+  const reviewWaitingCount = audits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status)).length;
   const canManage = canManageOperations(user.role);
   const scoredBranches = branches.filter((branch) => branch.healthScore != null);
   const averageHealth = scoredBranches.length ? Math.round(scoredBranches.reduce((sum, branch) => sum + Number(branch.healthScore), 0) / scoredBranches.length) : 0;
@@ -88,9 +89,9 @@ export default async function OperationsPage() {
   }).slice(0, 30);
   const metrics = [
     { title: "Ortalama Şube Sağlık Puanı", value: averageHealth ? percentTR(averageHealth) : "Veri yok", icon: TrendingUp },
-    { title: "Aktif Denetim", value: activeAudits.length, icon: ShieldCheck },
-    { title: "Açık Kritik Bulgu", value: criticalFindings, icon: AlertTriangle },
-    { title: "Geciken Düzeltici Faaliyet", value: overdueActions, icon: CalendarClock },
+    { title: "Atanan Denetim", value: assignedAuditCount, icon: ClipboardList },
+    { title: "Onay Bekleyen", value: reviewWaitingCount, icon: ShieldCheck },
+    { title: "Geciken Düzeltme", value: overdueActions, icon: AlertTriangle },
   ];
 
   return (
@@ -107,75 +108,21 @@ export default async function OperationsPage() {
           ))}
         </section>
 
-        {canManage ? <OperationForms branches={branches} templates={publishedTemplates} openQuestions={openQuestions} /> : <QuickAuditAnswerForm openQuestions={openQuestions} />}
+        {canManage ? (
+          <>
+            <AuditTrackingBoard assignments={assignments} audits={audits} />
+            <section className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+              <div className="mb-4">
+                <h2 className="font-semibold">Yönetim Araçları</h2>
+                <p className="mt-1 text-sm text-[#65705f]">Yeni şablon oluşturma, yayımlama ve şubeye denetim atama işlemleri.</p>
+              </div>
+              <OperationForms branches={branches} templates={publishedTemplates} />
+              <TemplateManagementList templates={templates} />
+            </section>
+          </>
+        ) : <QuickAuditAnswerForm openQuestions={openQuestions} />}
 
-        <section className={`grid gap-4 ${canManage ? "xl:grid-cols-2" : ""}`}>
-          {canManage ? (
-            <Card className="shadow-none">
-              <CardHeader><CardTitle>Denetim Şablonları</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {templates.map((template) => (
-                  <div key={template.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div><p className="font-medium">{template.name} v{template.version}</p><p className="text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, template.auditType)} · {template.sections.length} bölüm</p></div>
-                      <Badge variant="outline">{label(AUDIT_TEMPLATE_STATUS_LABELS, template.status)}</Badge>
-                    </div>
-                    {template.status !== "PUBLISHED" ? <form action={publishAuditTemplate.bind(null, template.id)} className="mt-3"><Button size="sm" variant="outline">Yayımla</Button></form> : null}
-                  </div>
-                ))}
-                {!templates.length ? <p className="py-8 text-center text-sm text-[#65705f]">Henüz denetim şablonu yok.</p> : null}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Denetim Atamaları</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {assignments.map((assignment) => (
-                <div key={assignment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><p className="font-medium">{assignment.branch.branchName}</p><p className="text-xs text-[#65705f]">{assignment.template.name} · Son tarih {dateTR(assignment.dueAt)}</p></div>
-                    <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
-                  </div>
-                  {["ASSIGNED", "PLANNED"].includes(assignment.status) ? <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3"><Button size="sm" variant="outline">Başlat</Button></form> : null}
-                </div>
-              ))}
-              {!assignments.length ? <p className="py-8 text-center text-sm text-[#65705f]">Denetim ataması yok.</p> : null}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-2">
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Aktif Denetimler</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {audits.map((audit) => (
-                <div key={audit.id} className="rounded-lg border border-[#edf0e9] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><p className="font-medium">{audit.branch.branchName}</p><p className="text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, audit.auditType)} · {label(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}</p></div>
-                    <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {audit.status === "IN_PROGRESS" ? <form action={submitAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Gönder</Button></form> : null}
-                    {canManage && ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status) ? <form action={approveAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
-                  </div>
-                  {audit.evidences.length ? (
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      {audit.evidences.map((evidence, index) => (
-                        <Button key={evidence.id} asChild size="sm" variant="outline">
-                          <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
-                            Fotoğraf {index + 1}
-                          </a>
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-              {!audits.length ? <p className="py-8 text-center text-sm text-[#65705f]">Denetim kaydı yok.</p> : null}
-            </CardContent>
-          </Card>
-
+        <section>
           <Card className="shadow-none">
             <CardHeader><CardTitle>Şube Sağlık Puanları</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -208,37 +155,246 @@ export default async function OperationsPage() {
           </Card>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-2">
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Açık Bulgular</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {findings.map((finding) => (
-                <div key={finding.id} className="rounded-lg border border-[#edf0e9] p-3">
-                  <div className="flex items-center justify-between gap-3"><p className="font-medium">{finding.title}</p><Badge className={finding.isCritical ? "bg-rose-100 text-rose-800" : "bg-orange-100 text-orange-800"}>{label(FINDING_SEVERITY_LABELS, finding.severity)}</Badge></div>
-                  <p className="mt-1 text-xs text-[#65705f]">{finding.branch.branchName} · {finding.findingNumber}</p>
-                  <p className="mt-2 text-sm">{finding.description}</p>
-                </div>
-              ))}
-              {!findings.length ? <p className="py-8 text-center text-sm text-[#65705f]">Açık bulgu yok.</p> : null}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Düzeltici Faaliyetler</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {correctiveActions.map((action) => (
-                <div key={action.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                  <div className="flex items-center justify-between gap-3"><p className="font-medium">{action.title}</p><Badge variant="outline">{action.status}</Badge></div>
-                  <p className="mt-1 text-xs text-[#65705f]">{action.branch.branchName} · Son tarih {dateTR(action.dueAt)}</p>
-                  <p className="mt-2 text-sm">{action.description}</p>
-                </div>
-              ))}
-              {!correctiveActions.length ? <p className="py-8 text-center text-sm text-[#65705f]">Açık düzeltici faaliyet yok.</p> : null}
-            </CardContent>
-          </Card>
-        </section>
+        <CorrectiveTrackingPanel findings={findings} correctiveActions={correctiveActions} />
       </div>
     </AppShell>
+  );
+}
+
+function AuditTrackingBoard({
+  assignments,
+  audits,
+}: {
+  assignments: { id: string; auditType: string; status: string; dueAt: Date; priority: string; branch: { branchName: string }; template: { name: string } }[];
+  audits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    branch: { branchName: string };
+    template: { name: string };
+    evidences: { id: string; caption: string | null; createdAt: Date }[];
+  }[];
+}) {
+  const columns = [
+    {
+      title: "Atandı",
+      description: "Şubenin henüz başlatmadığı denetimler",
+      tone: "border-blue-200 bg-blue-50/60",
+      items: assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status)),
+    },
+    {
+      title: "Devam Ediyor",
+      description: "Cevaplanmakta olan denetimler",
+      tone: "border-amber-200 bg-amber-50/60",
+      items: audits.filter((audit) => audit.status === "IN_PROGRESS"),
+    },
+    {
+      title: "Onay Bekliyor",
+      description: "Merkez kontrolü bekleyenler",
+      tone: "border-purple-200 bg-purple-50/60",
+      items: audits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status)),
+    },
+    {
+      title: "Tamamlandı",
+      description: "Son kapanan denetimler",
+      tone: "border-emerald-200 bg-emerald-50/60",
+      items: audits.filter((audit) => audit.status === "COMPLETED").slice(0, 6),
+    },
+  ];
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-4">
+      {columns.map((column) => (
+        <Card key={column.title} className="shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-start justify-between gap-3 text-base">
+              <span>
+                {column.title}
+                <small className="mt-1 block font-normal text-[#65705f]">{column.description}</small>
+              </span>
+              <Badge variant="secondary">{column.items.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {column.items.map((item) => "dueAt" in item ? (
+              <AuditAssignmentCard key={item.id} assignment={item} tone={column.tone} />
+            ) : (
+              <AuditStatusCard key={item.id} audit={item} tone={column.tone} />
+            ))}
+            {!column.items.length ? <p className="rounded-lg border border-dashed border-[#dfe4dc] p-6 text-center text-sm text-[#65705f]">Bu aşamada kayıt yok.</p> : null}
+          </CardContent>
+        </Card>
+      ))}
+    </section>
+  );
+}
+
+function TemplateManagementList({
+  templates,
+}: {
+  templates: { id: string; name: string; auditType: string; version: number; status: string; sections: { id: string }[] }[];
+}) {
+  return (
+    <div className="mt-4 rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">Şablon Durumu</h3>
+          <p className="mt-1 text-sm text-[#65705f]">Yayıma hazır şablonları burada hızlıca kontrol edin.</p>
+        </div>
+        <Badge variant="secondary">{templates.length}</Badge>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {templates.map((template) => (
+          <article key={template.id} className="rounded-lg border border-[#dfe4dc] bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{template.name} v{template.version}</p>
+                <p className="mt-1 text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, template.auditType)} · {template.sections.length} bölüm</p>
+              </div>
+              <Badge variant="outline">{label(AUDIT_TEMPLATE_STATUS_LABELS, template.status)}</Badge>
+            </div>
+            {template.status !== "PUBLISHED" ? (
+              <form action={publishAuditTemplate.bind(null, template.id)} className="mt-3">
+                <Button size="sm" variant="outline">Yayımla</Button>
+              </form>
+            ) : null}
+          </article>
+        ))}
+        {!templates.length ? <p className="rounded-lg border border-dashed border-[#dfe4dc] bg-white p-6 text-center text-sm text-[#65705f]">Henüz denetim şablonu yok.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function AuditAssignmentCard({
+  assignment,
+  tone,
+}: {
+  assignment: { id: string; auditType: string; status: string; dueAt: Date; priority: string; branch: { branchName: string }; template: { name: string } };
+  tone: string;
+}) {
+  return (
+    <article className={`rounded-lg border p-3 ${tone}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium">{assignment.branch.branchName}</p>
+          <p className="mt-1 text-xs text-[#65705f]">{assignment.template.name}</p>
+        </div>
+        <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
+      </div>
+      <p className="mt-2 text-xs text-[#65705f]">{label(AUDIT_TYPE_LABELS, assignment.auditType)} · Son tarih {dateTR(assignment.dueAt)}</p>
+      {["ASSIGNED", "PLANNED"].includes(assignment.status) ? (
+        <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3">
+          <Button size="sm" variant="outline" className="w-full">Başlat</Button>
+        </form>
+      ) : null}
+    </article>
+  );
+}
+
+function AuditStatusCard({
+  audit,
+  tone,
+}: {
+  audit: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    branch: { branchName: string };
+    template: { name: string };
+    evidences: { id: string; caption: string | null; createdAt: Date }[];
+  };
+  tone: string;
+}) {
+  return (
+    <article className={`rounded-lg border p-3 ${tone}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium">{audit.branch.branchName}</p>
+          <p className="mt-1 text-xs text-[#65705f]">{audit.template.name}</p>
+        </div>
+        <Badge variant="outline">{label(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
+      </div>
+      <p className="mt-2 text-xs text-[#65705f]">
+        {label(AUDIT_TYPE_LABELS, audit.auditType)} · {label(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}
+      </p>
+      <p className="mt-1 text-xs text-[#65705f]">
+        {audit.completedAt ? `Kapanış ${dateTR(audit.completedAt)}` : audit.submittedAt ? `Gönderim ${dateTR(audit.submittedAt)}` : `Başlangıç ${dateTR(audit.createdAt)}`}
+      </p>
+      {audit.evidences.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {audit.evidences.slice(0, 3).map((evidence, index) => (
+            <Button key={evidence.id} asChild size="sm" variant="outline">
+              <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">Fotoğraf {index + 1}</a>
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {audit.status === "IN_PROGRESS" ? <form action={submitAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Gönder</Button></form> : null}
+        {["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status) ? <form action={approveAudit.bind(null, audit.id)}><Button size="sm" variant="outline">Onayla ve Kapat</Button></form> : null}
+      </div>
+    </article>
+  );
+}
+
+function CorrectiveTrackingPanel({
+  findings,
+  correctiveActions,
+}: {
+  findings: { id: string; title: string; description: string; findingNumber: string; severity: string; isCritical: boolean; branch: { branchName: string } }[];
+  correctiveActions: { id: string; title: string; description: string | null; status: string; dueAt: Date; branch: { branchName: string } }[];
+}) {
+  return (
+    <Card className="shadow-none">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between gap-3">
+          <span>Düzeltme Takibi</span>
+          <Badge variant="secondary">{findings.length + correctiveActions.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 xl:grid-cols-2">
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Düzeltilmesi Gereken Konular</h3>
+          {findings.map((finding) => (
+            <article key={finding.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium">{finding.title}</p>
+                <Badge className={finding.isCritical ? "bg-rose-100 text-rose-800" : "bg-orange-100 text-orange-800"}>{label(FINDING_SEVERITY_LABELS, finding.severity)}</Badge>
+              </div>
+              <p className="mt-1 text-xs text-[#65705f]">{finding.branch.branchName} · {finding.findingNumber}</p>
+              <p className="mt-2 text-sm">{finding.description}</p>
+            </article>
+          ))}
+          {!findings.length ? <p className="rounded-lg border border-dashed border-[#dfe4dc] p-6 text-center text-sm text-[#65705f]">Düzeltilmesi gereken açık konu yok.</p> : null}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Aksiyonlar ve Son Tarihler</h3>
+          {correctiveActions.map((action) => (
+            <article key={action.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium">{action.title}</p>
+                <Badge variant="outline">{label(CORRECTIVE_ACTION_STATUS_LABELS, action.status)}</Badge>
+              </div>
+              <p className="mt-1 text-xs text-[#65705f]">{action.branch.branchName} · Son tarih {dateTR(action.dueAt)}</p>
+              {action.description ? <p className="mt-2 text-sm">{action.description}</p> : null}
+            </article>
+          ))}
+          {!correctiveActions.length ? <p className="rounded-lg border border-dashed border-[#dfe4dc] p-6 text-center text-sm text-[#65705f]">Açık düzeltme aksiyonu yok.</p> : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
