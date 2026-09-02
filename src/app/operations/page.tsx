@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertTriangle, ClipboardList, ShieldCheck, TrendingUp } from "lucide-react";
 
 import { approveAudit, publishAuditTemplate, recalculateBranchHealth, startAuditAssignment, submitAudit } from "@/app/operations/actions";
@@ -23,7 +24,13 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function OperationsPage() {
+type Params = {
+  view?: string;
+};
+
+export default async function OperationsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams;
+  const currentView = params.view === "health" ? "health" : "audits";
   const user = await requireOperationsUser();
   const branchWhere = await operationBranchWhere();
   const scopedBranchWhere = withNonHotelMainBranchWhere({ archivedAt: null, ...branchWhere });
@@ -59,6 +66,7 @@ export default async function OperationsPage() {
   ]);
   const publishedTemplates = templates.filter((template) => template.status === "PUBLISHED");
   const activeAudits = audits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const completedAudits = audits.filter((audit) => audit.status === "COMPLETED");
   const assignedAuditCount = assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status)).length;
   const reviewWaitingCount = audits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status)).length;
   const canManage = canManageOperations(user.role);
@@ -108,7 +116,15 @@ export default async function OperationsPage() {
           ))}
         </section>
 
-        {canManage ? (
+        <OperationsViewTabs currentView={currentView} />
+
+        {currentView === "health" ? (
+          <HealthScoresSection
+            scores={latestHealthScores}
+            canManage={canManage}
+            fallbackBranchId={branches[0]?.id}
+          />
+        ) : canManage ? (
           <>
             <AuditTrackingBoard assignments={assignments} audits={audits} />
             <section className="rounded-lg border border-[#dfe4dc] bg-white p-4">
@@ -119,45 +135,29 @@ export default async function OperationsPage() {
               <OperationForms branches={branches} templates={publishedTemplates} />
               <TemplateManagementList templates={templates} />
             </section>
+            <CorrectiveTrackingPanel findings={findings} correctiveActions={correctiveActions} />
+            <CompletedAuditsPanel audits={completedAudits} />
           </>
         ) : <QuickAuditAnswerForm openQuestions={openQuestions} />}
-
-        <section>
-          <Card className="shadow-none">
-            <CardHeader><CardTitle>Şube Sağlık Puanları</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {latestHealthScores.map((score) => (
-                <div key={score.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
-                  <div className="flex items-center justify-between gap-3"><div><p className="font-medium">{score.branch.branchName}</p><p className="text-xs text-[#65705f]">{score.branch.city} · {dateTR(score.calculatedAt)}</p></div><strong>{percentTR(Number(score.score))}</strong></div>
-                  <p className="mt-2 text-xs text-[#65705f]">{score.negativeFactors || score.positiveFactors || "Açıklanabilir sağlık puanı hesaplandı."}</p>
-                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
-                    <HealthPart label="Denetim" value={score.auditComponent} />
-                    <HealthPart label="Ziyaret" value={score.visitComponent ?? 0} />
-                    <HealthPart label="Bulgu" value={score.findingComponent} />
-                    <HealthPart label="Görev" value={score.taskComponent} />
-                    <HealthPart label="Ciro" value={score.revenueComponent} />
-                    <HealthPart label="Tedarik" value={score.supplyComponent} />
-                  </div>
-                  {canManage ? (
-                    <form action={recalculateBranchHealth.bind(null, score.branchId)} className="mt-3">
-                      <Button size="sm" variant="outline">Puanı Yenile</Button>
-                    </form>
-                  ) : null}
-                </div>
-              ))}
-              {!latestHealthScores.length ? (
-                <div className="py-8 text-center text-sm text-[#65705f]">
-                  Sağlık puanı henüz hesaplanmadı.
-                  {branches[0] && canManage ? <form action={recalculateBranchHealth.bind(null, branches[0].id)} className="mt-3"><Button size="sm" variant="outline">İlk şube için hesapla</Button></form> : null}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </section>
-
-        <CorrectiveTrackingPanel findings={findings} correctiveActions={correctiveActions} />
       </div>
     </AppShell>
+  );
+}
+
+function OperationsViewTabs({ currentView }: { currentView: "audits" | "health" }) {
+  const tabs = [
+    { label: "Denetim Takibi", href: "/operations", view: "audits" },
+    { label: "Şube Sağlık Puanları", href: "/operations?view=health", view: "health" },
+  ] as const;
+
+  return (
+    <nav className="flex flex-wrap gap-2 rounded-lg border border-[#dfe4dc] bg-white p-2">
+      {tabs.map((tab) => (
+        <Button key={tab.view} asChild variant={currentView === tab.view ? "default" : "outline"}>
+          <Link href={tab.href}>{tab.label}</Link>
+        </Button>
+      ))}
+    </nav>
   );
 }
 
@@ -199,16 +199,10 @@ function AuditTrackingBoard({
       tone: "border-purple-200 bg-purple-50/60",
       items: audits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status)),
     },
-    {
-      title: "Tamamlandı",
-      description: "Son kapanan denetimler",
-      tone: "border-emerald-200 bg-emerald-50/60",
-      items: audits.filter((audit) => audit.status === "COMPLETED").slice(0, 6),
-    },
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-4">
+    <section className="grid gap-4 xl:grid-cols-3">
       {columns.map((column) => (
         <Card key={column.title} className="shadow-none">
           <CardHeader>
@@ -231,6 +225,109 @@ function AuditTrackingBoard({
         </Card>
       ))}
     </section>
+  );
+}
+
+function HealthScoresSection({
+  scores,
+  canManage,
+  fallbackBranchId,
+}: {
+  scores: {
+    id: string;
+    branchId: string;
+    score: unknown;
+    auditComponent: unknown;
+    visitComponent: unknown;
+    findingComponent: unknown;
+    taskComponent: unknown;
+    revenueComponent: unknown;
+    supplyComponent: unknown;
+    negativeFactors: string | null;
+    positiveFactors: string | null;
+    calculatedAt: Date;
+    branch: { id: string; branchName: string; city: string | null };
+  }[];
+  canManage: boolean;
+  fallbackBranchId?: string;
+}) {
+  return (
+    <section>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Şube Sağlık Puanları</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {scores.map((score) => (
+            <div key={score.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{score.branch.branchName}</p>
+                  <p className="text-xs text-[#65705f]">{score.branch.city} · {dateTR(score.calculatedAt)}</p>
+                </div>
+                <strong>{percentTR(Number(score.score))}</strong>
+              </div>
+              <p className="mt-2 text-xs text-[#65705f]">{score.negativeFactors || score.positiveFactors || "Açıklanabilir sağlık puanı hesaplandı."}</p>
+              <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
+                <HealthPart label="Denetim" value={score.auditComponent} />
+                <HealthPart label="Ziyaret" value={score.visitComponent ?? 0} />
+                <HealthPart label="Düzeltme" value={score.findingComponent} />
+                <HealthPart label="Görev" value={score.taskComponent} />
+                <HealthPart label="Ciro" value={score.revenueComponent} />
+                <HealthPart label="Tedarik" value={score.supplyComponent} />
+              </div>
+              {canManage ? (
+                <form action={recalculateBranchHealth.bind(null, score.branchId)} className="mt-3">
+                  <Button size="sm" variant="outline">Puanı Yenile</Button>
+                </form>
+              ) : null}
+            </div>
+          ))}
+          {!scores.length ? (
+            <div className="py-8 text-center text-sm text-[#65705f]">
+              Sağlık puanı henüz hesaplanmadı.
+              {fallbackBranchId && canManage ? <form action={recalculateBranchHealth.bind(null, fallbackBranchId)} className="mt-3"><Button size="sm" variant="outline">İlk şube için hesapla</Button></form> : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function CompletedAuditsPanel({
+  audits,
+}: {
+  audits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    branch: { branchName: string };
+    template: { name: string };
+    evidences: { id: string; caption: string | null; createdAt: Date }[];
+  }[];
+}) {
+  return (
+    <details className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span>
+          <span className="font-semibold">Tamamlanan Denetimler</span>
+          <span className="mt-1 block text-sm text-[#65705f]">Kapanan denetimler arşivi. Gerektiğinde açıp kontrol edin.</span>
+        </span>
+        <Badge variant="secondary">{audits.length}</Badge>
+      </summary>
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {audits.map((audit) => (
+          <AuditStatusCard key={audit.id} audit={audit} tone="border-emerald-200 bg-emerald-50/60" />
+        ))}
+        {!audits.length ? <p className="rounded-lg border border-dashed border-[#dfe4dc] p-6 text-center text-sm text-[#65705f]">Tamamlanan denetim yok.</p> : null}
+      </div>
+    </details>
   );
 }
 
