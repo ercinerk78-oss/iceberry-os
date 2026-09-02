@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { Archive, CheckCircle2, ClipboardList, FileCheck2, Plus } from "lucide-react";
 
 import {
@@ -189,8 +190,10 @@ function GroupedSetupItems({ items }: { items: SetupItem[] }) {
 }
 
 function SetupItemCard({ item }: { item: SetupItem }) {
+  const isCompleted = item.status === "TAMAMLANDI";
+
   return (
-    <div className="rounded-lg border bg-[#fbfcf8] p-3">
+    <div className={`rounded-lg border p-3 ${isCompleted ? "border-emerald-200 bg-emerald-50/70" : "bg-[#fbfcf8]"}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="font-semibold">{item.title}</p>
@@ -201,25 +204,35 @@ function SetupItemCard({ item }: { item: SetupItem }) {
         </Badge>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant={item.status === "TAMAMLANDI" ? "default" : "secondary"}>{setupStatusLabels[item.status] ?? item.status}</Badge>
+        <Badge className={isCompleted ? "bg-emerald-600 text-white" : ""} variant={isCompleted ? "default" : "secondary"}>{setupStatusLabels[item.status] ?? item.status}</Badge>
         <Badge variant="outline">{item.sourceType === "MANUAL" ? "Manuel" : "Standart"}</Badge>
       </div>
       {item.closingNote ? <p className="mt-3 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
       <div className="mt-3 grid gap-2">
-        <form action={setOpeningSetupChecklistStatus.bind(null, item.id)} className="flex gap-2">
+        <form action={setOpeningSetupChecklistStatus.bind(null, item.id)} className="grid gap-2">
           <Select name="status" options={OPENING_SETUP_STATUSES} defaultValue={item.status} />
-          <Button type="submit" variant="outline">Durumu Güncelle</Button>
+          <select name="selectedOption" defaultValue={item.selectedOption ?? ""} className="h-10 rounded border px-3 text-sm">
+            <option value="">Sorumlu / işlem tipi</option>
+            <option value="MERKEZ_TAMAMLADI">Merkez tamamladı</option>
+            <option value="YATIRIMCI_TAMAMLADI">Yatırımcı tamamladı, merkez teyit etti</option>
+            <option value="YATIRIMCI_COZECEK">Yatırımcı çözecek</option>
+            <option value="SATIN_ALINDI">Alım yapıldı</option>
+            <option value="IMALATA_ALINDI">İmalata alındı</option>
+          </select>
+          <textarea name="closingNote" defaultValue={item.closingNote ?? ""} placeholder="Güncelleme veya düzeltme notu" className="min-h-16 rounded border px-3 py-2 text-sm" />
+          <OpeningStatusSubmitButton />
         </form>
-        {item.status !== "TAMAMLANDI" ? (
+        {!isCompleted ? (
           <form action={completeOpeningSetupChecklistItem.bind(null, item.id)} className="grid gap-2">
             <select name="selectedOption" defaultValue="" className="h-10 rounded border px-3 text-sm">
               <option value="">Tamamlama tipi</option>
               <option value="MERKEZ_TAMAMLADI">Merkez tamamladı</option>
               <option value="YATIRIMCI_TAMAMLADI">Yatırımcı tamamladı, merkez teyit etti</option>
+              <option value="YATIRIMCI_COZECEK">Yatırımcı çözecek</option>
               <option value="SATIN_ALINDI">Alım yapıldı</option>
             </select>
             <textarea name="closingNote" required placeholder="Tamamlama notu" className="min-h-20 rounded border px-3 py-2 text-sm" />
-            <Button type="submit"><CheckCircle2 className="size-4" />Tamamla</Button>
+            <OpeningCompleteSubmitButton />
           </form>
         ) : null}
         <form action={archiveOpeningSetupChecklistItem.bind(null, item.id)}>
@@ -227,6 +240,21 @@ function SetupItemCard({ item }: { item: SetupItem }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function OpeningStatusSubmitButton() {
+  const { pending } = useFormStatus();
+  return <Button type="submit" variant="outline" disabled={pending}>{pending ? "Güncelleniyor..." : "Durumu Güncelle"}</Button>;
+}
+
+function OpeningCompleteSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending} className="bg-emerald-600 text-white hover:bg-emerald-700">
+      <CheckCircle2 className="size-4" />
+      {pending ? "Tamamlanıyor..." : "Tamamla"}
+    </Button>
   );
 }
 

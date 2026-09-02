@@ -354,9 +354,11 @@ export async function addOpeningSetupChecklistItem(projectId: string, _state: Op
 }
 
 export async function setOpeningSetupChecklistStatus(itemId: string, formData: FormData) {
-  await requirePermission("openings");
+  const user = await requirePermission("openings");
   const status = String(formData.get("status") || "BEKLIYOR");
-  const item = await OpeningChecklistService.setSetupItemStatus(itemId, status);
+  const closingNote = String(formData.get("closingNote") || "");
+  const selectedOption = String(formData.get("selectedOption") || "");
+  const item = await OpeningChecklistService.setSetupItemStatus(itemId, status, user.id, closingNote, selectedOption);
   await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }

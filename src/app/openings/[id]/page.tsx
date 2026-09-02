@@ -181,9 +181,15 @@ function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]
                   {item.closingNote ? <p className="mt-2 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
                   {item.status !== "TAMAMLANDI" ? (
                     <form action={completeOpeningSetupChecklistItem.bind(null, item.id)} className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-                      <input name="selectedOption" type="hidden" value="MERKEZ_TAMAMLADI" />
+                      <select name="selectedOption" defaultValue="MERKEZ_TAMAMLADI" className="h-10 rounded border px-3 text-sm md:col-span-2">
+                        <option value="MERKEZ_TAMAMLADI">Merkez tamamladı</option>
+                        <option value="YATIRIMCI_TAMAMLADI">Yatırımcı tamamladı, merkez teyit etti</option>
+                        <option value="YATIRIMCI_COZECEK">Yatırımcı çözecek</option>
+                        <option value="SATIN_ALINDI">Alım yapıldı</option>
+                        <option value="IMALATA_ALINDI">İmalata alındı</option>
+                      </select>
                       <input name="closingNote" required placeholder="Tamamlama notu" className="h-10 rounded border px-3 text-sm" />
-                      <Button type="submit" size="sm"><CheckCircle2 className="size-4" />Tamamla</Button>
+                      <Button type="submit" size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700"><CheckCircle2 className="size-4" />Tamamla</Button>
                     </form>
                   ) : null}
                 </div>

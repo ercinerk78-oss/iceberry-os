@@ -23,9 +23,11 @@ const activeOpeningBranchStatuses = ["PLANNED", "SETUP", "IN_SETUP", "CONTRACTED
 const activeOpeningStatusSet = new Set<string>(activeOpeningStatuses);
 const activeOpeningWhere: Prisma.OpeningProjectWhereInput = {
   archivedAt: null,
+  actualOpeningDate: null,
   status: { in: [...activeOpeningStatuses] },
   branch: {
     archivedAt: null,
+    openingDate: null,
     status: { in: [...activeOpeningBranchStatuses] },
   },
 };

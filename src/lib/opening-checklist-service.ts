@@ -117,8 +117,8 @@ export class OpeningChecklistService {
     });
   }
 
-  static async setSetupItemStatus(itemId: string, status: string) {
-    if (!["BEKLIYOR", "MERKEZDE", "YATIRIMCIDA", "DEVAM_EDIYOR", "TAMAMLANDI", "IPTAL"].includes(status)) {
+  static async setSetupItemStatus(itemId: string, status: string, userId?: string | null, closingNote?: string | null, selectedOption?: string | null) {
+    if (!["BEKLIYOR", "MERKEZDE", "YATIRIMCIDA", "IMALATTA", "DEVAM_EDIYOR", "TAMAMLANDI", "IPTAL"].includes(status)) {
       throw new Error("Geçersiz kurulum durumu.");
     }
 
@@ -126,6 +126,9 @@ export class OpeningChecklistService {
       where: { id: itemId },
       data: {
         status,
+        selectedOption: selectedOption || undefined,
+        closingNote: closingNote?.trim() || undefined,
+        completedById: status === "TAMAMLANDI" ? userId : null,
         completedAt: status === "TAMAMLANDI" ? new Date() : null,
       },
       select: { openingProjectId: true, branchId: true },
