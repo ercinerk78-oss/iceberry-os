@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { branchScopeWhere } from "@/lib/branch-access";
 import { branchConceptColor, branchConceptLabel } from "@/lib/branch-concepts";
-import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
+import { appendBranchWhereAnd, visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive } from "@/lib/search";
@@ -37,7 +37,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   if (status) where.status = status;
   if (overdue === "yes") where.tasks = { some: { dueDate: { lt: new Date() }, status: { in: ["OPEN", "IN_PROGRESS", "REJECTED"] } } };
   if (critical === "yes") where.audits = { some: { criticalCount: { gt: 0 } } };
-  if (andFilters.length) where.AND = andFilters;
+  if (andFilters.length) Object.assign(where, appendBranchWhereAnd(where, andFilters));
 
   const [items, cities, concepts] = await Promise.all([
     prisma.branch.findMany({

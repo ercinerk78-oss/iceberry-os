@@ -14,7 +14,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { activeCandidateWhere, activeLeadWhere } from "@/lib/active-records";
-import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
+import { activeMainBranchWhere, currentMainBranchWhere, visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { getTranslations } from "@/lib/i18n/server";
 import {
   isActiveReportLead,
@@ -70,8 +70,8 @@ export default async function Home() {
     branchConceptDistribution,
     branchConceptStatusCounts,
   ] = await Promise.all([
-    prisma.branch.count({ where: withNonHotelMainBranchWhere({ archivedAt: null, status: "ACTIVE" }) }),
-    prisma.branch.count({ where: withNonHotelMainBranchWhere({ archivedAt: null }) }),
+    prisma.branch.count({ where: activeMainBranchWhere }),
+    prisma.branch.count({ where: currentMainBranchWhere }),
     safe(
       prisma.lead.findMany({
         select: {

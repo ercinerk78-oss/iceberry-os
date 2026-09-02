@@ -158,7 +158,7 @@
     "longTerm": "Uzun vade",
     "delay": "Gecikme",
     "activeBranchesDesc": "Faaliyetteki şubeler",
-    "totalBranchesDesc": "Arşivlenmemiş şube sayısı",
+    "totalBranchesDesc": "Aktif, kurulumda veya planlı ana şube sayısı",
     "newLeadsDesc": "Henüz işleme alınmamış leadler",
     "waitingAppointmentDesc": "Randevu departmanı takibindeki leadler",
     "todayAppointmentsDesc": "Bugün planlanan görüşmeler",
