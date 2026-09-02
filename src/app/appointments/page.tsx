@@ -8,6 +8,7 @@ import {
   markAppointmentNoShowFollowUpUnreachableForm,
   markLeadUnreachableForm,
   markAppointmentSequentialMessageSentForm,
+  moveLeadToSequentialMessageFlowForm,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
 import { AppointmentLeadEditDialog } from "@/components/appointments/appointment-lead-edit-dialog";
@@ -176,18 +177,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
-                          <AppointmentSchedulerDialog
+                          <LeadDispositionForm
+                            leadId={lead.id}
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            initialLeadId={lead.id}
+                            unreachableAction={markLeadUnreachableForm.bind(null, lead.id)}
                           />
-                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
-                            <input name="reason" placeholder="Ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-                            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
-                              Ulaşılamadı
-                            </AppointmentSubmitButton>
-                          </form>
-                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                       <LeadCardNotes lead={lead} />
@@ -228,18 +223,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
-                          <AppointmentSchedulerDialog
+                          <LeadDispositionForm
+                            leadId={lead.id}
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            initialLeadId={lead.id}
+                            unreachableAction={markLeadUnreachableForm.bind(null, lead.id)}
                           />
-                          <form action={markLeadUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
-                            <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-                            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
-                              Ulaşılamadı
-                            </AppointmentSubmitButton>
-                          </form>
-                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                       <LeadCardNotes lead={lead} />
@@ -280,19 +269,12 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                         <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
                           <CallButton phone={lead.phone} />
                           <AppointmentLeadEditDialog lead={lead} />
-                          <AppointmentSchedulerDialog
+                          <LeadDispositionForm
+                            leadId={lead.id}
                             leads={appointmentLeadOptionItems}
                             users={userOptionItems}
-                            initialLeadId={lead.id}
-                            label="Tekrar Randevu Oluştur"
+                            unreachableAction={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)}
                           />
-                          <form action={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)} className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]">
-                            <input name="reason" placeholder="Tekrar ulaşılamadı notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-                            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="İşaretleniyor...">
-                              Ulaşılamadı
-                            </AppointmentSubmitButton>
-                          </form>
-                          <QuickLeadActions leadId={lead.id} />
                         </div>
                       </div>
                       <LeadCardNotes lead={lead} />
@@ -414,6 +396,52 @@ function CallButton({ phone }: { phone: string }) {
         Ara
       </a>
     </Button>
+  );
+}
+
+function LeadDispositionForm({
+  leadId,
+  leads,
+  users,
+  unreachableAction,
+}: {
+  leadId: string;
+  leads: [string, string][];
+  users: [string, string][];
+  unreachableAction: (formData: FormData) => Promise<void>;
+}) {
+  return (
+    <form className="grid gap-2 rounded-lg border border-[#dfe4dc] bg-white p-2 sm:col-span-2">
+      <textarea
+        name="note"
+        placeholder="Not yaz"
+        className="min-h-16 resize-y rounded-lg border px-3 py-2 text-sm"
+        maxLength={500}
+      />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <AppointmentSubmitButton formAction={unreachableAction} size="sm" variant="outline" pendingLabel="İşaretleniyor...">
+          Ulaşılamadı
+        </AppointmentSubmitButton>
+        <AppointmentSchedulerDialog leads={leads} users={users} initialLeadId={leadId} label="Randevu Oluştur" />
+        <AppointmentSubmitButton formAction={moveLeadToSequentialMessageFlowForm.bind(null, leadId)} size="sm" variant="outline" pendingLabel="Taşınıyor...">
+          Sıralı Mesajlara Al
+        </AppointmentSubmitButton>
+        <AppointmentSubmitButton formAction={markAppointmentLeadInvalidFormForm.bind(null, leadId)} size="sm" variant="outline" pendingLabel="Taşınıyor...">
+          Hatalı Başvuru
+        </AppointmentSubmitButton>
+        <AppointmentSubmitButton
+          formAction={deactivateAppointmentLeadForm.bind(null, leadId)}
+          name="reason"
+          value="OTHER"
+          size="sm"
+          variant="outline"
+          pendingLabel="Pasife alınıyor..."
+          className="sm:col-span-2"
+        >
+          Pasife Al
+        </AppointmentSubmitButton>
+      </div>
+    </form>
   );
 }
 
@@ -549,18 +577,5 @@ function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: strin
         Pasife Al
       </AppointmentSubmitButton>
     </form>
-  );
-}
-
-function QuickLeadActions({ leadId }: { leadId: string }) {
-  return (
-    <div className="grid gap-2">
-      <form action={markAppointmentLeadInvalidFormForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2">
-        <input name="note" placeholder="Hatalı başvuru notu" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-        <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Taşınıyor..." className="w-full">
-          Hatalı Başvuru
-        </AppointmentSubmitButton>
-      </form>
-    </div>
   );
 }

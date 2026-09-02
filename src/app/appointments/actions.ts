@@ -50,10 +50,12 @@ const rescheduleSchema = z.object({
 
 const unreachableLeadSchema = z.object({
   reason: z.string().trim().optional(),
+  note: z.string().trim().optional(),
 });
 
 const passiveLeadSchema = z.object({
   reason: z.enum(["WITHDREW", "WRONG_APPLICATION", "NOT_ELIGIBLE", "UNREACHABLE", "OTHER"]),
+  note: z.string().trim().max(500, "Not çok uzun.").optional(),
 });
 
 const sequentialMessageSchema = z.object({
@@ -646,7 +648,7 @@ export async function markLeadUnreachable(leadId: string, formData?: FormData) {
   await requirePermission("appointments");
   const user = await requireUser();
   const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
-  const reason = parsed.success ? parsed.data.reason : "";
+  const reason = parsed.success ? parsed.data.reason || parsed.data.note || "" : "";
   const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
   const lead = await prisma.lead.findFirst({
@@ -698,7 +700,7 @@ export async function markAppointmentNoShowFollowUpUnreachable(leadId: string, f
   await requirePermission("appointments");
   const user = await requireUser();
   const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
-  const reason = parsed.success ? parsed.data.reason : "";
+  const reason = parsed.success ? parsed.data.reason || parsed.data.note || "" : "";
   const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
   const lead = await prisma.lead.findFirst({
@@ -763,6 +765,7 @@ export async function deactivateAppointmentLead(leadId: string, formData: FormDa
   if (!lead) return;
 
   const reasonLabel = passiveLeadReasonLabels[parsed.data.reason];
+  const passiveNote = parsed.data.note?.trim();
 
   await prisma.$transaction(async (tx) => {
     await tx.lead.update({
@@ -771,7 +774,7 @@ export async function deactivateAppointmentLead(leadId: string, formData: FormDa
         status: "CLOSED",
         processStatus: "CLOSED",
         invalidReason: "OTHER",
-        invalidReasonDetail: reasonLabel,
+        invalidReasonDetail: passiveNote ? `${reasonLabel}: ${passiveNote}` : reasonLabel,
         nextFollowUpAt: null,
       },
     });
@@ -791,7 +794,7 @@ export async function deactivateAppointmentLead(leadId: string, formData: FormDa
       data: {
         leadId: lead.id,
         type: "LEAD_PASSIVE",
-        description: `${lead.fullName} randevu akışından pasife alındı. Sebep: ${reasonLabel}.`,
+        description: `${lead.fullName} randevu akışından pasife alındı. Sebep: ${reasonLabel}.${passiveNote ? ` Not: ${passiveNote}` : ""}`,
       },
     });
   });
@@ -862,9 +865,11 @@ export async function addSequentialMessageLeadNoteForm(leadId: string, formData:
   await addSequentialMessageLeadNote(leadId, formData);
 }
 
-export async function moveLeadToSequentialMessageFlow(leadId: string) {
+export async function moveLeadToSequentialMessageFlow(leadId: string, formData?: FormData) {
   await requirePermission("appointments");
   const user = await requireUser();
+  const parsed = invalidAppointmentLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const note = parsed.success ? parsed.data.note : "";
 
   const lead = await prisma.lead.findFirst({
     where: activeLeadWhere({ id: leadId }),
@@ -888,7 +893,7 @@ export async function moveLeadToSequentialMessageFlow(leadId: string) {
       data: {
         leadId: lead.id,
         type: "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW",
-        description: `${user.name}, lead kaydını manuel olarak sıralı mesaj sürecine aldı.`,
+        description: `${user.name}, lead kaydını manuel olarak sıralı mesaj sürecine aldı.${note ? ` Not: ${note}` : ""}`,
       },
     }),
   ]);
@@ -896,8 +901,8 @@ export async function moveLeadToSequentialMessageFlow(leadId: string) {
   refresh(lead.id);
 }
 
-export async function moveLeadToSequentialMessageFlowForm(leadId: string) {
-  await moveLeadToSequentialMessageFlow(leadId);
+export async function moveLeadToSequentialMessageFlowForm(leadId: string, formData: FormData) {
+  await moveLeadToSequentialMessageFlow(leadId, formData);
 }
 
 export async function markAppointmentLeadInvalidForm(leadId: string, formData?: FormData) {
