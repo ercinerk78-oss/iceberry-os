@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState } from "react";
 import { ClipboardCheck, Send, ShieldCheck } from "lucide-react";
 
 import { createAuditAssignment, createAuditTemplate, saveAuditAnswer } from "@/app/operations/actions";
@@ -63,38 +63,47 @@ export function OperationForms({
 
 export function QuickAuditAnswerForm({ openQuestions }: { openQuestions: AuditQuestionOption[] }) {
   const [answerState, answerAction, answerPending] = useActionState(saveAuditAnswer, initial);
-  const [selectedQuestionId, setSelectedQuestionId] = useState(openQuestions[0]?.id ?? "");
-  const selectedQuestion = useMemo(
-    () => openQuestions.find((question) => question.id === selectedQuestionId) ?? openQuestions[0],
-    [openQuestions, selectedQuestionId],
-  );
 
   return (
-    <form action={answerAction} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
-      <h3 className="flex items-center gap-2 font-semibold"><Send className="size-4" /> Denetim Cevabı</h3>
-      <div className="mt-4 grid gap-3">
-        <select name="questionId" value={selectedQuestion?.id ?? ""} onChange={(event) => setSelectedQuestionId(event.target.value)} className="h-10 rounded-lg border px-3">
-          {openQuestions.map((question) => <option key={question.id} value={question.id}>{question.title}</option>)}
-        </select>
-        <input name="auditId" value={selectedQuestion?.auditId ?? ""} readOnly className="h-10 rounded-lg border bg-[#f8faf6] px-3 text-sm text-[#65705f]" />
-        <Select name="answerValue" label="Cevap" options={[["PASS", "Uygun"], ["FAIL", "Uygun Değil"], ["NOT_APPLICABLE", "Uygulanamaz"]]} />
-        <textarea name="comment" rows={3} placeholder="Açıklama" className="rounded-lg border px-3 py-2" />
-        {selectedQuestion?.requiresPhoto ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-            <p className="font-medium text-amber-900">Bu soru için fotoğraf zorunlu.</p>
-            <p className="mt-1 text-amber-800">Yüklenen fotoğraf: {selectedQuestion.photoCount}</p>
-          </div>
-        ) : null}
-        <label className="grid gap-2 text-sm font-medium">
-          <span>Denetim fotoğrafı</span>
-          <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple className="rounded-lg border px-3 py-2 text-sm" />
-        </label>
-        <Button disabled={answerPending || !openQuestions.length} className="bg-[#17201b] text-white">{answerPending ? "Kaydediliyor..." : "Cevabı Kaydet"}</Button>
-        {answerState.message ? <p className="text-sm text-[#65705f]">{answerState.message}</p> : null}
-        {!openQuestions.length ? <p className="text-sm text-[#65705f]">Cevap bekleyen aktif denetim sorusu yok.</p> : null}
+    <section className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 font-semibold"><Send className="size-4" /> Denetim Cevapları</h3>
+          <p className="mt-1 text-sm text-[#65705f]">Açık soruları sırayla cevaplayın. Fotoğraf istenen maddelerde yükleme zorunludur.</p>
+        </div>
+        <span className="rounded-full bg-[#f8faf6] px-3 py-1 text-sm font-medium text-[#65705f]">{openQuestions.length} açık soru</span>
       </div>
-    </form>
+      {answerState.message ? <p className="mt-4 rounded-lg bg-[#f8faf6] p-3 text-sm text-[#65705f]">{answerState.message}</p> : null}
+      {!openQuestions.length ? <p className="mt-4 rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Cevap bekleyen aktif denetim sorusu yok.</p> : null}
+      <div className="mt-4 grid gap-3">
+        {openQuestions.map((question, index) => (
+          <form key={`${question.auditId}-${question.id}`} action={answerAction} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3">
+            <input type="hidden" name="auditId" value={question.auditId} />
+            <input type="hidden" name="questionId" value={question.id} />
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-[#65705f]">Soru {index + 1}</p>
+                <p className="mt-1 font-semibold">{question.title}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${question.requiresPhoto ? "bg-amber-100 text-amber-800" : "bg-white text-[#65705f]"}`}>
+                {question.requiresPhoto ? `Fotoğraf zorunlu · ${question.photoCount} yüklü` : "Fotoğraf opsiyonel"}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-[180px_1fr_220px_auto]">
+              <Select name="answerValue" label="Cevap" options={answerOptions(question.options)} />
+              <input name="comment" placeholder="Kısa açıklama" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+              <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple className="rounded-lg border bg-white px-3 py-2 text-sm" />
+              <Button disabled={answerPending} className="bg-[#17201b] text-white">{answerPending ? "Kaydediliyor..." : "Kaydet"}</Button>
+            </div>
+          </form>
+        ))}
+      </div>
+    </section>
   );
+}
+
+function answerOptions(options: { label: string; value: string }[]) {
+  return options.length ? options.map((option) => [option.value, option.label]) : [["PASS", "Uygun"], ["FAIL", "Uygun Değil"], ["NOT_APPLICABLE", "Uygulanamaz"]];
 }
 
 function branchLabel(branch: BranchOption) {

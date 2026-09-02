@@ -323,9 +323,30 @@ function AuditPanel({
       };
     }));
   });
+  const activeProgress = operationalAudits
+    .filter((audit) => audit.status === "IN_PROGRESS")
+    .map((audit) => {
+      const questions = audit.template.sections.flatMap((section) => section.questions);
+      const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+      const answered = questions.filter((question) => answers.has(question.id)).length;
+      const missingPhotos = questions.filter((question) => {
+        const answer = answers.get(question.id);
+        return question.requiresPhoto && answer && !answer.isNotApplicable && answer.evidences.length === 0;
+      }).length;
+
+      return {
+        id: audit.id,
+        templateName: audit.template.name,
+        total: questions.length,
+        answered,
+        remaining: Math.max(0, questions.length - answered),
+        missingPhotos,
+      };
+    });
 
   return (
     <div className="space-y-5">
+      {activeProgress.length ? <AuditProgressSummary items={activeProgress} /> : null}
       {openQuestions.length ? <QuickAuditAnswerForm openQuestions={openQuestions} /> : null}
 
       <section className="space-y-3">
@@ -397,6 +418,40 @@ function AuditPanel({
         </section>
       ) : null}
     </div>
+  );
+}
+
+function AuditProgressSummary({
+  items,
+}: {
+  items: { id: string; templateName: string; total: number; answered: number; remaining: number; missingPhotos: number }[];
+}) {
+  return (
+    <section className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => {
+        const progress = item.total ? Math.round((item.answered / item.total) * 100) : 0;
+
+        return (
+          <div key={item.id} className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">{item.templateName}</p>
+                <p className="mt-1 text-sm text-[#65705f]">{item.answered}/{item.total} soru cevaplandı</p>
+              </div>
+              <Badge variant="secondary">%{progress}</Badge>
+            </div>
+            <div className="mt-3 h-2 rounded-full bg-white">
+              <div className="h-2 rounded-full bg-[#6fbe44]" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+              <span className="rounded-lg bg-white px-3 py-2">Kalan: {item.remaining}</span>
+              <span className="rounded-lg bg-white px-3 py-2">Fotoğraf bekleyen: {item.missingPhotos}</span>
+              <span className="rounded-lg bg-white px-3 py-2">Durum: Devam ediyor</span>
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

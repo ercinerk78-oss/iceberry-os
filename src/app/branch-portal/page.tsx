@@ -134,13 +134,13 @@ export default async function BranchPortalPage() {
                     </div>
                     {["ASSIGNED", "PLANNED"].includes(assignment.status) ? (
                       <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3">
-                        <Button size="sm" variant="outline">Denetimi Başlat</Button>
+                        <Button size="sm" variant="outline" className="w-full">Denetimi Başlat</Button>
                       </form>
                     ) : null}
                   </article>
                 ))}
                 {activeAudits.map((audit) => (
-                  <Link key={audit.id} href={`/branches/${audit.branch.id}?tab=${encodeURIComponent("Denetim Raporları")}`} className="block rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3 text-sm">
+                  <article key={audit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-3 text-sm">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-semibold">{audit.branch.branchName}</p>
@@ -148,7 +148,12 @@ export default async function BranchPortalPage() {
                       </div>
                       <Badge>{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
                     </div>
-                  </Link>
+                    <Button asChild size="sm" variant="outline" className="mt-3 w-full">
+                      <Link href={`/branches/${audit.branch.id}?tab=${encodeURIComponent("Denetim Raporları")}`}>
+                        {audit.status === "IN_PROGRESS" ? "Denetime Devam Et" : "Denetimi Gör"}
+                      </Link>
+                    </Button>
+                  </article>
                 ))}
                 {!openAuditCount ? <p className="py-8 text-center text-sm text-[#65705f]">Açık operasyon denetimi yok.</p> : null}
               </CardContent>
