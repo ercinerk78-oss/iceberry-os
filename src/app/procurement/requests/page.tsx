@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
+import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,31 +14,47 @@ type Params = { status?: string; q?: string };
 
 export default async function ProcurementRequestsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const requests = await prisma.purchaseRequest.findMany({
-    where: {
-      status: params.status || undefined,
-      OR: params.q
-        ? [
-          { requestNumber: { contains: params.q } },
-          { title: { contains: params.q } },
-          { warehouse: { name: { contains: params.q } } },
-          { supplier: { name: { contains: params.q } } },
-        ]
-        : undefined,
-    },
-    include: {
-      warehouse: { select: { name: true } },
-      supplier: { select: { name: true } },
-      items: { orderBy: { createdAt: "asc" } },
-      purchaseOrder: { select: { id: true, orderNumber: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 120,
-  });
+  const [warehouses, suppliers, products, requests] = await Promise.all([
+    prisma.warehouse.findMany({ where: { archivedAt: null, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.supplier.findMany({ where: { archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({
+      where: { archivedAt: null, isActive: true },
+      select: { id: true, name: true, sku: true, unit: true, purchasePrice: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.purchaseRequest.findMany({
+      where: {
+        status: params.status || undefined,
+        OR: params.q
+          ? [
+            { requestNumber: { contains: params.q } },
+            { title: { contains: params.q } },
+            { warehouse: { name: { contains: params.q } } },
+            { supplier: { name: { contains: params.q } } },
+          ]
+          : undefined,
+      },
+      include: {
+        warehouse: { select: { name: true } },
+        supplier: { select: { name: true } },
+        items: { orderBy: { createdAt: "asc" } },
+        purchaseOrder: { select: { id: true, orderNumber: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 120,
+    }),
+  ]);
 
   return (
     <AppShell activeHref="/procurement/requests" eyebrow="Merkez satın alma" title="Bekleyen Satın Alma Talepleri">
       <div className="space-y-4">
+        <PurchaseRequestForm
+          warehouses={warehouses}
+          suppliers={suppliers}
+          products={products.map((product) => ({ ...product, purchasePrice: product.purchasePrice || 0 }))}
+          title="Satın Alma Talebi Oluştur"
+        />
+
         <div className="flex flex-wrap justify-between gap-3">
           <form className="flex flex-wrap gap-2 rounded-xl border bg-white p-4">
             <input name="q" defaultValue={params.q} placeholder="Talep no, depo veya tedarikçi ara" className="h-10 min-w-64 rounded-lg border px-3" />

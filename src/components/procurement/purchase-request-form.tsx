@@ -17,10 +17,12 @@ export function PurchaseRequestForm({
   warehouses,
   suppliers,
   products,
+  title = "Depodan Satın Alma Talebi Oluştur",
 }: {
   warehouses: Option[];
   suppliers: Option[];
   products: ProductOption[];
+  title?: string;
 }) {
   const [state, action, pending] = useActionState(createPurchaseRequestAction, initialState);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
@@ -40,7 +42,7 @@ export function PurchaseRequestForm({
   return (
     <form action={action} className="space-y-4">
       <Card className="shadow-none">
-        <CardHeader><CardTitle>Depodan Satın Alma Talebi Oluştur</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <label className="text-sm">
             Talep Başlığı

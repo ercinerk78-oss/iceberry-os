@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { audit, requirePermission } from "@/lib/auth";
+import { audit, requirePermission, requireUser } from "@/lib/auth";
+import { hasPermissionWithOverrides, type Permission } from "@/lib/permissions";
 import {
   approvePurchaseOrder,
   cancelPurchaseOrder,
@@ -59,7 +60,7 @@ export async function createPurchaseOrderAction(_: ProcurementActionState, formD
 
 export async function createPurchaseRequestAction(_: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
   try {
-    const user = await requirePermission("warehouse");
+    const user = await requireAnyPermission(["warehouse", "procurement"]);
     const request = await createPurchaseRequest({
       title: String(formData.get("title") || ""),
       warehouseId: String(formData.get("warehouseId") || ""),
@@ -75,6 +76,13 @@ export async function createPurchaseRequestAction(_: ProcurementActionState, for
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." };
   }
+}
+
+async function requireAnyPermission(permissions: Permission[]) {
+  const user = await requireUser();
+  const allowed = permissions.some((permission) => hasPermissionWithOverrides(user.role, permission, user.permissions));
+  if (!allowed) throw new Error("Bu işlemi yapma yetkiniz bulunmuyor.");
+  return user;
 }
 
 export async function purchaseOrderCommand(id: string, command: string) {
