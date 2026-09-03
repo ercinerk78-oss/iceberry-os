@@ -51,7 +51,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
         <PurchaseRequestForm
           warehouses={warehouses}
           suppliers={suppliers}
-          products={products.map((product) => ({ ...product, purchasePrice: product.purchasePrice || 0 }))}
+          products={products.map((product) => ({ ...product, purchasePrice: Number(product.purchasePrice ?? 0) }))}
           title="Satın Alma Talebi Oluştur"
         />
 
@@ -73,7 +73,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] text-left text-sm">
               <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
-                <tr>{["Talep", "Depo", "Tedarikçi", "Öncelik", "Durum", "İhtiyaç", "Kalem", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+                <tr>{["Talep", "Depo", "Tedarikçi", "Öncelik", "Durum", "Tarihler", "Kalem", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
               </thead>
               <tbody className="divide-y">
                 {requests.map((request) => (
@@ -86,7 +86,11 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
                     <td className="px-4 py-4">{request.supplier?.name ?? "Seçilecek"}</td>
                     <td className="px-4 py-4"><Badge variant="secondary">{procurementLabel(PURCHASE_PRIORITIES, request.priority)}</Badge></td>
                     <td className="px-4 py-4"><Badge variant="outline">{procurementLabel(PURCHASE_REQUEST_STATUSES, request.status)}</Badge></td>
-                    <td className="px-4 py-4">{procurementDate(request.neededByDate)}</td>
+                    <td className="px-4 py-4 text-xs text-[#65705f]">
+                      <p><span className="font-medium text-[#111b12]">Sipariş:</span> {procurementDate(request.orderDate)}</p>
+                      <p><span className="font-medium text-[#111b12]">İhtiyaç:</span> {procurementDate(request.neededByDate)}</p>
+                      <p><span className="font-medium text-[#111b12]">Termin:</span> {procurementDate(request.termDate)}</p>
+                    </td>
                     <td className="px-4 py-4">{request.items.length}</td>
                     <td className="px-4 py-4">
                       {request.purchaseOrder ? (

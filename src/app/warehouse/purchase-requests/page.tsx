@@ -34,7 +34,7 @@ export default async function WarehousePurchaseRequestsPage() {
         <PurchaseRequestForm
           warehouses={warehouses}
           suppliers={suppliers}
-          products={products.map((product) => ({ ...product, purchasePrice: product.purchasePrice || 0 }))}
+          products={products.map((product) => ({ ...product, purchasePrice: Number(product.purchasePrice ?? 0) }))}
         />
 
         <section className="space-y-3">
@@ -51,6 +51,9 @@ export default async function WarehousePurchaseRequestsPage() {
                   <p className="text-sm text-[#65705f]">
                     {request.warehouse.name} · {request.supplier?.name ?? "Tedarikçi satın alma tarafından seçilecek"} · Kalem: {request.items.length}
                     {request.purchaseOrder ? ` · Sipariş: ${request.purchaseOrder.orderNumber}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-[#65705f]">
+                    Sipariş: {procurementDate(request.orderDate)} · İhtiyaç: {procurementDate(request.neededByDate)} · Termin: {procurementDate(request.termDate)}
                   </p>
                 </div>
                 <p className="text-sm text-[#65705f]">{procurementDate(request.createdAt)}</p>

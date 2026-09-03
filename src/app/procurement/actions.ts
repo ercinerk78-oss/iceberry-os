@@ -66,7 +66,9 @@ export async function createPurchaseRequestAction(_: ProcurementActionState, for
       warehouseId: String(formData.get("warehouseId") || ""),
       supplierId: optionalString(formData.get("supplierId")),
       priority: String(formData.get("priority") || "NORMAL") as "LOW" | "NORMAL" | "HIGH" | "URGENT",
+      orderDate: optionalString(formData.get("orderDate")),
       neededByDate: optionalString(formData.get("neededByDate")),
+      termDate: optionalString(formData.get("termDate")),
       notes: optionalString(formData.get("notes")),
       items: purchaseRequestItemsFromForm(formData),
     }, user.id);
@@ -193,8 +195,9 @@ function purchaseItemsFromForm(formData: FormData) {
 
 function purchaseRequestItemsFromForm(formData: FormData) {
   const productIds = formData.getAll("productId").map(String);
-  const quantities = formData.getAll("quantity").map(Number);
-  const estimatedUnitCosts = formData.getAll("estimatedUnitCost").map(Number);
+  const quantities = formData.getAll("quantity").map(parseDecimalInput);
+  const estimatedUnitCosts = formData.getAll("estimatedUnitCost").map(parseDecimalInput);
+  const vatRates = formData.getAll("vatRate").map(parseDecimalInput);
   const notes = formData.getAll("itemNotes").map(String);
 
   return productIds
@@ -202,6 +205,7 @@ function purchaseRequestItemsFromForm(formData: FormData) {
       productId,
       quantity: quantities[index],
       estimatedUnitCost: Number.isFinite(estimatedUnitCosts[index]) ? estimatedUnitCosts[index] : undefined,
+      vatRate: Number.isFinite(vatRates[index]) ? vatRates[index] : 20,
       notes: notes[index] || undefined,
     }))
     .filter((item) => item.productId && item.quantity > 0);
@@ -217,4 +221,10 @@ function optionalNumber(value: FormDataEntryValue | null) {
   if (!text) return undefined;
   const number = Number(text);
   return Number.isFinite(number) ? number : undefined;
+}
+
+function parseDecimalInput(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim().replace(",", ".");
+  if (!text) return Number.NaN;
+  return Number(text);
 }

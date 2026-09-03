@@ -2886,7 +2886,9 @@ model PurchaseRequest {
   status        String                @default("DRAFT")
   priority      String                @default("NORMAL")
   requestedById String?
+  orderDate     DateTime?
   neededByDate  DateTime?
+  termDate      DateTime?
   approvedById  String?
   approvedAt    DateTime?
   notes         String?
@@ -2902,6 +2904,7 @@ model PurchaseRequest {
   @@index([supplierId, status])
   @@index([status, createdAt])
   @@index([neededByDate, status])
+  @@index([termDate, status])
 }
 
 model PurchaseRequestItem {
@@ -2914,6 +2917,7 @@ model PurchaseRequestItem {
   requestedQuantity Float
   approvedQuantity  Float?
   estimatedUnitCost Decimal?        @db.Decimal(18, 2)
+  vatRate           Decimal         @default(20) @db.Decimal(5, 2)
   notes             String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt

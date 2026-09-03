@@ -35,7 +35,9 @@ export async function createPurchaseRequest(input: PurchaseRequestInput, userId?
         status: "SUBMITTED",
         priority: data.priority,
         requestedById: userId,
+        orderDate: data.orderDate ? new Date(data.orderDate) : null,
         neededByDate: data.neededByDate ? new Date(data.neededByDate) : null,
+        termDate: data.termDate ? new Date(data.termDate) : null,
         notes: data.notes || null,
         items: {
           create: data.items.map((item) => {
@@ -49,6 +51,7 @@ export async function createPurchaseRequest(input: PurchaseRequestInput, userId?
               requestedQuantity: item.quantity,
               approvedQuantity: item.quantity,
               estimatedUnitCost: item.estimatedUnitCost == null ? null : new Prisma.Decimal(item.estimatedUnitCost),
+              vatRate: new Prisma.Decimal(item.vatRate),
               notes: item.notes || null,
             };
           }),

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const decimalInput = <T extends z.ZodType>(schema: T) => z.preprocess((value) => {
+  if (typeof value === "string") return value.trim().replace(",", ".");
+  return value;
+}, schema);
+
 export const purchaseOrderLineSchema = z.object({
   productId: z.string().min(1, "Ürün seçmelisiniz."),
   quantity: z.coerce.number().positive("Miktar sıfırdan büyük olmalıdır."),
@@ -23,8 +28,9 @@ export const purchaseOrderSchema = z.object({
 
 export const purchaseRequestLineSchema = z.object({
   productId: z.string().min(1, "Ürün seçmelisiniz."),
-  quantity: z.coerce.number().positive("Miktar sıfırdan büyük olmalıdır."),
-  estimatedUnitCost: z.coerce.number().min(0, "Tahmini birim maliyet negatif olamaz.").optional(),
+  quantity: decimalInput(z.coerce.number().positive("Miktar sıfırdan büyük olmalıdır.")),
+  estimatedUnitCost: decimalInput(z.coerce.number().min(0, "Tahmini birim maliyet negatif olamaz.")).optional(),
+  vatRate: decimalInput(z.coerce.number().refine((value) => [1, 10, 20].includes(value), "KDV oranı %1, %10 veya %20 olmalıdır.")).default(20),
   notes: z.string().max(500, "Kalem notu en fazla 500 karakter olabilir.").optional(),
 });
 
@@ -33,7 +39,9 @@ export const purchaseRequestSchema = z.object({
   warehouseId: z.string().min(1, "Depo seçmelisiniz."),
   supplierId: z.string().optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).default("NORMAL"),
+  orderDate: z.string().optional(),
   neededByDate: z.string().optional(),
+  termDate: z.string().optional(),
   notes: z.string().max(1000, "Not en fazla 1000 karakter olabilir.").optional(),
   items: z.array(purchaseRequestLineSchema).min(1, "En az bir ürün eklemelisiniz."),
 });

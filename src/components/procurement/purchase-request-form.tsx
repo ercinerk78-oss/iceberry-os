@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Option = { id: string; name: string };
 type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number };
-type Line = { key: string; productId: string; quantity: number; estimatedUnitCost: number; notes: string };
+type Line = { key: string; productId: string; productSearch: string; quantity: string; estimatedUnitCost: string; vatRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
 
@@ -33,7 +33,10 @@ export function PurchaseRequestForm({
       const next = { ...line, ...patch };
       if (patch.productId) {
         const product = products.find((item) => item.id === patch.productId);
-        if (product) next.estimatedUnitCost = product.purchasePrice;
+        if (product) {
+          next.productSearch = productLabel(product);
+          next.estimatedUnitCost = formatInputNumber(product.purchasePrice);
+        }
       }
       return next;
     }));
@@ -72,8 +75,16 @@ export function PurchaseRequestForm({
             </select>
           </label>
           <label className="text-sm">
+            Sipariş Tarihi
+            <input name="orderDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
+          </label>
+          <label className="text-sm">
             İhtiyaç Tarihi
             <input name="neededByDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
+          </label>
+          <label className="text-sm">
+            Termin Tarihi
+            <input name="termDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="text-sm md:col-span-2">
             Talep Notu
@@ -92,23 +103,51 @@ export function PurchaseRequestForm({
         <CardContent className="space-y-3">
           {lines.map((line) => {
             const product = products.find((item) => item.id === line.productId);
+            const matches = productMatches(products, line.productSearch);
 
             return (
-              <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.5fr_0.5fr_0.6fr_1fr_auto]">
-                <label className="text-xs">
+              <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.5fr_0.45fr_0.55fr_0.45fr_0.9fr_auto]">
+                <div className="relative text-xs">
                   Ürün
-                  <select name="productId" value={line.productId} onChange={(event) => updateLine(line.key, { productId: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2">
-                    <option value="">Ürün seçin</option>
-                    {products.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.sku}</option>)}
-                  </select>
-                </label>
+                  <input
+                    value={line.productSearch}
+                    onChange={(event) => updateLine(line.key, { productSearch: event.target.value, productId: "" })}
+                    placeholder="Ürün adı veya SKU ara"
+                    className="mt-1 h-10 w-full rounded-lg border px-2"
+                  />
+                  <input type="hidden" name="productId" value={line.productId} />
+                  {line.productSearch && !line.productId ? (
+                    <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border bg-white p-1 shadow-lg">
+                      {matches.slice(0, 12).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => updateLine(line.key, { productId: item.id })}
+                          className="block w-full rounded-md px-3 py-2 text-left hover:bg-[#f8faf6]"
+                        >
+                          <span className="font-medium">{item.name}</span>
+                          <span className="block text-[11px] text-[#65705f]">{item.sku} · {item.unit}</span>
+                        </button>
+                      ))}
+                      {!matches.length ? <p className="px-3 py-2 text-[#65705f]">Ürün bulunamadı.</p> : null}
+                    </div>
+                  ) : null}
+                </div>
                 <label className="text-xs">
                   Miktar
-                  <input name="quantity" type="number" min="0" step="0.01" value={line.quantity || ""} onChange={(event) => updateLine(line.key, { quantity: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                  <input name="quantity" type="text" inputMode="decimal" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
                 </label>
                 <label className="text-xs">
                   Tahmini Fiyat
-                  <input name="estimatedUnitCost" type="number" min="0" step="0.01" value={line.estimatedUnitCost || ""} onChange={(event) => updateLine(line.key, { estimatedUnitCost: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                  <input name="estimatedUnitCost" type="text" inputMode="decimal" placeholder="0,70" value={line.estimatedUnitCost} onChange={(event) => updateLine(line.key, { estimatedUnitCost: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                </label>
+                <label className="text-xs">
+                  KDV
+                  <select name="vatRate" value={line.vatRate} onChange={(event) => updateLine(line.key, { vatRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2">
+                    <option value="1">%1</option>
+                    <option value="10">%10</option>
+                    <option value="20">%20</option>
+                  </select>
                 </label>
                 <label className="text-xs">
                   Not
@@ -136,5 +175,20 @@ export function PurchaseRequestForm({
 }
 
 function emptyLine(): Line {
-  return { key: crypto.randomUUID(), productId: "", quantity: 0, estimatedUnitCost: 0, notes: "" };
+  return { key: crypto.randomUUID(), productId: "", productSearch: "", quantity: "", estimatedUnitCost: "", vatRate: "20", notes: "" };
+}
+
+function productLabel(product: ProductOption) {
+  return `${product.name} - ${product.sku}`;
+}
+
+function productMatches(products: ProductOption[], query: string) {
+  const text = query.trim().toLocaleLowerCase("tr-TR");
+  if (!text) return products.slice(0, 12);
+  return products.filter((product) => `${product.name} ${product.sku}`.toLocaleLowerCase("tr-TR").includes(text));
+}
+
+function formatInputNumber(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return String(value).replace(".", ",");
 }

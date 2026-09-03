@@ -50,7 +50,7 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
           productId: item.productId,
           quantity: item.approvedQuantity ?? item.requestedQuantity,
           unitPrice: Number(item.estimatedUnitCost ?? item.product.purchasePrice ?? 0),
-          vatRate: item.product.vatRate || 20,
+          vatRate: Number(item.vatRate ?? item.product.vatRate ?? 20),
           discountRate: 0,
           notes: item.notes ?? "",
         }))}
