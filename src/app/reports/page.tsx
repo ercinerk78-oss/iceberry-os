@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const REPORT_START_MONTH_INDEX = 7;
+
 type ReportLead = {
   id: string;
   leadDate: Date;
@@ -36,11 +38,11 @@ export default async function ReportsPage() {
   const now = new Date();
   const year = now.getFullYear();
   const reportEnd = new Date(year + 1, 0, 1);
-  const previousDecemberStart = new Date(year - 1, 11, 1);
+  const reportStart = new Date(year, REPORT_START_MONTH_INDEX, 1);
 
   const leads = await safe(
     prisma.lead.findMany({
-      where: { leadDate: { gte: previousDecemberStart, lt: reportEnd } },
+      where: { leadDate: { gte: reportStart, lt: reportEnd } },
       select: {
         id: true,
         leadDate: true,
@@ -66,7 +68,7 @@ export default async function ReportsPage() {
       )
     : [];
   const scoreByCandidate = new Map(candidateScores.map((candidate) => [candidate.id, candidate.qualificationScore]));
-  const rows = buildMonthRows(year, now.getMonth(), reportableLeads, scoreByCandidate);
+  const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate);
   const latestRow = rows.at(-1);
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
   const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
@@ -153,14 +155,17 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
-function buildMonthRows(year: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>): MonthReportRow[] {
+function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>): MonthReportRow[] {
   const leadCountsByMonth = new Map<string, number>();
   for (const lead of leads) {
     const key = monthKey(lead.leadDate);
     leadCountsByMonth.set(key, (leadCountsByMonth.get(key) ?? 0) + 1);
   }
 
-  return Array.from({ length: currentMonthIndex + 1 }, (_, monthIndex) => {
+  const visibleStartMonthIndex = Math.min(startMonthIndex, currentMonthIndex);
+
+  return Array.from({ length: currentMonthIndex - visibleStartMonthIndex + 1 }, (_, index) => {
+    const monthIndex = visibleStartMonthIndex + index;
     const date = new Date(year, monthIndex, 1);
     const key = monthKey(date);
     const previousKey = monthKey(new Date(year, monthIndex - 1, 1));
@@ -176,7 +181,7 @@ function buildMonthRows(year: number, currentMonthIndex: number, leads: ReportLe
       key,
       label: date.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
       leadCount,
-      monthlyChange: percentChange(leadCount, leadCountsByMonth.get(previousKey) ?? 0),
+      monthlyChange: index === 0 ? 0 : percentChange(leadCount, leadCountsByMonth.get(previousKey) ?? 0),
       appointmentLeadCount: appointmentLeads.length,
       completedLeadCount: completedLeads.length,
       appointmentRate: ratio(appointmentLeads.length, leadCount),
