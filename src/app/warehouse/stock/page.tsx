@@ -101,7 +101,17 @@ export default async function StockPage() {
           </Card>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <div className="rounded-xl border bg-white">
+          <div className="flex flex-col gap-1 border-b border-[#edf0e9] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-[#17201b]">Aktif Ürün Listesi</h2>
+              <p className="text-sm text-[#65705f]">Pasife alınan ürünler bu listede ve ürün seçimlerinde görünmez.</p>
+            </div>
+            <div className="rounded-lg bg-[#ecfbdc] px-3 py-2 text-sm font-semibold text-[#2f5f20]">
+              Toplam aktif ürün: {products.length}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
@@ -162,6 +172,7 @@ export default async function StockPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <section className="grid gap-4 xl:grid-cols-2">

@@ -322,7 +322,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                           />
                           <SequentialMessageButtons leadId={lead.id} lead={lead} />
                           <SequentialMessageNoteForm leadId={lead.id} />
-                          {allSequentialMessagesSent(lead) ? <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" /> : null}
+                          <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" />
                         </div>
                       </div>
                       <LeadCardNotes lead={lead} />
@@ -462,10 +462,6 @@ function manuallyMovedToSequentialMessageFlow(lead: { activities: { type: string
 
 function sequentialMessageSent(lead: { activities: { type: string }[] }, step: number) {
   return lead.activities.some((activity) => activity.type === PASSIVE_WARNING_TYPES[step - 1]);
-}
-
-function allSequentialMessagesSent(lead: { activities: { type: string }[] }) {
-  return PASSIVE_WARNING_TYPES.every((type) => lead.activities.some((activity) => activity.type === type));
 }
 
 function SequentialMessageButtons({
