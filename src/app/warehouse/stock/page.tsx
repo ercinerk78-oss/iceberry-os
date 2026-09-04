@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { adjustStock, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
+import { adjustStock, archiveProduct, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,7 +105,7 @@ export default async function StockPage() {
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
-                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı", "Etiket"].map((header) => (
+                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı", "Etiket", "İşlem"].map((header) => (
                   <th key={header} className="p-3 text-left">
                     {header}
                   </th>
@@ -137,6 +137,11 @@ export default async function StockPage() {
                             <Link href={`/warehouse/stock/labels/${product.id}`}>Etiket</Link>
                           </Button>
                         </td>
+                        <td className="p-3">
+                          <form action={archiveProduct.bind(null, product.id)}>
+                            <Button size="sm" variant="destructive">Pasife Al</Button>
+                          </form>
+                        </td>
                       </tr>
                     ))
                   : [
@@ -146,6 +151,11 @@ export default async function StockPage() {
                         <td className="p-3">{product.category.name}</td>
                         <td colSpan={7} className="p-3 text-amber-700">
                           Henüz stok kaydı yok.
+                        </td>
+                        <td className="p-3">
+                          <form action={archiveProduct.bind(null, product.id)}>
+                            <Button size="sm" variant="destructive">Pasife Al</Button>
+                          </form>
                         </td>
                       </tr>,
                     ],

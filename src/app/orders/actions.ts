@@ -238,6 +238,24 @@ export async function createProduct(_: ActionResult, formData: FormData): Promis
   }
 }
 
+export async function archiveProduct(productId: string, formData: FormData) {
+  void formData;
+  const user = await requirePermission("stock_manage");
+  const product = await prisma.product.findFirst({
+    where: { id: productId, archivedAt: null },
+    select: { id: true, name: true, sku: true },
+  });
+
+  if (!product) throw new Error("Ürün bulunamadı veya daha önce pasife alınmış.");
+
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { archivedAt: new Date(), isActive: false, isOrderable: false },
+  });
+  await audit("PRODUCT_ARCHIVED", "Product", product.id, `${product.name} (${product.sku}) ürünü pasife alındı.`, user.id);
+  refresh();
+}
+
 export async function adjustStock(formData: FormData) {
   const user = await requirePermission("stock_manage");
   const warehouseId = String(formData.get("warehouseId"));
