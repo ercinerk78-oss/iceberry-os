@@ -6,6 +6,8 @@ import {
   defaultOpeningSetupItems,
   HIDDEN_OPENING_DOCUMENT_TITLES,
   isHotelOpeningConcept,
+  isOpeningLogisticsCategory,
+  OPENING_LOGISTICS_STATUSES,
 } from "@/lib/opening-checklists";
 
 type ChecklistItemInput = {
@@ -132,6 +134,52 @@ export class OpeningChecklistService {
         completedAt: status === "TAMAMLANDI" ? new Date() : null,
       },
       select: { openingProjectId: true, branchId: true },
+    });
+  }
+
+  static async setSetupItemLogisticsStatus(itemId: string, status: string, userId?: string | null, note?: string | null) {
+    if (!OPENING_LOGISTICS_STATUSES.some(([value]) => value === status)) {
+      throw new Error("Geçersiz tedarik durumu.");
+    }
+
+    const item = await prisma.openingSetupChecklistItem.findUnique({
+      where: { id: itemId },
+      select: { id: true, category: true, status: true },
+    });
+    if (!item) throw new Error("Kurulum kalemi bulunamadı.");
+    if (!isOpeningLogisticsCategory(item.category)) {
+      throw new Error("Bu kalemde tedarik durumu takip edilmez.");
+    }
+
+    const trimmedNote = note?.trim() || null;
+    const isDelivered = status === "TESLIM_EDILDI";
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.openingSetupChecklistItem.update({
+        where: { id: itemId },
+        data: {
+          logisticsStatus: status,
+          logisticsNote: trimmedNote,
+          logisticsUpdatedAt: new Date(),
+          logisticsUpdatedById: userId ?? null,
+          status: isDelivered ? "TAMAMLANDI" : undefined,
+          selectedOption: isDelivered ? "SATIN_ALINDI" : undefined,
+          completedById: isDelivered ? userId : undefined,
+          completedAt: isDelivered ? new Date() : undefined,
+        },
+        select: { openingProjectId: true, branchId: true },
+      });
+
+      await tx.openingSetupChecklistLogisticsUpdate.create({
+        data: {
+          itemId,
+          status,
+          note: trimmedNote,
+          createdById: userId ?? null,
+        },
+      });
+
+      return updated;
     });
   }
 

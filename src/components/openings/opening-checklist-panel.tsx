@@ -12,6 +12,7 @@ import {
   completeOpeningSetupChecklistItem,
   ensureOpeningChecklist,
   setOpeningDocumentChecklistStatus,
+  setOpeningSetupChecklistLogisticsStatus,
   setOpeningSetupChecklistStatus,
 } from "@/app/openings/actions";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +22,15 @@ import {
   checklistPercentage,
   documentStatusLabels,
   HIDDEN_OPENING_DOCUMENT_TITLES,
+  isOpeningLogisticsCategory,
   OPENING_DOCUMENT_CATEGORIES,
   OPENING_DOCUMENT_STATUSES,
+  OPENING_LOGISTICS_STATUSES,
   OPENING_RESPONSIBLE_DEPARTMENTS,
   OPENING_SETUP_CATEGORIES,
   OPENING_SETUP_STATUSES,
+  openingLogisticsStatusLabels,
+  openingLogisticsStatusProgress,
   responsibleDepartmentLabels,
   setupStatusLabels,
 } from "@/lib/opening-checklists";
@@ -40,7 +45,16 @@ type SetupItem = {
   status: string;
   selectedOption: string | null;
   closingNote: string | null;
+  logisticsStatus: string | null;
+  logisticsNote: string | null;
+  logisticsUpdatedAt: Date | string | null;
   sourceType: string;
+  logisticsUpdates?: {
+    id: string;
+    status: string;
+    note: string | null;
+    createdAt: Date | string;
+  }[];
 };
 
 type DocumentItem = {
@@ -191,6 +205,7 @@ function GroupedSetupItems({ items }: { items: SetupItem[] }) {
 
 function SetupItemCard({ item }: { item: SetupItem }) {
   const isCompleted = item.status === "TAMAMLANDI";
+  const hasLogisticsTracking = isOpeningLogisticsCategory(item.category);
 
   return (
     <div className={`rounded-lg border p-3 ${isCompleted ? "border-emerald-200 bg-emerald-50/70" : "bg-[#fbfcf8]"}`}>
@@ -208,6 +223,7 @@ function SetupItemCard({ item }: { item: SetupItem }) {
         <Badge variant="outline">{item.sourceType === "MANUAL" ? "Manuel" : "Standart"}</Badge>
       </div>
       {item.closingNote ? <p className="mt-3 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
+      {hasLogisticsTracking ? <LogisticsStatusPanel item={item} /> : null}
       <div className="mt-3 grid gap-2">
         <form action={setOpeningSetupChecklistStatus.bind(null, item.id)} className="grid gap-2">
           <Select name="status" options={OPENING_SETUP_STATUSES} defaultValue={item.status} />
@@ -243,9 +259,53 @@ function SetupItemCard({ item }: { item: SetupItem }) {
   );
 }
 
+function LogisticsStatusPanel({ item }: { item: SetupItem }) {
+  const currentLabel = item.logisticsStatus ? (openingLogisticsStatusLabels[item.logisticsStatus] ?? item.logisticsStatus) : "Süreç başlamadı";
+  const progress = item.logisticsStatus ? (openingLogisticsStatusProgress[item.logisticsStatus] ?? 0) : 0;
+  const updates = item.logisticsUpdates ?? [];
+
+  return (
+    <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase text-sky-900">Tedarik durumu</p>
+          <p className="text-sm font-semibold text-sky-950">{currentLabel}</p>
+        </div>
+        <Badge className={item.logisticsStatus === "TESLIM_EDILDI" ? "bg-emerald-600 text-white" : "bg-sky-100 text-sky-900"}>%{progress}</Badge>
+      </div>
+      <div className="mt-2 h-2 rounded bg-white">
+        <div className="h-2 rounded bg-sky-600" style={{ width: `${progress}%` }} />
+      </div>
+      {item.logisticsNote ? <p className="mt-2 rounded bg-white p-2 text-sm text-[#65705f]">{item.logisticsNote}</p> : null}
+      {updates.length ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-semibold uppercase text-sky-900">Son durum geçmişi</p>
+          {updates.map((update) => (
+            <div key={update.id} className="rounded bg-white p-2 text-xs text-[#65705f]">
+              <span className="font-semibold text-[#132117]">{openingLogisticsStatusLabels[update.status] ?? update.status}</span>
+              <span> · {formatDateTimeTR(update.createdAt)}</span>
+              {update.note ? <p className="mt-1">{update.note}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <form action={setOpeningSetupChecklistLogisticsStatus.bind(null, item.id)} className="mt-3 grid gap-2">
+        <Select name="logisticsStatus" options={OPENING_LOGISTICS_STATUSES} defaultValue={item.logisticsStatus ?? "SIPARIS"} />
+        <textarea name="logisticsNote" defaultValue={item.logisticsNote ?? ""} placeholder="Tedarik / depo notu" className="min-h-16 rounded border px-3 py-2 text-sm" />
+        <OpeningLogisticsSubmitButton />
+      </form>
+    </div>
+  );
+}
+
 function OpeningStatusSubmitButton() {
   const { pending } = useFormStatus();
   return <Button type="submit" variant="outline" disabled={pending}>{pending ? "Güncelleniyor..." : "Durumu Güncelle"}</Button>;
+}
+
+function OpeningLogisticsSubmitButton() {
+  const { pending } = useFormStatus();
+  return <Button type="submit" variant="outline" disabled={pending}>{pending ? "Kaydediliyor..." : "Tedarik Durumunu Kaydet"}</Button>;
 }
 
 function OpeningCompleteSubmitButton() {
@@ -329,4 +389,14 @@ function completedCount(items: SetupItem[]) {
 
 function completedDocumentCount(items: DocumentItem[]) {
   return items.filter((item) => ["KONTROL_EDILDI", "GEREKLI_DEGIL"].includes(item.status)).length;
+}
+
+function formatDateTimeTR(value: Date | string) {
+  return new Date(value).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

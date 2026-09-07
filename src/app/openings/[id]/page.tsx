@@ -16,7 +16,15 @@ import {
   openingRiskLevelLabels,
   openingRiskStatusLabels,
 } from "@/lib/openings";
-import { checklistPercentage, isHotelOpeningConcept, responsibleDepartmentLabels, setupStatusLabels } from "@/lib/opening-checklists";
+import {
+  checklistPercentage,
+  isHotelOpeningConcept,
+  isOpeningLogisticsCategory,
+  openingLogisticsStatusLabels,
+  openingLogisticsStatusProgress,
+  responsibleDepartmentLabels,
+  setupStatusLabels,
+} from "@/lib/opening-checklists";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +46,11 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
       documents: { orderBy: { uploadedAt: "desc" } },
       risks: { orderBy: { createdAt: "desc" } },
       readinessChecks: { orderBy: { component: "asc" } },
-      setupChecklistItems: { where: { archivedAt: null }, orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
+      setupChecklistItems: {
+        where: { archivedAt: null },
+        include: { logisticsUpdates: { orderBy: { createdAt: "desc" }, take: 3 } },
+        orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+      },
       documentChecklistItems: { where: { archivedAt: null }, orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
       targetDateChanges: { orderBy: { createdAt: "desc" } },
       postOpeningReviews: { orderBy: { dayNumber: "asc" } },
@@ -140,6 +152,7 @@ type ProcessSetupItem = {
   responsibleDepartment: string;
   status: string;
   closingNote: string | null;
+  logisticsStatus?: string | null;
 };
 
 function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]; isHotelConcept: boolean }) {
@@ -179,6 +192,14 @@ function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]
                     </div>
                   </div>
                   {item.closingNote ? <p className="mt-2 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
+                  {isOpeningLogisticsCategory(item.category) ? (
+                    <div className="mt-2 rounded border border-sky-100 bg-sky-50/60 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="font-semibold text-sky-950">Tedarik: {item.logisticsStatus ? (openingLogisticsStatusLabels[item.logisticsStatus] ?? item.logisticsStatus) : "Süreç başlamadı"}</span>
+                        <Badge className="bg-sky-100 text-sky-900">%{item.logisticsStatus ? (openingLogisticsStatusProgress[item.logisticsStatus] ?? 0) : 0}</Badge>
+                      </div>
+                    </div>
+                  ) : null}
                   {item.status !== "TAMAMLANDI" ? (
                     <form action={completeOpeningSetupChecklistItem.bind(null, item.id)} className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
                       <select name="selectedOption" defaultValue="MERKEZ_TAMAMLADI" className="h-10 rounded border px-3 text-sm md:col-span-2">

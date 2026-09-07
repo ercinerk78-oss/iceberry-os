@@ -37,12 +37,30 @@ export const OPENING_SETUP_CATEGORIES = [
   "Açılış",
 ] as const;
 
+export const OPENING_LOGISTICS_CATEGORIES = ["Ekipman", "Operasyon Hazırlığı"] as const;
+
+export const OPENING_LOGISTICS_STATUSES = [
+  ["SIPARIS", "Sipariş"],
+  ["FATURASI_GELDI", "Faturası Geldi"],
+  ["DEPODA", "Depoda"],
+  ["SEVKE_HAZIR", "Sevke Hazır"],
+  ["TESLIM_EDILDI", "Teslim Edildi"],
+] as const;
+
 export const OPENING_DOCUMENT_CATEGORIES = ["Sözleşme", "Şirket Evrakı", "Resmi Evrak", "Teknik Evrak", "Operasyon"] as const;
 export const HIDDEN_OPENING_DOCUMENT_TITLES = ["Kira sözleşmesi", "Ruhsat başvuru belgesi", "Belediye uygunluk evrakı", "Tabela onayı"] as const;
 
 export const setupStatusLabels = Object.fromEntries(OPENING_SETUP_STATUSES) as Record<string, string>;
 export const documentStatusLabels = Object.fromEntries(OPENING_DOCUMENT_STATUSES) as Record<string, string>;
 export const responsibleDepartmentLabels = Object.fromEntries(OPENING_RESPONSIBLE_DEPARTMENTS) as Record<string, string>;
+export const openingLogisticsStatusLabels = Object.fromEntries(OPENING_LOGISTICS_STATUSES) as Record<string, string>;
+export const openingLogisticsStatusProgress: Record<string, number> = {
+  SIPARIS: 20,
+  FATURASI_GELDI: 40,
+  DEPODA: 60,
+  SEVKE_HAZIR: 80,
+  TESLIM_EDILDI: 100,
+};
 
 export type OpeningChecklistSeedItem = {
   key: string;
@@ -163,6 +181,10 @@ export const defaultOpeningDocumentItems: OpeningDocumentSeedItem[] = [
 export function isHotelOpeningConcept(concept?: string | null) {
   const normalized = String(concept || "").trim().toLocaleUpperCase("tr-TR");
   return normalized === "HOTEL" || normalized === "OTEL";
+}
+
+export function isOpeningLogisticsCategory(category?: string | null) {
+  return OPENING_LOGISTICS_CATEGORIES.includes(String(category || "") as (typeof OPENING_LOGISTICS_CATEGORIES)[number]);
 }
 
 export function checklistPercentage(items: { status: string }[]) {

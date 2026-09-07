@@ -363,6 +363,15 @@ export async function setOpeningSetupChecklistStatus(itemId: string, formData: F
   refresh(item.openingProjectId, item.branchId);
 }
 
+export async function setOpeningSetupChecklistLogisticsStatus(itemId: string, formData: FormData) {
+  const user = await requirePermission("openings");
+  const status = String(formData.get("logisticsStatus") || "");
+  const note = String(formData.get("logisticsNote") || "");
+  const item = await OpeningChecklistService.setSetupItemLogisticsStatus(itemId, status, user.id, note);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
+  refresh(item.openingProjectId, item.branchId);
+}
+
 export async function completeOpeningSetupChecklistItem(itemId: string, formData: FormData) {
   const user = await requirePermission("openings");
   const closingNote = String(formData.get("closingNote") || "");
