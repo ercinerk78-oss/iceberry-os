@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Clock3, FileText } from "lucide-react";
+import { Clock3, FileText } from "lucide-react";
 
-import { completeOpeningSetupChecklistItem } from "@/app/openings/actions";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
@@ -20,28 +19,17 @@ import {
 import {
   checklistPercentage,
   isHotelOpeningConcept,
-  isOpeningLogisticsCategory,
-  openingLogisticsStatusLabels,
-  openingLogisticsStatusProgress,
-  responsibleDepartmentLabels,
-  setupStatusLabels,
 } from "@/lib/opening-checklists";
-import {
-  openingSupplyActiveCount,
-  openingSupplyCompletedCount,
-  openingSupplyPercentage,
-  openingSupplySectionLabels,
-} from "@/lib/opening-supplies";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Süreç", "Kurulum Planı", "Ekipman", "Züccaciye", "Açılış Malı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
+const tabs = ["Kurulum Planı", "Ekipman", "Züccaciye", "Açılış Malı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
-  const { tab = "Süreç" } = await searchParams;
-  const activeTab = tabs.includes(tab) ? tab : "Süreç";
+  const { tab = "Kurulum Planı" } = await searchParams;
+  const activeTab = tabs.includes(tab) ? tab : "Kurulum Planı";
   const project = await prisma.openingProject.findUnique({
     where: { id },
     include: {
@@ -109,12 +97,6 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
           {tabs.map((item) => <Button key={item} asChild variant={item === activeTab ? "default" : "outline"} className="shrink-0"><Link href={`/openings/${id}?tab=${encodeURIComponent(item)}`}>{item}</Link></Button>)}
         </nav>
 
-        {activeTab === "Süreç" ? (
-          <div className="space-y-3">
-            <ProcessSetupList items={activeSetupItems} supplyItems={project.supplyItems} isHotelConcept={isHotelConcept} />
-          </div>
-        ) : null}
-
         {activeTab === "Kurulum Planı" ? (
           <OpeningChecklistPanel
             projectId={project.id}
@@ -157,135 +139,12 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border bg-[#f8faf6] p-4"><p className="text-xs font-medium uppercase text-[#65705f]">{label}</p><p className="mt-2 text-sm font-semibold">{value}</p></div>;
 }
 
-type ProcessSetupItem = {
-  id: string;
-  category: string;
-  title: string;
-  description: string | null;
-  responsibleDepartment: string;
-  status: string;
-  closingNote: string | null;
-  logisticsStatus?: string | null;
-  plannedQuantity?: number | null;
-  quantityUnit?: string | null;
-};
-
-type ProcessSupplyItem = {
-  section: string;
-  status: string;
-  archivedAt: Date | string | null;
-};
-
-function ProcessSetupList({ items, supplyItems, isHotelConcept }: { items: ProcessSetupItem[]; supplyItems: ProcessSupplyItem[]; isHotelConcept: boolean }) {
-  if (isHotelConcept) {
-    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Hotel konsepti kurulum checklist sürecine dahil değil.</p>;
-  }
-  if (!items.length && !supplyItems.length) {
-    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Kurulum checklisti henüz oluşturulmamış. Kurulum Planı sekmesinden checklist oluşturabilirsiniz.</p>;
-  }
-
-  return (
-    <div className="space-y-4">
-      <SupplySummaryGrid items={supplyItems} />
-      <div className="grid gap-4 xl:grid-cols-2">
-      {groupByCategory(items).map(([category, categoryItems]) => {
-        const percent = checklistPercentage(categoryItems);
-        const completedItems = categoryItems.filter((item) => item.status === "TAMAMLANDI");
-        return (
-          <Card key={category} className="p-4 shadow-none">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-semibold">{category}</h2>
-                <p className="mt-1 text-sm text-[#65705f]">{completedItems.length} / {categoryItems.length} kalem tamamlandı</p>
-              </div>
-              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
-            </div>
-            <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
-            <div className="mt-4 space-y-3">
-              {categoryItems.map((item) => (
-                <div key={item.id} className="rounded-lg border bg-[#fbfcf8] p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{item.title}</p>
-                      {item.plannedQuantity != null ? <p className="mt-1 text-xs font-medium text-[#65705f]">Planlanan: {item.plannedQuantity} {item.quantityUnit || "Adet"}</p> : null}
-                      {item.description ? <p className="mt-1 text-sm text-[#65705f]">{item.description}</p> : null}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant={item.status === "TAMAMLANDI" ? "default" : "secondary"}>{setupStatusLabels[item.status] ?? item.status}</Badge>
-                      <Badge variant="outline">{responsibleDepartmentLabels[item.responsibleDepartment] ?? item.responsibleDepartment}</Badge>
-                    </div>
-                  </div>
-                  {item.closingNote ? <p className="mt-2 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
-                  {isOpeningLogisticsCategory(item.category) ? (
-                    <div className="mt-2 rounded border border-sky-100 bg-sky-50/60 p-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                        <span className="font-semibold text-sky-950">Tedarik: {item.logisticsStatus ? (openingLogisticsStatusLabels[item.logisticsStatus] ?? item.logisticsStatus) : "Süreç başlamadı"}</span>
-                        <Badge className="bg-sky-100 text-sky-900">%{item.logisticsStatus ? (openingLogisticsStatusProgress[item.logisticsStatus] ?? 0) : 0}</Badge>
-                      </div>
-                    </div>
-                  ) : null}
-                  {item.status !== "TAMAMLANDI" ? (
-                    <form action={completeOpeningSetupChecklistItem.bind(null, item.id)} className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-                      <select name="selectedOption" defaultValue="MERKEZ_TAMAMLADI" className="h-10 rounded border px-3 text-sm md:col-span-2">
-                        <option value="MERKEZ_TAMAMLADI">Merkez tamamladı</option>
-                        <option value="YATIRIMCI_TAMAMLADI">Yatırımcı tamamladı, merkez teyit etti</option>
-                        <option value="YATIRIMCI_COZECEK">Yatırımcı çözecek</option>
-                        <option value="SATIN_ALINDI">Alım yapıldı</option>
-                        <option value="IMALATA_ALINDI">İmalata alındı</option>
-                      </select>
-                      <input name="closingNote" required placeholder="Tamamlama notu" className="h-10 rounded border px-3 text-sm" />
-                      <Button type="submit" size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700"><CheckCircle2 className="size-4" />Tamamla</Button>
-                    </form>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </Card>
-        );
-      })}
-      </div>
-    </div>
-  );
-}
-
-function SupplySummaryGrid({ items }: { items: ProcessSupplyItem[] }) {
-  const sections = ["EKIPMAN", "ZUCCACIYE", "ACILIS_MALI"];
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {sections.map((section) => {
-        const sectionItems = items.filter((item) => item.section === section);
-        const percent = openingSupplyPercentage(sectionItems);
-        const activeCount = openingSupplyActiveCount(sectionItems);
-        const completedCount = openingSupplyCompletedCount(sectionItems);
-        return (
-          <Card key={section} className="p-4 shadow-none">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-semibold">{openingSupplySectionLabels[section]}</h2>
-                <p className="mt-1 text-sm text-[#65705f]">{completedCount} / {activeCount} ürün tamamlandı</p>
-              </div>
-              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
-            </div>
-            <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
 function isSupplyChecklistCategory(category: string) {
   return category === "Ekipman" || category === "Operasyon Hazırlığı";
 }
 
 function TaskList({ tasks }: { tasks: { id: string; title: string; priority: string; status: string; dueDate: Date | null; assignedRole: string | null }[] }) {
   return <div className="space-y-3">{tasks.map((task) => <Card key={task.id} className="p-4 shadow-none"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-semibold">{task.title}</p><p className="text-sm text-[#65705f]">{task.assignedRole || "Sorumlu atanmadı"} · {dateTR(task.dueDate)}</p></div><div className="flex gap-2"><Badge>{task.status}</Badge><Badge variant="secondary">{task.priority}</Badge></div></div></Card>)}{!tasks.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Görev bulunmuyor.</p> : null}</div>;
-}
-
-function groupByCategory<T extends { category: string }>(items: T[]) {
-  const map = new Map<string, T[]>();
-  for (const item of items) map.set(item.category, [...(map.get(item.category) ?? []), item]);
-  return [...map.entries()];
 }
 
 function Timeline({ project }: { project: { targetDateChanges: { id: string; oldDate: Date; newDate: Date; reason: string; createdAt: Date }[]; postOpeningReviews: { id: string; dayNumber: number; plannedDate: Date; status: string }[] } }) {
