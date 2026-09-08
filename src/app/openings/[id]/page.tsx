@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
 import { ReadinessCheckForm, RiskForm } from "@/components/openings/opening-project-controls";
+import { OpeningSupplyPanel } from "@/components/openings/opening-supply-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,11 +26,17 @@ import {
   responsibleDepartmentLabels,
   setupStatusLabels,
 } from "@/lib/opening-checklists";
+import {
+  openingSupplyActiveCount,
+  openingSupplyCompletedCount,
+  openingSupplyPercentage,
+  openingSupplySectionLabels,
+} from "@/lib/opening-supplies";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Süreç", "Kurulum Planı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
+const tabs = ["Süreç", "Kurulum Planı", "Ekipman", "Züccaciye", "Açılış Malı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -50,6 +57,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
         include: { logisticsUpdates: { orderBy: { createdAt: "desc" }, take: 3 } },
         orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
       },
+      supplyItems: { include: { updates: { orderBy: { createdAt: "desc" }, take: 3 } }, orderBy: [{ section: "asc" }, { category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
       documentChecklistItems: { where: { archivedAt: null }, orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] },
       targetDateChanges: { orderBy: { createdAt: "desc" } },
       postOpeningReviews: { orderBy: { dayNumber: "asc" } },
@@ -71,7 +79,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
   const blockers = project.readinessChecks.filter((check) => check.blocker && check.status !== "PASSED");
   const isHotelConcept = isHotelOpeningConcept(project.branchConcept || project.branch.concept || project.branch.conceptType);
-  const activeSetupItems = project.setupChecklistItems.filter((item) => !item.archivedAt);
+  const activeSetupItems = project.setupChecklistItems.filter((item) => !item.archivedAt && !isSupplyChecklistCategory(item.category));
   const setupPercent = checklistPercentage(activeSetupItems);
 
   return (
@@ -103,7 +111,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
         {activeTab === "Süreç" ? (
           <div className="space-y-3">
-            <ProcessSetupList items={activeSetupItems} isHotelConcept={isHotelConcept} />
+            <ProcessSetupList items={activeSetupItems} supplyItems={project.supplyItems} isHotelConcept={isHotelConcept} />
           </div>
         ) : null}
 
@@ -112,9 +120,14 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
             projectId={project.id}
             setupItems={project.setupChecklistItems}
             documentItems={project.documentChecklistItems}
+            supplyItems={project.supplyItems}
             isHotelConcept={isHotelConcept}
           />
         ) : null}
+
+        {activeTab === "Ekipman" ? <OpeningSupplyPanel projectId={project.id} section="EKIPMAN" items={project.supplyItems} /> : null}
+        {activeTab === "Züccaciye" ? <OpeningSupplyPanel projectId={project.id} section="ZUCCACIYE" items={project.supplyItems} /> : null}
+        {activeTab === "Açılış Malı" ? <OpeningSupplyPanel projectId={project.id} section="ACILIS_MALI" items={project.supplyItems} /> : null}
 
         {activeTab === "Görevler" ? <TaskList tasks={project.tasks} /> : null}
         {activeTab === "Belgeler" ? <RelatedDocumentsPanel relation="opening" relationId={project.id} documents={project.documents} /> : null}
@@ -157,16 +170,24 @@ type ProcessSetupItem = {
   quantityUnit?: string | null;
 };
 
-function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]; isHotelConcept: boolean }) {
+type ProcessSupplyItem = {
+  section: string;
+  status: string;
+  archivedAt: Date | string | null;
+};
+
+function ProcessSetupList({ items, supplyItems, isHotelConcept }: { items: ProcessSetupItem[]; supplyItems: ProcessSupplyItem[]; isHotelConcept: boolean }) {
   if (isHotelConcept) {
     return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Hotel konsepti kurulum checklist sürecine dahil değil.</p>;
   }
-  if (!items.length) {
+  if (!items.length && !supplyItems.length) {
     return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Kurulum checklisti henüz oluşturulmamış. Kurulum Planı sekmesinden checklist oluşturabilirsiniz.</p>;
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="space-y-4">
+      <SupplySummaryGrid items={supplyItems} />
+      <div className="grid gap-4 xl:grid-cols-2">
       {groupByCategory(items).map(([category, categoryItems]) => {
         const percent = checklistPercentage(categoryItems);
         const completedItems = categoryItems.filter((item) => item.status === "TAMAMLANDI");
@@ -222,8 +243,39 @@ function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]
           </Card>
         );
       })}
+      </div>
     </div>
   );
+}
+
+function SupplySummaryGrid({ items }: { items: ProcessSupplyItem[] }) {
+  const sections = ["EKIPMAN", "ZUCCACIYE", "ACILIS_MALI"];
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {sections.map((section) => {
+        const sectionItems = items.filter((item) => item.section === section);
+        const percent = openingSupplyPercentage(sectionItems);
+        const activeCount = openingSupplyActiveCount(sectionItems);
+        const completedCount = openingSupplyCompletedCount(sectionItems);
+        return (
+          <Card key={section} className="p-4 shadow-none">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">{openingSupplySectionLabels[section]}</h2>
+                <p className="mt-1 text-sm text-[#65705f]">{completedCount} / {activeCount} ürün tamamlandı</p>
+              </div>
+              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
+            </div>
+            <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function isSupplyChecklistCategory(category: string) {
+  return category === "Ekipman" || category === "Operasyon Hazırlığı";
 }
 
 function TaskList({ tasks }: { tasks: { id: string; title: string; priority: string; status: string; dueDate: Date | null; assignedRole: string | null }[] }) {

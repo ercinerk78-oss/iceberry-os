@@ -7,6 +7,7 @@ import { requirePermission, requireUser } from "@/lib/auth";
 import { OpeningChecklistService } from "@/lib/opening-checklist-service";
 import { DEFAULT_STAGES, isClosed } from "@/lib/openings";
 import { OpeningProjectService } from "@/lib/opening-project-service";
+import { OpeningSupplyService } from "@/lib/opening-supply-service";
 import { prisma } from "@/lib/prisma";
 import { openingSchema, stageSchema, taskSchema, type OpeningState } from "@/lib/validations/opening";
 
@@ -67,6 +68,17 @@ const documentChecklistSchema = z.object({
   description: z.string().optional().or(z.literal("")),
   companyTypeCondition: z.string().optional().or(z.literal("")),
   responsibleDepartment: z.string().min(2, "Sorumlu seçin."),
+  status: z.string().optional().or(z.literal("")),
+});
+
+const supplyItemSchema = z.object({
+  section: z.string().min(2, "Sekme zorunludur."),
+  category: z.string().optional().or(z.literal("")),
+  title: z.string().min(2, "Ürün adı zorunludur."),
+  description: z.string().optional().or(z.literal("")),
+  plannedQuantity: z.string().optional().or(z.literal("")),
+  quantityUnit: z.string().optional().or(z.literal("")),
+  responsibleParty: z.string().optional().or(z.literal("")),
   status: z.string().optional().or(z.literal("")),
 });
 
@@ -342,6 +354,13 @@ export async function ensureOpeningChecklist(projectId: string, formData: FormDa
   refresh(projectId, project?.branchId);
 }
 
+export async function ensureOpeningSupplyItems(projectId: string, formData: FormData) {
+  void formData;
+  const user = await requirePermission("openings");
+  await OpeningSupplyService.ensureForProject(projectId, user.id);
+  refresh(projectId);
+}
+
 export async function addOpeningSetupChecklistItem(projectId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
   const user = await requirePermission("openings");
   const parsed = setupChecklistSchema.safeParse(Object.fromEntries(formData));
@@ -429,6 +448,73 @@ export async function restoreOpeningSetupChecklistItem(itemId: string, formData:
   await requirePermission("openings");
   const item = await OpeningChecklistService.restoreSetupItem(itemId);
   await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
+  refresh(item.openingProjectId, item.branchId);
+}
+
+export async function addOpeningSupplyItem(projectId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
+  const user = await requirePermission("openings");
+  const parsed = supplyItemSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Ürün bilgisini kontrol edin." };
+  try {
+    const item = await OpeningSupplyService.create(projectId, {
+      section: parsed.data.section,
+      category: parsed.data.category,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      plannedQuantity: numberFromInput(parsed.data.plannedQuantity),
+      quantityUnit: parsed.data.quantityUnit || "Adet",
+      responsibleParty: parsed.data.responsibleParty || "ICEBERRY",
+      status: parsed.data.status || "BEKLIYOR",
+      createdById: user.id,
+    });
+    refresh(item.openingProjectId, item.branchId);
+    return { success: true, message: "Ürün kalemi eklendi." };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Ürün kalemi eklenemedi." };
+  }
+}
+
+export async function updateOpeningSupplyItem(itemId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
+  const user = await requirePermission("openings");
+  const parsed = supplyItemSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Ürün bilgisini kontrol edin." };
+  try {
+    const item = await OpeningSupplyService.update(itemId, {
+      section: parsed.data.section,
+      category: parsed.data.category,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      plannedQuantity: numberFromInput(parsed.data.plannedQuantity),
+      quantityUnit: parsed.data.quantityUnit || "Adet",
+      responsibleParty: parsed.data.responsibleParty || "ICEBERRY",
+      status: parsed.data.status || "BEKLIYOR",
+    }, user.id);
+    refresh(item.openingProjectId, item.branchId);
+    return { success: true, message: "Ürün kalemi güncellendi." };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Ürün kalemi güncellenemedi." };
+  }
+}
+
+export async function setOpeningSupplyItemLogisticsStatus(itemId: string, formData: FormData) {
+  const user = await requirePermission("openings");
+  const status = String(formData.get("logisticsStatus") || "");
+  const note = String(formData.get("logisticsNote") || "");
+  const item = await OpeningSupplyService.setLogisticsStatus(itemId, status, user.id, note);
+  refresh(item.openingProjectId, item.branchId);
+}
+
+export async function archiveOpeningSupplyItem(itemId: string, formData: FormData) {
+  void formData;
+  await requirePermission("openings");
+  const item = await OpeningSupplyService.archive(itemId);
+  refresh(item.openingProjectId, item.branchId);
+}
+
+export async function restoreOpeningSupplyItem(itemId: string, formData: FormData) {
+  void formData;
+  await requirePermission("openings");
+  const item = await OpeningSupplyService.restore(itemId);
   refresh(item.openingProjectId, item.branchId);
 }
 

@@ -184,6 +184,7 @@ model Branch {
   openingProjects               OpeningProject[]
   openingSetupChecklistItems    OpeningSetupChecklistItem[]
   openingDocumentChecklistItems OpeningDocumentChecklistItem[]
+  openingSupplyItems            OpeningSupplyItem[]
   orders                        FranchiseOrder[]
   users                         BranchUser[]
   tasks                         BranchTask[]
@@ -1712,6 +1713,7 @@ model OpeningProject {
   tasks                  BranchTask[]
   setupChecklistItems    OpeningSetupChecklistItem[]
   documentChecklistItems OpeningDocumentChecklistItem[]
+  supplyItems            OpeningSupplyItem[]
 
   @@index([branchId, status])
   @@index([franchiseCandidateId])
@@ -1719,6 +1721,53 @@ model OpeningProject {
   @@index([targetOpeningDate, status])
   @@index([riskLevel, status])
   @@index([archivedAt])
+}
+
+model OpeningSupplyItem {
+  id                    String                    @id @default(cuid())
+  openingProjectId      String
+  branchId              String
+  section               String
+  category              String?
+  title                 String
+  description           String?
+  plannedQuantity       Float?
+  quantityUnit          String                    @default("Adet")
+  responsibleParty      String                    @default("ICEBERRY")
+  status                String                    @default("BEKLIYOR")
+  logisticsStatus        String?
+  logisticsNote          String?
+  logisticsUpdatedAt     DateTime?
+  logisticsUpdatedById   String?
+  sourceType            String                    @default("TEMPLATE")
+  templateKey           String?
+  sortOrder             Int                       @default(0)
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  project               OpeningProject            @relation(fields: [openingProjectId], references: [id], onDelete: Restrict)
+  branch                Branch                    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  updates               OpeningSupplyItemUpdate[]
+
+  @@unique([openingProjectId, templateKey])
+  @@index([openingProjectId, section, archivedAt])
+  @@index([branchId, section, archivedAt])
+  @@index([section, status])
+  @@index([logisticsStatus])
+}
+
+model OpeningSupplyItemUpdate {
+  id          String            @id @default(cuid())
+  itemId      String
+  status      String
+  note        String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  item        OpeningSupplyItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, createdAt])
+  @@index([status, createdAt])
 }
 
 model OpeningSetupChecklistItem {
