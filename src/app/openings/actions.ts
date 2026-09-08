@@ -361,6 +361,13 @@ export async function ensureOpeningSupplyItems(projectId: string, formData: Form
   refresh(projectId);
 }
 
+export async function syncOpeningSupplyTemplateSection(projectId: string, section: string, formData: FormData) {
+  void formData;
+  const user = await requirePermission("openings");
+  const project = await OpeningSupplyService.syncTemplateSection(projectId, section, user.id);
+  refresh(project.id, project.branchId);
+}
+
 export async function addOpeningSetupChecklistItem(projectId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
   const user = await requirePermission("openings");
   const parsed = setupChecklistSchema.safeParse(Object.fromEntries(formData));

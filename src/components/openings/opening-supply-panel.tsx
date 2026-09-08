@@ -10,6 +10,7 @@ import {
   ensureOpeningSupplyItems,
   restoreOpeningSupplyItem,
   setOpeningSupplyItemLogisticsStatus,
+  syncOpeningSupplyTemplateSection,
   updateOpeningSupplyItem,
 } from "@/app/openings/actions";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +91,7 @@ export function OpeningSupplyPanel({ projectId, section, items }: { projectId: s
       ) : null}
 
       <Card className="p-4 shadow-none">
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
           <label className="relative block">
             <Search className="absolute left-3 top-3 size-4 text-[#65705f]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ürün veya not ara" className="h-10 w-full rounded border bg-white pl-9 pr-3 text-sm" />
@@ -99,6 +100,9 @@ export function OpeningSupplyPanel({ projectId, section, items }: { projectId: s
             <option value="">Tüm kaynaklar</option>
             {OPENING_SUPPLY_SOURCE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
+          <form action={syncOpeningSupplyTemplateSection.bind(null, projectId, section)}>
+            <Button type="submit" variant="outline" className="w-full whitespace-nowrap"><PackageCheck className="size-4" />Güncel Şablonla Eşitle</Button>
+          </form>
         </div>
         <p className="mt-2 text-xs text-[#65705f]">{filteredItems.length} ürün gösteriliyor</p>
       </Card>

@@ -36,6 +36,51 @@ export class OpeningSupplyService {
     return { message: "Ekipman, züccaciye ve açılış malı ürün listesi hazırlandı." };
   }
 
+  static async syncTemplateSection(projectId: string, section: string, userId?: string | null) {
+    if (!OPENING_SUPPLY_SECTIONS.some(([value]) => value === section)) throw new Error("Geçersiz ürün sekmesi.");
+    const project = await prisma.openingProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, branchId: true },
+    });
+    if (!project) throw new Error("Açılış projesi bulunamadı.");
+
+    const currentTemplateItems = defaultOpeningSupplyItems.filter((item) => item.section === section);
+    const currentTemplateKeys = currentTemplateItems.map((item) => item.key);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.openingSupplyItem.updateMany({
+        where: {
+          openingProjectId: project.id,
+          section,
+          sourceType: "TEMPLATE",
+          templateKey: { notIn: currentTemplateKeys },
+          archivedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+
+      await tx.openingSupplyItem.createMany({
+        data: currentTemplateItems.map((item) => ({
+          openingProjectId: project.id,
+          branchId: project.branchId,
+          section: item.section,
+          category: item.category,
+          title: item.title,
+          plannedQuantity: item.plannedQuantity ?? null,
+          quantityUnit: item.quantityUnit || "Adet",
+          responsibleParty: item.responsibleParty,
+          sourceType: "TEMPLATE",
+          templateKey: item.key,
+          sortOrder: item.sortOrder,
+          createdById: userId ?? null,
+        })),
+        skipDuplicates: true,
+      });
+    });
+
+    return project;
+  }
+
   static async seedForProjectInTransaction(tx: OpeningSupplyTx, project: { id: string; branchId: string }, userId?: string | null) {
     await tx.openingSupplyItem.createMany({
       data: defaultOpeningSupplyItems.map((item) => ({
