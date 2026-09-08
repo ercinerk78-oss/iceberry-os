@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Archive, CheckCircle2, ClipboardList, FileCheck2, Plus } from "lucide-react";
+import { Archive, CheckCircle2, ChevronDown, ClipboardList, FileCheck2, Plus, RotateCcw, Search } from "lucide-react";
 
 import {
   addOpeningDocumentChecklistItem,
@@ -11,9 +11,11 @@ import {
   archiveOpeningSetupChecklistItem,
   completeOpeningSetupChecklistItem,
   ensureOpeningChecklist,
+  restoreOpeningSetupChecklistItem,
   setOpeningDocumentChecklistStatus,
   setOpeningSetupChecklistLogisticsStatus,
   setOpeningSetupChecklistStatus,
+  updateOpeningSetupChecklistItem,
 } from "@/app/openings/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,12 +45,15 @@ type SetupItem = {
   description: string | null;
   responsibleDepartment: string;
   status: string;
+  plannedQuantity: number | null;
+  quantityUnit: string | null;
   selectedOption: string | null;
   closingNote: string | null;
   logisticsStatus: string | null;
   logisticsNote: string | null;
   logisticsUpdatedAt: Date | string | null;
   sourceType: string;
+  archivedAt: Date | string | null;
   logisticsUpdates?: {
     id: string;
     status: string;
@@ -84,10 +89,14 @@ export function OpeningChecklistPanel({
 }) {
   const [setupState, addSetupAction] = useActionState(addOpeningSetupChecklistItem.bind(null, projectId), initialState);
   const [documentState, addDocumentAction] = useActionState(addOpeningDocumentChecklistItem.bind(null, projectId), initialState);
+  const [setupSearch, setSetupSearch] = useState("");
+  const activeSetupItems = setupItems.filter((item) => !item.archivedAt);
+  const passiveSetupItems = setupItems.filter((item) => item.archivedAt);
+  const filteredActiveSetupItems = useMemo(() => filterSetupItems(activeSetupItems, setupSearch), [activeSetupItems, setupSearch]);
   const visibleDocumentItems = documentItems.filter((item) => !HIDDEN_OPENING_DOCUMENT_TITLES.includes(item.title as (typeof HIDDEN_OPENING_DOCUMENT_TITLES)[number]));
-  const setupPercent = checklistPercentage(setupItems);
+  const setupPercent = checklistPercentage(activeSetupItems);
   const documentPercent = checklistPercentage(visibleDocumentItems);
-  const hasChecklist = setupItems.length || visibleDocumentItems.length;
+  const hasChecklist = activeSetupItems.length || passiveSetupItems.length || visibleDocumentItems.length;
 
   if (isHotelConcept) {
     return (
@@ -116,10 +125,10 @@ export function OpeningChecklistPanel({
   return (
     <div className="space-y-5">
       <div className="grid gap-3 md:grid-cols-4">
-        <Metric title="Kurulum İlerlemesi" value={`%${setupPercent}`} detail={`${completedCount(setupItems)} / ${setupItems.length} kalem`} />
+        <Metric title="Kurulum İlerlemesi" value={`%${setupPercent}`} detail={`${completedCount(activeSetupItems)} / ${activeSetupItems.length} aktif kalem`} />
         <Metric title="Evrak İlerlemesi" value={`%${documentPercent}`} detail={`${completedDocumentCount(visibleDocumentItems)} / ${visibleDocumentItems.length} evrak`} />
-        <Metric title="Yatırımcıda" value={setupItems.filter((item) => item.responsibleDepartment === "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Takip edilen açık kalem" />
-        <Metric title="Merkezde" value={setupItems.filter((item) => item.responsibleDepartment !== "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Departman bekleyen kalem" />
+        <Metric title="Yatırımcıda" value={activeSetupItems.filter((item) => item.responsibleDepartment === "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Takip edilen açık kalem" />
+        <Metric title="Merkezde" value={activeSetupItems.filter((item) => item.responsibleDepartment !== "INVESTOR" && item.status !== "TAMAMLANDI").length.toString()} detail="Departman bekleyen kalem" />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.9fr]">
@@ -129,7 +138,9 @@ export function OpeningChecklistPanel({
             <h2 className="text-lg font-semibold">Kurulum Planı</h2>
           </div>
           <SetupAddForm action={addSetupAction} state={setupState} />
-          <GroupedSetupItems items={setupItems} />
+          <SetupSearch value={setupSearch} onChange={setSetupSearch} total={activeSetupItems.length} resultCount={filteredActiveSetupItems.length} />
+          <GroupedSetupItems items={filteredActiveSetupItems} search={setupSearch} />
+          <PassiveSetupItems items={passiveSetupItems} />
         </section>
 
         <section className="space-y-4">
@@ -164,7 +175,9 @@ function SetupAddForm({ action, state }: { action: (payload: FormData) => void; 
         <Select name="responsibleDepartment" options={OPENING_RESPONSIBLE_DEPARTMENTS} defaultValue="OPERATIONS" />
         <Select name="status" options={OPENING_SETUP_STATUSES} defaultValue="BEKLIYOR" />
         <Button><Plus className="size-4" />Ekle</Button>
-        <input name="description" placeholder="Açıklama" className="h-10 rounded border px-3 text-sm lg:col-span-5" />
+        <input name="plannedQuantity" inputMode="decimal" placeholder="Planlanan adet" className="h-10 rounded border px-3 text-sm" />
+        <input name="quantityUnit" defaultValue="Adet" placeholder="Birim" className="h-10 rounded border px-3 text-sm" />
+        <input name="description" placeholder="Açıklama" className="h-10 rounded border px-3 text-sm lg:col-span-3" />
       </form>
       {state.message ? <p className={`mt-2 text-sm ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
     </Card>
@@ -188,18 +201,85 @@ function DocumentAddForm({ action, state }: { action: (payload: FormData) => voi
   );
 }
 
-function GroupedSetupItems({ items }: { items: SetupItem[] }) {
+function SetupSearch({ value, onChange, total, resultCount }: { value: string; onChange: (value: string) => void; total: number; resultCount: number }) {
+  return (
+    <Card className="p-4 shadow-none">
+      <label className="relative block">
+        <Search className="absolute left-3 top-3 size-4 text-[#65705f]" />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Görev veya iş kalemi ara"
+          className="h-10 w-full rounded border bg-white pl-9 pr-3 text-sm"
+        />
+      </label>
+      <p className="mt-2 text-xs text-[#65705f]">{value.trim() ? `${resultCount} sonuç gösteriliyor` : `${total} aktif kalem kategori altında listeleniyor`}</p>
+    </Card>
+  );
+}
+
+function GroupedSetupItems({ items, search }: { items: SetupItem[]; search: string }) {
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const isSearching = Boolean(search.trim());
+  if (!items.length) {
+    return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Aramaya uygun aktif kurulum kalemi bulunamadı.</p>;
+  }
+
   return (
     <div className="space-y-4">
-      {groupByCategory(items).map(([category, categoryItems]) => (
+      {groupByCategory(items).map(([category, categoryItems]) => {
+        const isOpen = isSearching || Boolean(openCategories[category]);
+        const percent = checklistPercentage(categoryItems);
+        return (
         <Card key={category} className="p-4 shadow-none">
-          <h3 className="font-semibold">{category}</h3>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {categoryItems.map((item) => <SetupItemCard key={item.id} item={item} />)}
-          </div>
+          <button
+            type="button"
+            onClick={() => setOpenCategories((current) => ({ ...current, [category]: !current[category] }))}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span>
+              <span className="block font-semibold">{category}</span>
+              <span className="mt-1 block text-sm text-[#65705f]">{completedCount(categoryItems)} / {categoryItems.length} kalem tamamlandı</span>
+            </span>
+            <span className="flex items-center gap-2">
+              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
+              <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+          {isOpen ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {categoryItems.map((item) => <SetupItemCard key={item.id} item={item} />)}
+            </div>
+          ) : null}
         </Card>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+function PassiveSetupItems({ items }: { items: SetupItem[] }) {
+  if (!items.length) return null;
+  return (
+    <details className="rounded-lg border bg-white p-4">
+      <summary className="cursor-pointer font-semibold">Pasif Kalemler ({items.length})</summary>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <div key={item.id} className="rounded-lg border bg-[#fbfcf8] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold">{item.title}</p>
+                <p className="mt-1 text-xs text-[#65705f]">{item.category} · {item.plannedQuantity ?? "-"} {item.quantityUnit || "Adet"}</p>
+              </div>
+              <Badge variant="outline">Pasif</Badge>
+            </div>
+            <form action={restoreOpeningSetupChecklistItem.bind(null, item.id)} className="mt-3">
+              <Button type="submit" variant="outline" className="w-full"><RotateCcw className="size-4" />Aktife Al</Button>
+            </form>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -221,8 +301,10 @@ function SetupItemCard({ item }: { item: SetupItem }) {
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge className={isCompleted ? "bg-emerald-600 text-white" : ""} variant={isCompleted ? "default" : "secondary"}>{setupStatusLabels[item.status] ?? item.status}</Badge>
         <Badge variant="outline">{item.sourceType === "MANUAL" ? "Manuel" : "Standart"}</Badge>
+        {item.plannedQuantity != null ? <Badge variant="outline">Planlanan {item.plannedQuantity} {item.quantityUnit || "Adet"}</Badge> : null}
       </div>
       {item.closingNote ? <p className="mt-3 rounded bg-white p-2 text-sm text-[#65705f]">{item.closingNote}</p> : null}
+      <SetupItemEditForm item={item} />
       {hasLogisticsTracking ? <LogisticsStatusPanel item={item} /> : null}
       <div className="mt-3 grid gap-2">
         <form action={setOpeningSetupChecklistStatus.bind(null, item.id)} className="grid gap-2">
@@ -252,10 +334,32 @@ function SetupItemCard({ item }: { item: SetupItem }) {
           </form>
         ) : null}
         <form action={archiveOpeningSetupChecklistItem.bind(null, item.id)}>
-          <Button type="submit" variant="outline" className="w-full"><Archive className="size-4" />Listeden Kaldır</Button>
+          <Button type="submit" variant="outline" className="w-full"><Archive className="size-4" />Pasife Al</Button>
         </form>
       </div>
     </div>
+  );
+}
+
+function SetupItemEditForm({ item }: { item: SetupItem }) {
+  const [state, action] = useActionState(updateOpeningSetupChecklistItem.bind(null, item.id), initialState);
+  return (
+    <details className="mt-3 rounded-lg border bg-white p-3">
+      <summary className="cursor-pointer text-sm font-semibold">Kalem bilgilerini düzenle</summary>
+      <form action={action} className="mt-3 grid gap-2">
+        <Select name="category" options={OPENING_SETUP_CATEGORIES.map((category) => [category, category])} defaultValue={item.category} />
+        <input name="title" required defaultValue={item.title} placeholder="Kalem adı" className="h-10 rounded border px-3 text-sm" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input name="plannedQuantity" inputMode="decimal" defaultValue={item.plannedQuantity ?? ""} placeholder="Planlanan adet" className="h-10 rounded border px-3 text-sm" />
+          <input name="quantityUnit" defaultValue={item.quantityUnit || "Adet"} placeholder="Birim" className="h-10 rounded border px-3 text-sm" />
+        </div>
+        <Select name="responsibleDepartment" options={OPENING_RESPONSIBLE_DEPARTMENTS} defaultValue={item.responsibleDepartment} />
+        <Select name="status" options={OPENING_SETUP_STATUSES} defaultValue={item.status} />
+        <textarea name="description" defaultValue={item.description ?? ""} placeholder="Açıklama" className="min-h-16 rounded border px-3 py-2 text-sm" />
+        <OpeningItemUpdateSubmitButton />
+      </form>
+      {state.message ? <p className={`mt-2 text-sm ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
+    </details>
   );
 }
 
@@ -301,6 +405,11 @@ function LogisticsStatusPanel({ item }: { item: SetupItem }) {
 function OpeningStatusSubmitButton() {
   const { pending } = useFormStatus();
   return <Button type="submit" variant="outline" disabled={pending}>{pending ? "Güncelleniyor..." : "Durumu Güncelle"}</Button>;
+}
+
+function OpeningItemUpdateSubmitButton() {
+  const { pending } = useFormStatus();
+  return <Button type="submit" variant="outline" disabled={pending}>{pending ? "Kaydediliyor..." : "Kalemi Güncelle"}</Button>;
 }
 
 function OpeningLogisticsSubmitButton() {
@@ -381,6 +490,32 @@ function groupByCategory<T extends { category: string }>(items: T[]) {
     grouped.set(item.category, current);
   }
   return Array.from(grouped.entries());
+}
+
+function filterSetupItems(items: SetupItem[], query: string) {
+  const needle = normalizeSearch(query);
+  if (!needle) return items;
+  return items.filter((item) =>
+    [
+      item.category,
+      item.title,
+      item.description ?? "",
+      item.closingNote ?? "",
+      item.logisticsNote ?? "",
+      responsibleDepartmentLabels[item.responsibleDepartment] ?? item.responsibleDepartment,
+    ].some((value) => normalizeSearch(value).includes(needle)),
+  );
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("ı", "i")
+    .replaceAll("ğ", "g")
+    .replaceAll("ü", "u")
+    .replaceAll("ş", "s")
+    .replaceAll("ö", "o")
+    .replaceAll("ç", "c");
 }
 
 function completedCount(items: SetupItem[]) {

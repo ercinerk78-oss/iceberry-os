@@ -16,6 +16,8 @@ type ChecklistItemInput = {
   description?: string | null;
   responsibleDepartment: string;
   status?: string;
+  plannedQuantity?: number | null;
+  quantityUnit?: string | null;
   createdById?: string;
 };
 
@@ -98,9 +100,33 @@ export class OpeningChecklistService {
         description: input.description || null,
         responsibleDepartment: input.responsibleDepartment,
         status: input.status || "BEKLIYOR",
+        plannedQuantity: input.plannedQuantity ?? null,
+        quantityUnit: input.quantityUnit || "Adet",
         sourceType: "MANUAL",
         createdById: input.createdById,
       },
+    });
+  }
+
+  static async updateSetupItem(itemId: string, input: ChecklistItemInput, userId?: string | null) {
+    if (!["BEKLIYOR", "MERKEZDE", "YATIRIMCIDA", "IMALATTA", "DEVAM_EDIYOR", "TAMAMLANDI", "IPTAL"].includes(input.status || "BEKLIYOR")) {
+      throw new Error("Geçersiz kurulum durumu.");
+    }
+
+    return prisma.openingSetupChecklistItem.update({
+      where: { id: itemId },
+      data: {
+        category: input.category,
+        title: input.title,
+        description: input.description || null,
+        responsibleDepartment: input.responsibleDepartment,
+        status: input.status || "BEKLIYOR",
+        plannedQuantity: input.plannedQuantity ?? null,
+        quantityUnit: input.quantityUnit || "Adet",
+        completedById: input.status === "TAMAMLANDI" ? userId : null,
+        completedAt: input.status === "TAMAMLANDI" ? new Date() : null,
+      },
+      select: { openingProjectId: true, branchId: true },
     });
   }
 
@@ -187,6 +213,14 @@ export class OpeningChecklistService {
     return prisma.openingSetupChecklistItem.update({
       where: { id: itemId },
       data: { archivedAt: new Date() },
+      select: { openingProjectId: true, branchId: true },
+    });
+  }
+
+  static async restoreSetupItem(itemId: string) {
+    return prisma.openingSetupChecklistItem.update({
+      where: { id: itemId },
+      data: { archivedAt: null },
       select: { openingProjectId: true, branchId: true },
     });
   }

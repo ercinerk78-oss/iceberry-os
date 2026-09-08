@@ -1730,6 +1730,8 @@ model OpeningSetupChecklistItem {
   description           String?
   responsibleDepartment String         @default("OPERATIONS")
   status                String         @default("BEKLIYOR")
+  plannedQuantity       Float?
+  quantityUnit          String         @default("Adet")
   selectedOption        String?
   closingNote           String?
   sourceType            String         @default("TEMPLATE")

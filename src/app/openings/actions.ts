@@ -57,6 +57,8 @@ const setupChecklistSchema = z.object({
   description: z.string().optional().or(z.literal("")),
   responsibleDepartment: z.string().min(2, "Sorumlu seçin."),
   status: z.string().optional().or(z.literal("")),
+  plannedQuantity: z.string().optional().or(z.literal("")),
+  quantityUnit: z.string().optional().or(z.literal("")),
 });
 
 const documentChecklistSchema = z.object({
@@ -67,6 +69,14 @@ const documentChecklistSchema = z.object({
   responsibleDepartment: z.string().min(2, "Sorumlu seçin."),
   status: z.string().optional().or(z.literal("")),
 });
+
+const numberFromInput = (value?: string | null) => {
+  const normalized = String(value || "").trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Adet sıfır veya pozitif sayı olmalıdır.");
+  return parsed;
+};
 
 export async function createOpening(_state: OpeningState, formData: FormData): Promise<OpeningState> {
   const parsed = openingSchema.safeParse(Object.fromEntries(formData));
@@ -343,6 +353,8 @@ export async function addOpeningSetupChecklistItem(projectId: string, _state: Op
       description: parsed.data.description,
       responsibleDepartment: parsed.data.responsibleDepartment,
       status: parsed.data.status || "BEKLIYOR",
+      plannedQuantity: numberFromInput(parsed.data.plannedQuantity),
+      quantityUnit: parsed.data.quantityUnit || "Adet",
       createdById: user.id,
     });
     await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
@@ -350,6 +362,29 @@ export async function addOpeningSetupChecklistItem(projectId: string, _state: Op
     return { success: true, message: "Kurulum kalemi eklendi." };
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "Kurulum kalemi eklenemedi." };
+  }
+}
+
+export async function updateOpeningSetupChecklistItem(itemId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
+  const user = await requirePermission("openings");
+  const parsed = setupChecklistSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Kurulum kalemini kontrol edin." };
+  try {
+    const item = await OpeningChecklistService.updateSetupItem(itemId, {
+      category: parsed.data.category,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      responsibleDepartment: parsed.data.responsibleDepartment,
+      status: parsed.data.status || "BEKLIYOR",
+      plannedQuantity: numberFromInput(parsed.data.plannedQuantity),
+      quantityUnit: parsed.data.quantityUnit || "Adet",
+      createdById: user.id,
+    }, user.id);
+    await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
+    refresh(item.openingProjectId, item.branchId);
+    return { success: true, message: "Kurulum kalemi güncellendi." };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Kurulum kalemi güncellenemedi." };
   }
 }
 
@@ -385,6 +420,14 @@ export async function archiveOpeningSetupChecklistItem(itemId: string, formData:
   void formData;
   await requirePermission("openings");
   const item = await OpeningChecklistService.archiveSetupItem(itemId);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
+  refresh(item.openingProjectId, item.branchId);
+}
+
+export async function restoreOpeningSetupChecklistItem(itemId: string, formData: FormData) {
+  void formData;
+  await requirePermission("openings");
+  const item = await OpeningChecklistService.restoreSetupItem(itemId);
   await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }

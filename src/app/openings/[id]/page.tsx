@@ -47,7 +47,6 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
       risks: { orderBy: { createdAt: "desc" } },
       readinessChecks: { orderBy: { component: "asc" } },
       setupChecklistItems: {
-        where: { archivedAt: null },
         include: { logisticsUpdates: { orderBy: { createdAt: "desc" }, take: 3 } },
         orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
       },
@@ -72,7 +71,8 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
   const blockers = project.readinessChecks.filter((check) => check.blocker && check.status !== "PASSED");
   const isHotelConcept = isHotelOpeningConcept(project.branchConcept || project.branch.concept || project.branch.conceptType);
-  const setupPercent = checklistPercentage(project.setupChecklistItems);
+  const activeSetupItems = project.setupChecklistItems.filter((item) => !item.archivedAt);
+  const setupPercent = checklistPercentage(activeSetupItems);
 
   return (
     <AppShell activeHref="/openings" eyebrow={project.projectNumber} title={project.name}>
@@ -103,7 +103,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
         {activeTab === "Süreç" ? (
           <div className="space-y-3">
-            <ProcessSetupList items={project.setupChecklistItems} isHotelConcept={isHotelConcept} />
+            <ProcessSetupList items={activeSetupItems} isHotelConcept={isHotelConcept} />
           </div>
         ) : null}
 
@@ -153,6 +153,8 @@ type ProcessSetupItem = {
   status: string;
   closingNote: string | null;
   logisticsStatus?: string | null;
+  plannedQuantity?: number | null;
+  quantityUnit?: string | null;
 };
 
 function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]; isHotelConcept: boolean }) {
@@ -184,6 +186,7 @@ function ProcessSetupList({ items, isHotelConcept }: { items: ProcessSetupItem[]
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">{item.title}</p>
+                      {item.plannedQuantity != null ? <p className="mt-1 text-xs font-medium text-[#65705f]">Planlanan: {item.plannedQuantity} {item.quantityUnit || "Adet"}</p> : null}
                       {item.description ? <p className="mt-1 text-sm text-[#65705f]">{item.description}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
