@@ -8,6 +8,7 @@ import {
   isHotelOpeningConcept,
   isOpeningLogisticsCategory,
   OPENING_LOGISTICS_STATUSES,
+  weightedOpeningPlanPercentage,
 } from "@/lib/opening-checklists";
 
 type ChecklistItemInput = {
@@ -82,6 +83,53 @@ export class OpeningChecklistService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  static async syncSetupTemplate(projectId: string, userId?: string | null) {
+    const project = await prisma.openingProject.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        branchId: true,
+        branchConcept: true,
+        branch: { select: { concept: true, conceptType: true } },
+      },
+    });
+    if (!project) throw new Error("Açılış projesi bulunamadı.");
+
+    const concept = project.branchConcept || project.branch.concept || project.branch.conceptType;
+    if (isHotelOpeningConcept(concept)) return { skipped: true, project };
+
+    const currentTemplateKeys = defaultOpeningSetupItems.map((item) => item.key);
+    await prisma.$transaction(async (tx) => {
+      await tx.openingSetupChecklistItem.updateMany({
+        where: {
+          openingProjectId: project.id,
+          sourceType: "TEMPLATE",
+          templateKey: { notIn: currentTemplateKeys },
+          archivedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+
+      await tx.openingSetupChecklistItem.createMany({
+        data: defaultOpeningSetupItems.map((item) => ({
+          openingProjectId: project.id,
+          branchId: project.branchId,
+          category: item.category,
+          title: item.title,
+          description: item.description ?? null,
+          responsibleDepartment: item.responsibleDepartment,
+          sourceType: "TEMPLATE",
+          templateKey: item.key,
+          sortOrder: item.sortOrder,
+          createdById: userId,
+        })),
+        skipDuplicates: true,
+      });
+    });
+
+    return { skipped: false, project };
   }
 
   static async createSetupItem(projectId: string, input: ChecklistItemInput) {
@@ -274,17 +322,21 @@ export class OpeningChecklistService {
   }
 
   static async recalculateProjectProgress(projectId: string) {
-    const [setupItems, documentItems] = await Promise.all([
+    const [setupItems, documentItems, supplyItems] = await Promise.all([
       prisma.openingSetupChecklistItem.findMany({
         where: { openingProjectId: projectId, archivedAt: null },
-        select: { status: true },
+        select: { category: true, status: true },
       }),
       prisma.openingDocumentChecklistItem.findMany({
         where: { openingProjectId: projectId, archivedAt: null, title: { notIn: [...HIDDEN_OPENING_DOCUMENT_TITLES] } },
         select: { status: true },
       }),
+      prisma.openingSupplyItem.findMany({
+        where: { openingProjectId: projectId, archivedAt: null },
+        select: { section: true, status: true },
+      }),
     ]);
-    const setupProgress = percentage(setupItems, ["TAMAMLANDI"]);
+    const setupProgress = weightedOpeningPlanPercentage(setupItems, supplyItems);
     const documentProgress = percentage(documentItems, ["KONTROL_EDILDI", "GEREKLI_DEGIL"]);
     const hasDocuments = documentItems.length > 0;
     const readiness = hasDocuments ? Math.round((setupProgress + documentProgress) / 2) : setupProgress;

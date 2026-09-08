@@ -354,10 +354,19 @@ export async function ensureOpeningChecklist(projectId: string, formData: FormDa
   refresh(projectId, project?.branchId);
 }
 
+export async function syncOpeningSetupTemplate(projectId: string, formData: FormData) {
+  void formData;
+  const user = await requirePermission("openings");
+  const result = await OpeningChecklistService.syncSetupTemplate(projectId, user.id);
+  await OpeningChecklistService.recalculateProjectProgress(projectId);
+  refresh(projectId, result.project.branchId);
+}
+
 export async function ensureOpeningSupplyItems(projectId: string, formData: FormData) {
   void formData;
   const user = await requirePermission("openings");
   await OpeningSupplyService.ensureForProject(projectId, user.id);
+  await OpeningChecklistService.recalculateProjectProgress(projectId);
   refresh(projectId);
 }
 
@@ -365,6 +374,7 @@ export async function syncOpeningSupplyTemplateSection(projectId: string, sectio
   void formData;
   const user = await requirePermission("openings");
   const project = await OpeningSupplyService.syncTemplateSection(projectId, section, user.id);
+  await OpeningChecklistService.recalculateProjectProgress(projectId);
   refresh(project.id, project.branchId);
 }
 
@@ -474,6 +484,7 @@ export async function addOpeningSupplyItem(projectId: string, _state: OpeningSta
       status: parsed.data.status || "BEKLIYOR",
       createdById: user.id,
     });
+    await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
     refresh(item.openingProjectId, item.branchId);
     return { success: true, message: "Ürün kalemi eklendi." };
   } catch (error) {
@@ -496,6 +507,7 @@ export async function updateOpeningSupplyItem(itemId: string, _state: OpeningSta
       responsibleParty: parsed.data.responsibleParty || "ICEBERRY",
       status: parsed.data.status || "BEKLIYOR",
     }, user.id);
+    await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
     refresh(item.openingProjectId, item.branchId);
     return { success: true, message: "Ürün kalemi güncellendi." };
   } catch (error) {
@@ -508,6 +520,7 @@ export async function setOpeningSupplyItemLogisticsStatus(itemId: string, formDa
   const status = String(formData.get("logisticsStatus") || "");
   const note = String(formData.get("logisticsNote") || "");
   const item = await OpeningSupplyService.setLogisticsStatus(itemId, status, user.id, note);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -515,6 +528,7 @@ export async function archiveOpeningSupplyItem(itemId: string, formData: FormDat
   void formData;
   await requirePermission("openings");
   const item = await OpeningSupplyService.archive(itemId);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 
@@ -522,6 +536,7 @@ export async function restoreOpeningSupplyItem(itemId: string, formData: FormDat
   void formData;
   await requirePermission("openings");
   const item = await OpeningSupplyService.restore(itemId);
+  await OpeningChecklistService.recalculateProjectProgress(item.openingProjectId);
   refresh(item.openingProjectId, item.branchId);
 }
 

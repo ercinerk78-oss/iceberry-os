@@ -17,8 +17,8 @@ import {
   openingRiskStatusLabels,
 } from "@/lib/openings";
 import {
-  checklistPercentage,
   isHotelOpeningConcept,
+  weightedOpeningPlanPercentage,
 } from "@/lib/opening-checklists";
 import { prisma } from "@/lib/prisma";
 
@@ -68,7 +68,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
   const blockers = project.readinessChecks.filter((check) => check.blocker && check.status !== "PASSED");
   const isHotelConcept = isHotelOpeningConcept(project.branchConcept || project.branch.concept || project.branch.conceptType);
   const activeSetupItems = project.setupChecklistItems.filter((item) => !item.archivedAt && !isSupplyChecklistCategory(item.category));
-  const setupPercent = checklistPercentage(activeSetupItems);
+  const setupPercent = weightedOpeningPlanPercentage(activeSetupItems, project.supplyItems);
 
   return (
     <AppShell activeHref="/openings" eyebrow={project.projectNumber} title={project.name}>

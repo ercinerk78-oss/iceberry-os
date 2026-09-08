@@ -29,15 +29,17 @@ export const OPENING_RESPONSIBLE_DEPARTMENTS = [
 ] as const;
 
 export const OPENING_SETUP_CATEGORIES = [
+  "Organizasyon",
   "Altyapı",
   "Mimari ve İnşaat",
   "Tabela ve Görsel",
-  "Ekipman",
-  "Operasyon Hazırlığı",
-  "Açılış",
 ] as const;
 
-export const OPENING_LOGISTICS_CATEGORIES = ["Ekipman", "Operasyon Hazırlığı"] as const;
+export const OPENING_SETUP_CATEGORY_ORDER = ["Organizasyon", "Altyapı", "Mimari ve İnşaat", "Tabela ve Görsel"] as const;
+export const OPENING_SUPPLY_SECTION_ORDER = ["EKIPMAN", "ZUCCACIYE", "ACILIS_MALI"] as const;
+export const OPENING_PLAN_SECTION_ORDER = ["Organizasyon", "Altyapı", "Mimari ve İnşaat", "EKIPMAN", "ZUCCACIYE", "Tabela ve Görsel", "ACILIS_MALI"] as const;
+
+export const OPENING_LOGISTICS_CATEGORIES: string[] = [];
 
 export const OPENING_LOGISTICS_STATUSES = [
   ["SIPARIS", "Sipariş"],
@@ -106,65 +108,40 @@ const doc = (category: string, title: string, sortOrder: number, companyTypeCond
 });
 
 export const defaultOpeningSetupItems: OpeningChecklistSeedItem[] = [
-  setup("Altyapı", "Elektrik altyapısı", "INVESTOR", 10),
-  setup("Altyapı", "Su arıtma hazırlığı", "INVESTOR", 20),
-  setup("Altyapı", "Cihaz su giderlerinin altyapı hazırlığı", "INVESTOR", 30),
-  setup("Altyapı", "İklimlendirme", "INVESTOR", 40),
-  setup("Altyapı", "Ses sistemi", "INVESTOR", 50),
-  setup("Altyapı", "Aydınlatma", "INVESTOR", 60),
-  setup("Altyapı", "Kamera sistemi", "INVESTOR", 70),
-  setup("Mimari ve İnşaat", "Mimari çizim", "ARCHITECTURE", 80),
-  setup("Mimari ve İnşaat", "Yer döşeme", "INVESTOR", 90),
-  setup("Mimari ve İnşaat", "Duvar örme", "INVESTOR", 100),
-  setup("Mimari ve İnşaat", "TV demir altyapısı", "INVESTOR", 110),
-  setup("Mimari ve İnşaat", "Lavabo / WC", "INVESTOR", 120),
-  setup("Mimari ve İnşaat", "Boya", "INVESTOR", 130),
-  setup("Mimari ve İnşaat", "Alçıpan", "INVESTOR", 140),
-  setup("Mimari ve İnşaat", "Tente", "INVESTOR", 150),
-  setup("Mimari ve İnşaat", "Mobilya imalat ve montaj", "ARCHITECTURE", 155),
-  setup("Tabela ve Görsel", "Fener tabela", "MARKETING", 160),
-  setup("Tabela ve Görsel", "Fileli krom alın tabela", "MARKETING", 170),
-  setup("Tabela ve Görsel", "İç mekan kanvas tablolar", "MARKETING", 180),
-  setup("Tabela ve Görsel", "İç mekan ışıklı tabela", "MARKETING", 190),
-  setup("Tabela ve Görsel", "Duvar kağıdı", "INVESTOR", 200),
-  setup("Tabela ve Görsel", "Menüboard TV", "MARKETING", 210),
-  setup("Tabela ve Görsel", "Masa üstü QR menü", "MARKETING", 220),
-  setup("Tabela ve Görsel", "El menüsü", "MARKETING", 230),
-  setup("Ekipman", "Otomasyon sistemi", "OPERATIONS", 280),
-  setup("Ekipman", "Adisyon yazıcı", "PURCHASING", 290),
-  setup("Ekipman", "POS makinesi", "FINANCE", 300),
-  setup("Ekipman", "FY makinesi", "PURCHASING", 310),
-  setup("Ekipman", "Topping bar", "PURCHASING", 320),
-  setup("Ekipman", "Buz makinesi", "PURCHASING", 330),
-  setup("Ekipman", "Mixer", "PURCHASING", 340),
-  setup("Ekipman", "Bar blender", "PURCHASING", 350),
-  setup("Ekipman", "Çaycı", "PURCHASING", 360),
-  setup("Ekipman", "Bubble waffle makinesi", "PURCHASING", 370),
-  setup("Ekipman", "Çiçek waffle makinesi", "PURCHASING", 380),
-  setup("Ekipman", "Filtre kahve makinesi", "PURCHASING", 390),
-  setup("Ekipman", "Türk kahve makinesi", "PURCHASING", 400),
-  setup("Ekipman", "Kollu meyve sıkacağı", "PURCHASING", 410),
-  setup("Ekipman", "Katı meyve sıkacağı", "PURCHASING", 420),
-  setup("Ekipman", "Limonata şerbetlik", "PURCHASING", 430),
-  setup("Ekipman", "Bulaşık makinesi", "PURCHASING", 440),
-  setup("Ekipman", "Bulaşık makinesi süzgeci ve deterjanı", "INVESTOR", 450),
-  setup("Ekipman", "Mikrodalga fırın", "PURCHASING", 460),
-  setup("Ekipman", "Fırın", "PURCHASING", 470),
-  setup("Ekipman", "Çekirdek kahve değirmeni", "PURCHASING", 480),
-  setup("Ekipman", "Çekirdek kahve makinesi", "PURCHASING", 490),
-  setup("Ekipman", "Hassas tartı", "PURCHASING", 500),
-  setup("Ekipman", "Mutfak evye ve batarya", "INVESTOR", 510),
-  setup("Operasyon Hazırlığı", "Züccaciye", "PURCHASING", 520),
-  setup("Operasyon Hazırlığı", "Baskılı tabak ve fincan", "PURCHASING", 530),
-  setup("Operasyon Hazırlığı", "Baskılı üniforma", "PURCHASING", 540),
-  setup("Operasyon Hazırlığı", "Temizlik malzemeleri", "PURCHASING", 550),
-  setup("Operasyon Hazırlığı", "Eğitim kitapçığı", "EDUCATION", 560),
-  setup("Açılış", "İsim hakkı", "FINANCE", 570),
-  setup("Açılış", "Açılış hammadde", "INVESTOR", 580),
-  setup("Açılış", "Açılış hammadde Iceberry", "WAREHOUSE_LOGISTICS", 590),
-  setup("Açılış", "Organizasyon", "OPERATIONS", 600),
-  setup("Açılış", "Nakliye", "WAREHOUSE_LOGISTICS", 610),
-  setup("Açılış", "Merkezi anlaşmalı konsinye makineler", "PURCHASING", 620),
+  setup("Organizasyon", "İsim hakkı", "FINANCE", 10),
+  setup("Organizasyon", "Konsinye Cola dik dolap", "PURCHASING", 20),
+  setup("Organizasyon", "Konsinye Algida teşhir dolabı", "PURCHASING", 30),
+  setup("Organizasyon", "Otomasyon GMU / GMÖEBYS belgesine başvuru", "OPERATIONS", 40),
+  setup("Organizasyon", "Otomasyon Iceberry'den Pavo'ya gönderim", "OPERATIONS", 50),
+  setup("Organizasyon", "Otomasyon Pavo onay", "OPERATIONS", 60),
+  setup("Organizasyon", "Otomasyon Iceberry tarafından POS seri numarasının bayiye gönderimi", "OPERATIONS", 70),
+  setup("Organizasyon", "Otomasyon bayinin POS seri numarasını anlaştığı bankaya bildirimi", "INVESTOR", 80),
+  setup("Organizasyon", "Otomasyon banka terminal tanımlamasının oluşturulması", "INVESTOR", 90),
+  setup("Organizasyon", "Otomasyon POS aktif edilmesi", "OPERATIONS", 100),
+  setup("Altyapı", "Elektrik altyapısı", "INVESTOR", 110),
+  setup("Altyapı", "Su arıtma hazırlığı", "INVESTOR", 120),
+  setup("Altyapı", "Cihaz su giderlerinin altyapı hazırlığı", "INVESTOR", 130),
+  setup("Altyapı", "İklimlendirme", "INVESTOR", 140),
+  setup("Altyapı", "Ses sistemi", "INVESTOR", 150),
+  setup("Altyapı", "Aydınlatma", "INVESTOR", 160),
+  setup("Altyapı", "Kamera sistemi", "INVESTOR", 170),
+  setup("Mimari ve İnşaat", "Mimari çizim", "ARCHITECTURE", 180),
+  setup("Mimari ve İnşaat", "Yer döşeme", "INVESTOR", 190),
+  setup("Mimari ve İnşaat", "Duvar örme", "INVESTOR", 200),
+  setup("Mimari ve İnşaat", "TV demir altyapısı", "INVESTOR", 210),
+  setup("Mimari ve İnşaat", "Lavabo / WC", "INVESTOR", 220),
+  setup("Mimari ve İnşaat", "Boya", "INVESTOR", 230),
+  setup("Mimari ve İnşaat", "Alçıpan", "INVESTOR", 240),
+  setup("Mimari ve İnşaat", "Tente", "INVESTOR", 250),
+  setup("Mimari ve İnşaat", "Mobilya imalat ve montaj", "ARCHITECTURE", 260),
+  setup("Tabela ve Görsel", "Fener tabela", "MARKETING", 270),
+  setup("Tabela ve Görsel", "Fileli krom alın tabela", "MARKETING", 280),
+  setup("Tabela ve Görsel", "İç mekan kanvas tablolar", "MARKETING", 290),
+  setup("Tabela ve Görsel", "İç mekan ışıklı tabela", "MARKETING", 300),
+  setup("Tabela ve Görsel", "Duvar kağıdı", "INVESTOR", 310),
+  setup("Tabela ve Görsel", "Menüboard TV", "MARKETING", 320),
+  setup("Tabela ve Görsel", "Masa üstü QR menü", "MARKETING", 330),
+  setup("Tabela ve Görsel", "El menüsü", "MARKETING", 340),
 ];
 
 export const defaultOpeningDocumentItems: OpeningDocumentSeedItem[] = [
@@ -191,4 +168,24 @@ export function checklistPercentage(items: { status: string }[]) {
   if (!items.length) return 0;
   const completed = items.filter((item) => ["TAMAMLANDI", "KONTROL_EDILDI", "GEREKLI_DEGIL"].includes(item.status)).length;
   return Math.round((completed / items.length) * 100);
+}
+
+export function weightedOpeningPlanPercentage(
+  setupItems: { category: string; status: string; archivedAt?: Date | string | null }[],
+  supplyItems: { section: string; status: string; archivedAt?: Date | string | null }[] = [],
+) {
+  const sectionScores: number[] = [];
+
+  for (const category of OPENING_SETUP_CATEGORY_ORDER) {
+    const categoryItems = setupItems.filter((item) => !item.archivedAt && item.category === category);
+    if (categoryItems.length) sectionScores.push(checklistPercentage(categoryItems));
+  }
+
+  for (const section of OPENING_SUPPLY_SECTION_ORDER) {
+    const sectionItems = supplyItems.filter((item) => !item.archivedAt && item.section === section);
+    if (sectionItems.length) sectionScores.push(checklistPercentage(sectionItems));
+  }
+
+  if (!sectionScores.length) return 0;
+  return Math.round(sectionScores.reduce((sum, score) => sum + score, 0) / sectionScores.length);
 }

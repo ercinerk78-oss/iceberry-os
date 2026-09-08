@@ -7,7 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { checklistPercentage } from "@/lib/opening-checklists";
+import { checklistPercentage, weightedOpeningPlanPercentage } from "@/lib/opening-checklists";
 import { dateTR, openingProjectStatusLabels, openingRiskLevelLabels } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive } from "@/lib/search";
@@ -116,7 +116,7 @@ export default async function Openings({ searchParams }: { searchParams: Promise
             const currentStage = project.stages.find((stage) => ["READY_TO_START", "IN_PROGRESS", "DELAYED", "AT_RISK"].includes(stage.status)) ?? project.stages[0];
             const lateMilestones = project.milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < now && !["COMPLETED", "CANCELLED", "SKIPPED"].includes(milestone.status)).length;
             const isLate = project.targetOpeningDate < now;
-            const setupProgress = checklistPercentage(project.setupChecklistItems);
+            const setupProgress = weightedOpeningPlanPercentage(project.setupChecklistItems, project.supplyItems);
             const documentProgress = checklistPercentage(project.documentChecklistItems);
             return (
               <Card key={project.id} className={`p-5 shadow-none ${isLate ? "border-rose-300" : ""}`}>
@@ -160,7 +160,8 @@ async function loadOpeningsData(where: Prisma.OpeningProjectWhereInput) {
           branch: { select: { branchName: true, city: true, status: true } },
           stages: { select: { nameSnapshot: true, status: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
           milestones: { select: { dueDate: true, status: true } },
-          setupChecklistItems: { where: { archivedAt: null }, select: { status: true } },
+          setupChecklistItems: { where: { archivedAt: null }, select: { category: true, status: true } },
+          supplyItems: { where: { archivedAt: null }, select: { section: true, status: true } },
           documentChecklistItems: { where: { archivedAt: null }, select: { status: true } },
           _count: { select: { tasks: true, documents: true } },
         },

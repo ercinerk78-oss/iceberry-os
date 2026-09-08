@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Archive, CheckCircle2, ChevronDown, ClipboardList, FileCheck2, Plus, RotateCcw, Search } from "lucide-react";
@@ -14,6 +15,7 @@ import {
   restoreOpeningSetupChecklistItem,
   setOpeningDocumentChecklistStatus,
   setOpeningSetupChecklistStatus,
+  syncOpeningSetupTemplate,
   updateOpeningSetupChecklistItem,
 } from "@/app/openings/actions";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +27,11 @@ import {
   HIDDEN_OPENING_DOCUMENT_TITLES,
   OPENING_DOCUMENT_CATEGORIES,
   OPENING_DOCUMENT_STATUSES,
+  OPENING_PLAN_SECTION_ORDER,
   OPENING_RESPONSIBLE_DEPARTMENTS,
   OPENING_SETUP_CATEGORIES,
   OPENING_SETUP_STATUSES,
+  weightedOpeningPlanPercentage,
   responsibleDepartmentLabels,
   setupStatusLabels,
 } from "@/lib/opening-checklists";
@@ -97,7 +101,7 @@ export function OpeningChecklistPanel({
   const passiveSetupItems = setupItems.filter((item) => item.archivedAt);
   const filteredActiveSetupItems = useMemo(() => filterSetupItems(activeSetupItems, setupSearch), [activeSetupItems, setupSearch]);
   const visibleDocumentItems = documentItems.filter((item) => !HIDDEN_OPENING_DOCUMENT_TITLES.includes(item.title as (typeof HIDDEN_OPENING_DOCUMENT_TITLES)[number]));
-  const setupPercent = checklistPercentage(activeSetupItems);
+  const setupPercent = weightedOpeningPlanPercentage(activeSetupItems, supplyItems);
   const documentPercent = checklistPercentage(visibleDocumentItems);
   const hasChecklist = activeSetupItems.length || passiveSetupItems.length || visibleDocumentItems.length;
 
@@ -140,10 +144,12 @@ export function OpeningChecklistPanel({
             <ClipboardList className="size-5" />
             <h2 className="text-lg font-semibold">Kurulum Planı</h2>
           </div>
+          <form action={syncOpeningSetupTemplate.bind(null, projectId)}>
+            <Button type="submit" variant="outline" className="w-full sm:w-auto"><ClipboardList className="size-4" />Güncel Kurulum Şablonuyla Eşitle</Button>
+          </form>
           <SetupAddForm action={addSetupAction} state={setupState} />
-          <SupplySummaryGrid items={supplyItems} />
           <SetupSearch value={setupSearch} onChange={setSetupSearch} total={activeSetupItems.length} resultCount={filteredActiveSetupItems.length} />
-          <GroupedSetupItems items={filteredActiveSetupItems} search={setupSearch} />
+          <OpeningPlanSections projectId={projectId} setupItems={filteredActiveSetupItems} supplyItems={supplyItems} search={setupSearch} />
           <PassiveSetupItems items={passiveSetupItems} />
         </section>
 
@@ -222,16 +228,25 @@ function SetupSearch({ value, onChange, total, resultCount }: { value: string; o
   );
 }
 
-function GroupedSetupItems({ items, search }: { items: SetupItem[]; search: string }) {
+function OpeningPlanSections({ projectId, setupItems, supplyItems, search }: { projectId: string; setupItems: SetupItem[]; supplyItems: SupplySummaryItem[]; search: string }) {
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const isSearching = Boolean(search.trim());
-  if (!items.length) {
+  const groupedSetupItems = new Map(groupByCategory(setupItems));
+
+  if (!setupItems.length && !supplyItems.length) {
     return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Aramaya uygun aktif kurulum kalemi bulunamadı.</p>;
   }
 
   return (
     <div className="space-y-4">
-      {groupByCategory(items).map(([category, categoryItems]) => {
+      {OPENING_PLAN_SECTION_ORDER.map((section) => {
+        if (isSupplyPlanSection(section)) {
+          return <SupplySummaryCard key={section} projectId={projectId} section={section} items={supplyItems.filter((item) => item.section === section)} />;
+        }
+
+        const category = section;
+        const categoryItems = groupedSetupItems.get(category) ?? [];
+        if (!categoryItems.length) return null;
         const isOpen = isSearching || Boolean(openCategories[category]);
         const percent = checklistPercentage(categoryItems);
         return (
@@ -484,32 +499,32 @@ function completedDocumentCount(items: DocumentItem[]) {
   return items.filter((item) => ["KONTROL_EDILDI", "GEREKLI_DEGIL"].includes(item.status)).length;
 }
 
-function SupplySummaryGrid({ items }: { items: SupplySummaryItem[] }) {
-  const sections = ["EKIPMAN", "ZUCCACIYE", "ACILIS_MALI"];
+function SupplySummaryCard({ projectId, section, items }: { projectId: string; section: string; items: SupplySummaryItem[] }) {
+  const percent = openingSupplyPercentage(items);
+  const activeCount = openingSupplyActiveCount(items);
+  const completedCount = openingSupplyCompletedCount(items);
   return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {sections.map((section) => {
-        const sectionItems = items.filter((item) => item.section === section);
-        const percent = openingSupplyPercentage(sectionItems);
-        const activeCount = openingSupplyActiveCount(sectionItems);
-        const completedCount = openingSupplyCompletedCount(sectionItems);
-        return (
-          <Card key={section} className="p-4 shadow-none">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{openingSupplySectionLabels[section]}</p>
-                <p className="mt-1 text-sm text-[#65705f]">{completedCount} / {activeCount} ürün tamamlandı</p>
-              </div>
-              <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
-            </div>
-            <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
-          </Card>
-        );
-      })}
-    </div>
+    <Card className="p-4 shadow-none">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{openingSupplySectionLabels[section]}</p>
+          <p className="mt-1 text-sm text-[#65705f]">{completedCount} / {activeCount} ürün tamamlandı</p>
+          <p className="mt-1 text-xs text-[#65705f]">Ürün adedi fazla olsa da ana ilerlemede tek bölüm ağırlığıyla hesaplanır.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={percent === 100 ? "default" : "secondary"}>%{percent}</Badge>
+          <Button asChild variant="outline" size="sm"><Link href={`/openings/${projectId}?tab=${encodeURIComponent(openingSupplySectionLabels[section] ?? section)}`}>Detaya Git</Link></Button>
+        </div>
+      </div>
+      <div className="mt-3 h-2 rounded bg-[#edf0e9]"><div className="h-2 rounded bg-[#6fbe44]" style={{ width: `${percent}%` }} /></div>
+    </Card>
   );
 }
 
 function isSupplyChecklistCategory(category: string) {
-  return category === "Ekipman" || category === "Operasyon Hazırlığı";
+  return category === "Ekipman" || category === "Operasyon Hazırlığı" || category === "Açılış";
+}
+
+function isSupplyPlanSection(section: string) {
+  return section === "EKIPMAN" || section === "ZUCCACIYE" || section === "ACILIS_MALI";
 }
