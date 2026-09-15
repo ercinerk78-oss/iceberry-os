@@ -13,6 +13,7 @@ import {
 } from "@/lib/academy-lms";
 import { AcademyService } from "@/lib/academy-service";
 import { requirePermission, requireUser } from "@/lib/auth";
+import { accessibleBranchIds } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 
@@ -435,6 +436,7 @@ async function attachOptionalMedia(programId: string, formData: FormData, userId
 
 export async function recordLessonProgress(input: { lessonId: string; progressPercentage: number; watchedSeconds: number; lastPositionSeconds: number; completed?: boolean }) {
   const user = await requireUser();
+  const branchIds = await accessibleBranchIds(user.id, user.role);
   const lesson = await prisma.trainingLesson.findUnique({
     where: { id: input.lessonId },
     include: { module: { select: { programId: true, program: { select: { version: true } } } } },
@@ -446,7 +448,14 @@ export async function recordLessonProgress(input: { lessonId: string; progressPe
 
   await prisma.$transaction(async (tx) => {
     const assigned = await tx.trainingAssignment.findFirst({
-      where: { programId: lesson.module.programId, programVersion: lesson.module.program.version, userId: user.id },
+      where: {
+        programId: lesson.module.programId,
+        programVersion: lesson.module.program.version,
+        OR: [
+          { userId: user.id },
+          ...(branchIds?.length ? [{ branchId: { in: branchIds } }] : []),
+        ],
+      },
       orderBy: { assignedAt: "desc" },
     });
     const assignment = assigned

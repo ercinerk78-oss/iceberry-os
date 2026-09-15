@@ -40,6 +40,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
     templates,
     assignments,
     audits,
+    completedAuditRows,
     findings,
     correctiveActions,
     healthScores,
@@ -49,7 +50,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
     prisma.auditTemplate.findMany({ include: { sections: true }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], take: 20 }),
     prisma.auditAssignment.findMany({ where: { branch: scopedBranchWhere }, include: { branch: { select: { branchName: true } }, template: { select: { name: true } } }, orderBy: { dueAt: "asc" }, take: 20 }),
     prisma.audit.findMany({
-      where: { branch: scopedBranchWhere },
+      where: { branch: scopedBranchWhere, status: { in: ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"] } },
       include: {
         branch: { select: { branchName: true } },
         template: { include: { sections: { include: { questions: { include: { options: true } } } } } },
@@ -57,7 +58,17 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
         evidences: { where: { evidenceType: "PHOTO", documentId: { not: null } }, select: { id: true, caption: true, createdAt: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 12,
+      take: 30,
+    }),
+    prisma.audit.findMany({
+      where: { branch: scopedBranchWhere, status: { in: ["COMPLETED", "APPROVED"] } },
+      include: {
+        branch: { select: { branchName: true } },
+        template: { select: { name: true } },
+        evidences: { where: { evidenceType: "PHOTO", documentId: { not: null } }, select: { id: true, caption: true, createdAt: true } },
+      },
+      orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
+      take: 50,
     }),
     prisma.auditFinding.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["CLOSED", "VERIFIED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { createdAt: "desc" }, take: 15 }),
     prisma.correctiveAction.findMany({ where: { branch: scopedBranchWhere, status: { notIn: ["COMPLETED", "CANCELLED", "APPROVED"] } }, include: { branch: { select: { branchName: true } } }, orderBy: { dueAt: "asc" }, take: 15 }),
@@ -66,7 +77,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
   ]);
   const publishedTemplates = templates.filter((template) => template.status === "PUBLISHED");
   const activeAudits = audits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
-  const completedAudits = audits.filter((audit) => audit.status === "COMPLETED");
+  const completedAudits = completedAuditRows;
   const assignedAuditCount = assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status)).length;
   const reviewWaitingCount = audits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status)).length;
   const canManage = canManageOperations(user.role);
