@@ -9,15 +9,15 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type Params = { q?: string; status?: string; supplierId?: string };
+type Params = { q?: string; supplierId?: string };
 
-export default async function PurchaseOrdersPage({ searchParams }: { searchParams: Promise<Params> }) {
+export default async function PurchaseOrderArchivePage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const [suppliers, orders] = await Promise.all([
     prisma.supplier.findMany({ where: { archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.purchaseOrder.findMany({
       where: {
-        status: params.status || { notIn: ["CLOSED", "CANCELLED", "RECEIVED"] },
+        status: { in: ["CLOSED", "CANCELLED", "RECEIVED"] },
         supplierId: params.supplierId || undefined,
         OR: params.q
           ? [
@@ -38,32 +38,25 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           take: 3,
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ closedAt: "desc" }, { updatedAt: "desc" }],
       take: 150,
     }),
   ]);
 
   return (
-    <AppShell activeHref="/procurement/orders" eyebrow="Merkez satın alma" title="Satın Alma Siparişleri">
+    <AppShell activeHref="/procurement/orders" eyebrow="Merkez satın alma" title="Satın Alma Arşivi">
       <div className="space-y-4">
         <div className="flex flex-wrap justify-between gap-3">
           <form className="flex flex-wrap gap-2 rounded-xl border bg-white p-4">
             <input name="q" defaultValue={params.q} placeholder="PO no, tedarikçi veya referans ara" className="h-10 min-w-64 rounded-lg border px-3" />
-            <select name="status" defaultValue={params.status} className="h-10 rounded-lg border px-3">
-              <option value="">Tüm durumlar</option>
-              {PURCHASE_ORDER_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
             <select name="supplierId" defaultValue={params.supplierId} className="h-10 rounded-lg border px-3">
               <option value="">Tüm tedarikçiler</option>
               {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
             </select>
             <Button>Filtrele</Button>
           </form>
-          <Button asChild>
-            <Link href="/procurement/orders/new">Yeni Sipariş</Link>
-          </Button>
           <Button asChild variant="outline">
-            <Link href="/procurement/orders/archive">Arşiv</Link>
+            <Link href="/procurement/orders">Açık Siparişlere Dön</Link>
           </Button>
         </div>
 
@@ -71,7 +64,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
-                <tr>{["Sipariş", "Tedarikçi", "Depo", "Durum", "Sipariş Tarihi", "Teslim", "Teslimat", "Fatura", "Ödeme", "Tutar", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+                <tr>{["Sipariş", "Tedarikçi", "Depo", "Durum", "Sipariş Tarihi", "Kapanış", "Teslimat", "Tutar", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
               </thead>
               <tbody className="divide-y">
                 {orders.map((order) => {
@@ -97,10 +90,8 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
                       <td className="px-4 py-4">{order.warehouse.name}</td>
                       <td className="px-4 py-4"><Badge variant="outline">{procurementLabel(PURCHASE_ORDER_STATUSES, order.status)}</Badge></td>
                       <td className="px-4 py-4">{procurementDate(order.orderDate)}</td>
-                      <td className="px-4 py-4">{procurementDate(order.expectedDeliveryDate)}</td>
+                      <td className="px-4 py-4">{procurementDate(order.closedAt ?? order.cancelledAt ?? order.updatedAt)}</td>
                       <td className="px-4 py-4">{received} / {ordered}</td>
-                      <td className="px-4 py-4">{order.invoiceStatus}</td>
-                      <td className="px-4 py-4">{order.paymentStatus}</td>
                       <td className="px-4 py-4">{procurementMoney(order.grandTotal, order.currency)}</td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
@@ -112,7 +103,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
                   );
                 })}
                 {!orders.length ? (
-                  <tr><td colSpan={11} className="p-12 text-center text-[#65705f]">Filtreye uygun açık satın alma siparişi yok.</td></tr>
+                  <tr><td colSpan={9} className="p-12 text-center text-[#65705f]">Arşivde satın alma siparişi yok.</td></tr>
                 ) : null}
               </tbody>
             </table>

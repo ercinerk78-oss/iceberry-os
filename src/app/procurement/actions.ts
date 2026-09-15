@@ -12,6 +12,8 @@ import {
   createPurchaseRequest,
   createPurchaseOrder,
   markPurchaseOrderSent,
+  updatePurchaseOrderDetails,
+  updatePurchaseOrderItem,
   upsertSupplierProduct,
 } from "@/lib/procurement-service";
 import { prisma } from "@/lib/prisma";
@@ -99,6 +101,41 @@ export async function purchaseOrderCommand(id: string, command: string) {
   refresh();
 }
 
+export async function updatePurchaseOrderDetailsAction(id: string, formData: FormData) {
+  const user = await requirePermission("procurement");
+  await updatePurchaseOrderDetails(id, {
+    expectedDeliveryDate: optionalString(formData.get("expectedDeliveryDate")),
+    paymentTermDays: optionalNumber(formData.get("paymentTermDays")),
+    externalReference: optionalString(formData.get("externalReference")),
+    notes: optionalString(formData.get("notes")),
+    invoiceStatus: optionalString(formData.get("invoiceStatus")),
+    paymentStatus: optionalString(formData.get("paymentStatus")),
+  }, user.id);
+  await audit("PURCHASE_ORDER_UPDATED", "PurchaseOrder", id, "Satın alma siparişi detayları güncellendi.", user.id);
+  refresh();
+}
+
+export async function updatePurchaseOrderItemAction(itemId: string, formData: FormData) {
+  const user = await requirePermission("procurement");
+  const quantity = parseDecimalInput(formData.get("quantity"));
+  const unitPrice = parseDecimalInput(formData.get("unitPrice"));
+  const vatRate = parseDecimalInput(formData.get("vatRate"));
+  const discountRate = parseDecimalInput(formData.get("discountRate"));
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Miktar sıfırdan büyük olmalıdır.");
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Birim fiyat negatif olamaz.");
+  if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) throw new Error("KDV oranı 0 ile 100 arasında olmalıdır.");
+  if (!Number.isFinite(discountRate) || discountRate < 0 || discountRate > 100) throw new Error("İskonto oranı 0 ile 100 arasında olmalıdır.");
+  await updatePurchaseOrderItem(itemId, {
+    quantity,
+    unitPrice,
+    vatRate,
+    discountRate,
+    notes: optionalString(formData.get("itemNotes")),
+  }, user.id);
+  await audit("PURCHASE_ORDER_ITEM_UPDATED", "PurchaseOrderItem", itemId, "Satın alma siparişi kalemi güncellendi.", user.id);
+  refresh();
+}
+
 export async function createSupplierDirect(formData: FormData) {
   const user = await requirePermission("procurement");
   const name = String(formData.get("name") || "").trim();
@@ -175,10 +212,10 @@ export async function saveSupplierProductDirect(formData: FormData) {
 
 function purchaseItemsFromForm(formData: FormData) {
   const productIds = formData.getAll("productId").map(String);
-  const quantities = formData.getAll("quantity").map(Number);
-  const unitPrices = formData.getAll("unitPrice").map(Number);
-  const vatRates = formData.getAll("vatRate").map(Number);
-  const discountRates = formData.getAll("discountRate").map(Number);
+  const quantities = formData.getAll("quantity").map(parseDecimalInput);
+  const unitPrices = formData.getAll("unitPrice").map(parseDecimalInput);
+  const vatRates = formData.getAll("vatRate").map(parseDecimalInput);
+  const discountRates = formData.getAll("discountRate").map(parseDecimalInput);
   const notes = formData.getAll("itemNotes").map(String);
 
   return productIds
@@ -217,7 +254,7 @@ function optionalString(value: FormDataEntryValue | null) {
 }
 
 function optionalNumber(value: FormDataEntryValue | null) {
-  const text = String(value || "").trim();
+  const text = String(value || "").trim().replace(",", ".");
   if (!text) return undefined;
   const number = Number(text);
   return Number.isFinite(number) ? number : undefined;

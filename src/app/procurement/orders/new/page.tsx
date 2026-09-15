@@ -13,7 +13,19 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
     prisma.warehouse.findMany({ where: { archivedAt: null, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: { archivedAt: null, isActive: true },
-      select: { id: true, name: true, sku: true, unit: true, purchasePrice: true, vatRate: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        purchasePrice: true,
+        vatRate: true,
+        supplierProducts: {
+          where: { isActive: true, supplier: { archivedAt: null, status: "ACTIVE" } },
+          select: { supplierId: true, unitPrice: true, isPreferred: true, supplierSku: true, supplierProductName: true },
+          orderBy: [{ isPreferred: "desc" }, { updatedAt: "desc" }],
+        },
+      },
       orderBy: { name: "asc" },
     }),
     params.requestId
@@ -40,6 +52,10 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
           ...product,
           purchasePrice: product.purchasePrice || 0,
           vatRate: product.vatRate || 20,
+          supplierProducts: product.supplierProducts.map((mapping) => ({
+            ...mapping,
+            unitPrice: mapping.unitPrice == null ? null : Number(mapping.unitPrice),
+          })),
         }))}
         sourceRequestId={usableSourceRequest?.id}
         sourceRequestNumber={usableSourceRequest?.requestNumber}
@@ -48,10 +64,11 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
         initialLines={usableSourceRequest?.items.map((item) => ({
           key: item.id,
           productId: item.productId,
-          quantity: item.approvedQuantity ?? item.requestedQuantity,
-          unitPrice: Number(item.estimatedUnitCost ?? item.product.purchasePrice ?? 0),
-          vatRate: Number(item.vatRate ?? item.product.vatRate ?? 20),
-          discountRate: 0,
+          productSearch: `${item.productName} - ${item.sku}`,
+          quantity: String(item.approvedQuantity ?? item.requestedQuantity).replace(".", ","),
+          unitPrice: String(Number(item.estimatedUnitCost ?? item.product.purchasePrice ?? 0)).replace(".", ","),
+          vatRate: String(Number(item.vatRate ?? item.product.vatRate ?? 20)).replace(".", ","),
+          discountRate: "0",
           notes: item.notes ?? "",
         }))}
       />

@@ -7,10 +7,10 @@ const decimalInput = <T extends z.ZodType>(schema: T) => z.preprocess((value) =>
 
 export const purchaseOrderLineSchema = z.object({
   productId: z.string().min(1, "Ürün seçmelisiniz."),
-  quantity: z.coerce.number().positive("Miktar sıfırdan büyük olmalıdır."),
-  unitPrice: z.coerce.number().min(0, "Birim fiyat negatif olamaz."),
-  vatRate: z.coerce.number().min(0).max(100).default(20),
-  discountRate: z.coerce.number().min(0).max(100).default(0),
+  quantity: decimalInput(z.coerce.number().positive("Miktar sıfırdan büyük olmalıdır.")),
+  unitPrice: decimalInput(z.coerce.number().min(0, "Birim fiyat negatif olamaz.")),
+  vatRate: decimalInput(z.coerce.number().min(0).max(100)).default(20),
+  discountRate: decimalInput(z.coerce.number().min(0).max(100)).default(0),
   notes: z.string().max(500, "Kalem notu en fazla 500 karakter olabilir.").optional(),
 });
 

@@ -19,7 +19,18 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
     prisma.supplier.findMany({ where: { archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: { archivedAt: null, isActive: true },
-      select: { id: true, name: true, sku: true, unit: true, purchasePrice: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        purchasePrice: true,
+        supplierProducts: {
+          where: { isActive: true },
+          select: { unitPrice: true, lastQuotedAt: true, isPreferred: true },
+          orderBy: [{ isPreferred: "desc" }, { lastQuotedAt: "desc" }, { updatedAt: "desc" }],
+        },
+      },
       orderBy: { name: "asc" },
     }),
     prisma.purchaseRequest.findMany({
@@ -51,7 +62,15 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
         <PurchaseRequestForm
           warehouses={warehouses}
           suppliers={suppliers}
-          products={products.map((product) => ({ ...product, purchasePrice: Number(product.purchasePrice ?? 0) }))}
+          products={products.map((product) => ({
+            ...product,
+            purchasePrice: Number(product.purchasePrice ?? 0),
+            supplierProducts: product.supplierProducts.map((mapping) => ({
+              unitPrice: mapping.unitPrice == null ? null : Number(mapping.unitPrice),
+              lastQuotedAt: mapping.lastQuotedAt?.toISOString() ?? null,
+              isPreferred: mapping.isPreferred,
+            })),
+          }))}
           title="Satın Alma Talebi Oluştur"
         />
 

@@ -9,8 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculatePurchaseLine, calculatePurchaseTotals, procurementMoney } from "@/lib/procurement";
 
 type Option = { id: string; name: string };
-type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; vatRate: number };
-type Line = { key: string; productId: string; quantity: number; unitPrice: number; vatRate: number; discountRate: number; notes: string };
+type ProductOption = {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  purchasePrice: number;
+  vatRate: number;
+  supplierProducts: { supplierId: string; unitPrice: number | null; isPreferred: boolean; supplierSku?: string | null; supplierProductName?: string | null }[];
+};
+type Line = { key: string; productId: string; productSearch: string; quantity: string; unitPrice: string; vatRate: string; discountRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
 
@@ -35,10 +43,20 @@ export function PurchaseOrderForm({
 }) {
   const [state, action, pending] = useActionState(createPurchaseOrderAction, initialState);
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [emptyLine()]);
+  const [supplierId, setSupplierId] = useState(initialSupplierId);
+  const selectableProducts = useMemo(() => {
+    if (!supplierId) return [];
+    return products.filter((product) => product.supplierProducts.some((mapping) => mapping.supplierId === supplierId));
+  }, [products, supplierId]);
   const totals = useMemo(() => {
     return calculatePurchaseTotals(lines
-      .filter((line) => line.productId && line.quantity > 0)
-      .map((line) => calculatePurchaseLine(line)));
+      .filter((line) => line.productId && parseDecimal(line.quantity) > 0)
+      .map((line) => calculatePurchaseLine({
+        quantity: parseDecimal(line.quantity),
+        unitPrice: parseDecimal(line.unitPrice),
+        vatRate: parseDecimal(line.vatRate),
+        discountRate: parseDecimal(line.discountRate),
+      })));
   }, [lines]);
 
   function updateLine(key: string, patch: Partial<Line>) {
@@ -48,8 +66,9 @@ export function PurchaseOrderForm({
       if (patch.productId) {
         const product = products.find((item) => item.id === patch.productId);
         if (product) {
-          next.unitPrice = product.purchasePrice;
-          next.vatRate = product.vatRate;
+          next.productSearch = `${product.name} - ${productLabel(product, supplierId)}`;
+          next.unitPrice = formatInputNumber(lastSupplierPrice(product, supplierId) ?? product.purchasePrice);
+          next.vatRate = formatInputNumber(product.vatRate);
         }
       }
       return next;
@@ -72,10 +91,22 @@ export function PurchaseOrderForm({
           <CardContent className="grid gap-3 md:grid-cols-2">
             <label className="text-sm">
               Tedarikçi
-              <select name="supplierId" required defaultValue={initialSupplierId} className="mt-1 h-10 w-full rounded-lg border px-3">
+              <select
+                name="supplierId"
+                required
+                value={supplierId}
+                onChange={(event) => {
+                  setSupplierId(event.target.value);
+                  setLines((current) => current.map((line) => ({ ...line, productId: "", productSearch: "", unitPrice: "", vatRate: "20" })));
+                }}
+                className="mt-1 h-10 w-full rounded-lg border px-3"
+              >
                 <option value="">Tedarikçi seçin</option>
                 {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
               </select>
+              {supplierId && !selectableProducts.length ? (
+                <span className="mt-1 block text-xs text-amber-700">Bu tedarikçiye bağlı aktif ürün bulunmuyor.</span>
+              ) : null}
             </label>
             <label className="text-sm">
               Teslim Deposu
@@ -121,32 +152,58 @@ export function PurchaseOrderForm({
           <CardContent className="space-y-3">
             {lines.map((line) => {
               const product = products.find((item) => item.id === line.productId);
-              const amounts = calculatePurchaseLine(line);
+              const productOptions = productMatches(selectableProducts, line.productSearch, supplierId);
+              const amounts = calculatePurchaseLine({
+                quantity: parseDecimal(line.quantity),
+                unitPrice: parseDecimal(line.unitPrice),
+                vatRate: parseDecimal(line.vatRate),
+                discountRate: parseDecimal(line.discountRate),
+              });
 
               return (
                 <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.4fr_0.5fr_0.7fr_0.5fr_0.5fr_0.8fr_auto]">
-                  <label className="text-xs">
+                  <div className="relative text-xs">
                     Ürün
-                    <select name="productId" value={line.productId} onChange={(event) => updateLine(line.key, { productId: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2">
-                      <option value="">Ürün seçin</option>
-                      {products.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.sku}</option>)}
-                    </select>
-                  </label>
+                    <input
+                      value={line.productSearch}
+                      onChange={(event) => updateLine(line.key, { productSearch: event.target.value, productId: "" })}
+                      placeholder={supplierId ? "Tedarikçi ürünlerinde ara" : "Önce tedarikçi seçin"}
+                      disabled={!supplierId}
+                      className="mt-1 h-10 w-full rounded-lg border px-2 disabled:bg-[#f3f4ef]"
+                    />
+                    <input type="hidden" name="productId" value={line.productId} />
+                    {supplierId && line.productSearch && !line.productId ? (
+                      <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border bg-white p-1 shadow-lg">
+                        {productOptions.slice(0, 12).map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => updateLine(line.key, { productId: item.id })}
+                            className="block w-full rounded-md px-3 py-2 text-left hover:bg-[#f8faf6]"
+                          >
+                            <span className="font-medium">{item.name}</span>
+                            <span className="block text-[11px] text-[#65705f]">{productLabel(item, supplierId)}</span>
+                          </button>
+                        ))}
+                        {!productOptions.length ? <p className="px-3 py-2 text-[#65705f]">Bu tedarikçide ürün bulunamadı.</p> : null}
+                      </div>
+                    ) : null}
+                  </div>
                   <label className="text-xs">
                     Miktar
-                    <input name="quantity" type="number" min="0" step="0.01" value={line.quantity || ""} onChange={(event) => updateLine(line.key, { quantity: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                    <input name="quantity" type="text" inputMode="decimal" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
                   </label>
                   <label className="text-xs">
                     Birim Fiyat
-                    <input name="unitPrice" type="number" min="0" step="0.01" value={line.unitPrice || ""} onChange={(event) => updateLine(line.key, { unitPrice: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                    <input name="unitPrice" type="text" inputMode="decimal" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
                   </label>
                   <label className="text-xs">
                     KDV %
-                    <input name="vatRate" type="number" min="0" max="100" step="0.01" value={line.vatRate} onChange={(event) => updateLine(line.key, { vatRate: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                    <input name="vatRate" type="text" inputMode="decimal" value={line.vatRate} onChange={(event) => updateLine(line.key, { vatRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
                   </label>
                   <label className="text-xs">
                     İskonto %
-                    <input name="discountRate" type="number" min="0" max="100" step="0.01" value={line.discountRate} onChange={(event) => updateLine(line.key, { discountRate: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                    <input name="discountRate" type="text" inputMode="decimal" value={line.discountRate} onChange={(event) => updateLine(line.key, { discountRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
                   </label>
                   <label className="text-xs">
                     Not
@@ -204,10 +261,43 @@ function emptyLine(): Line {
   return {
     key: crypto.randomUUID(),
     productId: "",
-    quantity: 0,
-    unitPrice: 0,
-    vatRate: 20,
-    discountRate: 0,
+    productSearch: "",
+    quantity: "",
+    unitPrice: "",
+    vatRate: "20",
+    discountRate: "0",
     notes: "",
   };
+}
+
+function productLabel(product: ProductOption, supplierId?: string) {
+  const mapping = supplierId ? product.supplierProducts.find((item) => item.supplierId === supplierId) : null;
+  const supplierSku = mapping?.supplierSku ? `${mapping.supplierSku} · ` : "";
+  const supplierName = mapping?.supplierProductName ? `${mapping.supplierProductName} · ` : "";
+  return `${supplierSku}${supplierName}${product.sku} · ${product.unit}`;
+}
+
+function productMatches(products: ProductOption[], query: string, supplierId?: string) {
+  const text = query.trim().toLocaleLowerCase("tr-TR");
+  if (!text) return products.slice(0, 12);
+  return products.filter((product) => {
+    const mapping = supplierId ? product.supplierProducts.find((item) => item.supplierId === supplierId) : null;
+    return `${product.name} ${product.sku} ${mapping?.supplierSku ?? ""} ${mapping?.supplierProductName ?? ""}`.toLocaleLowerCase("tr-TR").includes(text);
+  });
+}
+
+function lastSupplierPrice(product: ProductOption, supplierId?: string) {
+  if (!supplierId) return null;
+  const mapping = product.supplierProducts.find((item) => item.supplierId === supplierId);
+  return mapping?.unitPrice ?? null;
+}
+
+function parseDecimal(value: string) {
+  const parsed = Number(String(value || "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatInputNumber(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return String(value).replace(".", ",");
 }

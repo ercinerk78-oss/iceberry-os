@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Option = { id: string; name: string };
-type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number };
+type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
 type Line = { key: string; productId: string; productSearch: string; quantity: string; estimatedUnitCost: string; vatRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
@@ -35,7 +35,7 @@ export function PurchaseRequestForm({
         const product = products.find((item) => item.id === patch.productId);
         if (product) {
           next.productSearch = productLabel(product);
-          next.estimatedUnitCost = formatInputNumber(product.purchasePrice);
+          next.estimatedUnitCost = formatInputNumber(lastKnownPrice(product));
         }
       }
       return next;
@@ -191,4 +191,9 @@ function productMatches(products: ProductOption[], query: string) {
 function formatInputNumber(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "";
   return String(value).replace(".", ",");
+}
+
+function lastKnownPrice(product: ProductOption) {
+  const supplierPrice = product.supplierProducts.find((mapping) => mapping.unitPrice != null)?.unitPrice;
+  return supplierPrice ?? product.purchasePrice;
 }

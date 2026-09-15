@@ -25,6 +25,7 @@ export default async function ProcurementPage() {
     }),
     prisma.goodsReceipt.count({ where: { status: { in: ["PENDING_MAPPING", "PENDING_RECEIPT", "IN_PROGRESS"] } } }),
     prisma.purchaseOrder.findMany({
+      where: { status: { notIn: ["CLOSED", "CANCELLED", "RECEIVED"] } },
       include: { supplier: { select: { name: true } }, warehouse: { select: { name: true } }, items: { select: { id: true } } },
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -43,6 +44,9 @@ export default async function ProcurementPage() {
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/procurement/requests">Bekleyen Talepler</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/procurement/orders/archive">Arşiv</Link>
             </Button>
             <Button asChild>
               <Link href="/procurement/orders/new">Talep Olmadan Sipariş Oluştur</Link>
