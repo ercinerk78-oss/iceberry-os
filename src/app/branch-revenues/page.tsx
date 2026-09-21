@@ -144,8 +144,10 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => {
     const monthNo = index + 1;
     const records = yearRecords.filter((record) => record.month === monthNo);
+    const total = records.reduce((sum, record) => sum + Number(record.grossRevenue || 0), 0);
+    const currencyTotals = groupTotal(records);
 
-    return { label: String(monthNo).padStart(2, "0"), total: records.reduce((sum, record) => sum + record.grossRevenue, 0) };
+    return { label: String(monthNo).padStart(2, "0"), monthNo, total, currencyTotals };
   });
   const maxBar = Math.max(1, ...rows.map((row) => row.actual));
   const maxLine = Math.max(1, ...monthlyTotals.map((item) => item.total));
@@ -201,14 +203,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
           <Card className="shadow-none">
             <CardHeader><CardTitle>Aylık Toplam Ciro Eğrisi</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex h-52 items-end gap-2 border-b border-l border-[#dfe4dc] p-3">
-                {monthlyTotals.map((item) => (
-                  <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                    <div className="w-full rounded-t bg-[#17201b]" style={{ height: `${Math.max(4, (item.total / maxLine) * 180)}px` }} />
-                    <span className="text-xs text-[#65705f]">{item.label}</span>
-                  </div>
-                ))}
-              </div>
+              <MonthlyRevenueChart items={monthlyTotals} maxTotal={maxLine} />
             </CardContent>
           </Card>
         </section>
@@ -357,6 +352,46 @@ function groupTotal(records: BranchRevenueRecordWithUser[]) {
   }, {});
 }
 
+function MonthlyRevenueChart({
+  items,
+  maxTotal,
+}: {
+  items: { label: string; monthNo: number; total: number; currencyTotals: Record<string, number> }[];
+  maxTotal: number;
+}) {
+  return (
+    <div className="rounded-lg border border-[#dfe4dc] bg-[#fbfcf9] p-4">
+      <div className="flex h-56 items-end gap-2 border-b border-l border-[#dfe4dc] px-2 pt-8">
+        {items.map((item) => {
+          const barPercent = item.total > 0 ? Math.max(3, (item.total / maxTotal) * 100) : 0;
+          const valueText = moneyText(item.currencyTotals);
+
+          return (
+            <div key={item.label} className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+              <button
+                type="button"
+                title={`${item.monthNo}. ay: ${valueText}`}
+                aria-label={`${item.monthNo}. ay toplam ciro ${valueText}`}
+                className="relative flex h-full w-full items-end rounded-t outline-none focus-visible:ring-2 focus-visible:ring-[#6fbe44]"
+              >
+                <span
+                  className="w-full rounded-t bg-[#17201b] transition-all group-hover:bg-[#6fbe44] group-focus-within:bg-[#6fbe44]"
+                  style={{ height: `${barPercent}%` }}
+                />
+              </button>
+              <span className="text-xs text-[#65705f]">{item.label}</span>
+              <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-10 hidden min-w-max -translate-x-1/2 rounded-lg border border-[#dfe4dc] bg-white px-3 py-2 text-xs font-semibold text-[#17201b] shadow-lg group-hover:block group-focus-within:block">
+                {valueText}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs text-[#65705f]">Ayın üzerine gelince veya dokununca toplam ciro görünür.</p>
+    </div>
+  );
+}
+
 function groupAverage(records: BranchRevenueRecordWithUser[]) {
   const totals = groupTotal(records);
   const counts = records.reduce<Record<string, number>>((acc, record) => {
@@ -413,6 +448,13 @@ function moneyList(values: Record<string, number>) {
   if (!entries.length) return "—";
 
   return <div className="space-y-1">{entries.map(([currency, value]) => <p key={currency}>{formatMoney(value, currency)}</p>)}</div>;
+}
+
+function moneyText(values: Record<string, number>) {
+  const entries = Object.entries(values);
+  if (!entries.length) return "Veri yok";
+
+  return entries.map(([currency, value]) => formatMoney(value, currency)).join(" / ");
 }
 
 function percentList(values: Record<string, number | null>) {
