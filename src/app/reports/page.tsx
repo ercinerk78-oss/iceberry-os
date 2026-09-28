@@ -29,6 +29,7 @@ type MonthReportRow = {
   completedLeadCount: number;
   appointmentRate: number | null;
   interviewRate: number | null;
+  leadToInterviewRate: number | null;
   averageScore: number | null;
 };
 
@@ -81,11 +82,12 @@ export default async function ReportsPage() {
 
   return (
     <AppShell activeHref="/reports" eyebrow="Lead ve randevu analitiği" title="Raporlar">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <MetricCard title="Bu Yıl Toplam Başvuru" value={formatValue(totalLeads)} note="Hatalı form hariç" icon={MessageSquareText} />
         <MetricCard title="Aylık Ortalama Talep" value={averageMonthlyLeadCount.toFixed(1)} note="Ay bazlı ortalama başvuru" icon={LineChart} />
         <MetricCard title="Randevuya Dönüşüm" value={formatPercent(ratio(totalAppointmentLeads, totalLeads))} note="Başvurudan randevuya" icon={CalendarCheck2} />
         <MetricCard title="Görüşme Gerçekleşme" value={formatPercent(ratio(totalCompletedLeads, totalAppointmentLeads))} note="Randevudan görüşmeye" icon={UsersRound} />
+        <MetricCard title="Başvurudan Görüşmeye" value={formatPercent(ratio(totalCompletedLeads, totalLeads))} note="Toplam başvuru içinden" icon={UsersRound} />
         <MetricCard title="Ortalama Görüşme Puanı" value={averageMonthlyScore == null ? "—" : averageMonthlyScore.toFixed(1)} note="Ayların ortalama puanı" icon={Star} />
       </div>
 
@@ -98,7 +100,7 @@ export default async function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="text-xs uppercase text-[#65705f]">
                 <tr className="border-b border-[#edf0e9]">
                   <th className="px-3 py-3 font-medium">Ay</th>
@@ -106,6 +108,7 @@ export default async function ReportsPage() {
                   <th className="px-3 py-3 font-medium">Aylık Değişim</th>
                   <th className="px-3 py-3 font-medium">Randevuya Dönüşüm</th>
                   <th className="px-3 py-3 font-medium">Görüşme Oranı</th>
+                  <th className="px-3 py-3 font-medium">Başvurudan Görüşmeye</th>
                   <th className="px-3 py-3 font-medium">Görüşme Ortalama Puanı</th>
                 </tr>
               </thead>
@@ -132,6 +135,9 @@ export default async function ReportsPage() {
                     </td>
                     <td className="px-3 py-4">
                       <RateWithCount rate={row.interviewRate} count={row.completedLeadCount} suffix="görüşme" />
+                    </td>
+                    <td className="px-3 py-4">
+                      <RateWithCount rate={row.leadToInterviewRate} count={row.completedLeadCount} suffix="görüşme" />
                     </td>
                     <td className="px-3 py-4">{row.averageScore == null ? "—" : `${row.averageScore.toFixed(1)} / 10`}</td>
                   </tr>
@@ -186,6 +192,7 @@ function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex
       completedLeadCount: completedLeads.length,
       appointmentRate: ratio(appointmentLeads.length, leadCount),
       interviewRate: ratio(completedLeads.length, appointmentLeads.length),
+      leadToInterviewRate: ratio(completedLeads.length, leadCount),
       averageScore: average(scoreValues),
     };
   });
