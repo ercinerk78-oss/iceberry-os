@@ -40,6 +40,7 @@ export class AuditWorkflowService {
   }
 
   async submitAudit(auditId: string, userId: string) {
+    await this.ensureSubmitRequirements(auditId);
     const score = await new AuditScoringService().scoreAudit(auditId);
     return prisma.$transaction(async (tx) => {
       const audit = await tx.audit.update({
@@ -78,21 +79,60 @@ export class AuditWorkflowService {
     });
   }
 
+  private async ensureSubmitRequirements(auditId: string) {
+    const audit = await prisma.audit.findUnique({
+      where: { id: auditId },
+      include: {
+        template: {
+          include: {
+            sections: {
+              where: { isActive: true },
+              include: { questions: { where: { isActive: true }, orderBy: { sortOrder: "asc" } } },
+              orderBy: { sortOrder: "asc" },
+            },
+          },
+        },
+        answers: { include: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true } } } },
+      },
+    });
+    if (!audit) throw new Error("Denetim bulunamadı.");
+
+    const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+    const unanswered = audit.template.sections.flatMap((section) =>
+      section.questions.filter((question) => !answers.has(question.id)).map((question) => `${section.name}: ${question.title}`),
+    );
+    if (unanswered.length) {
+      throw new Error(`Denetimi göndermek için tüm soruları cevaplayın: ${unanswered.slice(0, 3).join(", ")}${unanswered.length > 3 ? "..." : ""}`);
+    }
+
+    const missingPhotos = audit.template.sections.flatMap((section) =>
+      section.questions.filter((question) => {
+        const answer = answers.get(question.id);
+        return question.requiresPhoto && answer && !answer.isNotApplicable && answer.evidences.length === 0;
+      }).map((question) => `${section.name}: ${question.title}`),
+    );
+
+    if (missingPhotos.length) {
+      throw new Error(`Denetimi göndermek için fotoğraf zorunlu soruları tamamlayın: ${missingPhotos.slice(0, 3).join(", ")}${missingPhotos.length > 3 ? "..." : ""}`);
+    }
+  }
+
   async approveAudit(auditId: string, reviewerId: string) {
+    await new AuditScoringService().scoreAudit(auditId);
     return prisma.$transaction(async (tx) => {
       const audit = await tx.audit.findUnique({ where: { id: auditId } });
       if (!audit) throw new Error("Denetim bulunamadı.");
-      const status = audit.requiresFollowUp ? "REVIEW_REQUIRED" : "COMPLETED";
+      const completedAt = new Date();
       const updated = await tx.audit.update({
         where: { id: auditId },
-        data: { status, reviewerId, reviewedAt: new Date(), completedAt: status === "COMPLETED" ? new Date() : null },
+        data: { status: "COMPLETED", reviewerId, reviewedAt: completedAt, completedAt, requiresFollowUp: false, followUpDueAt: null },
       });
       if (audit.assignmentId) {
-        await tx.auditAssignment.update({ where: { id: audit.assignmentId }, data: { status: status === "COMPLETED" ? "COMPLETED" : "REVIEW_REQUIRED", reviewerId } });
+        await tx.auditAssignment.update({ where: { id: audit.assignmentId }, data: { status: "COMPLETED", reviewerId } });
       }
       await tx.branch.update({
         where: { id: audit.branchId },
-        data: { lastAuditAt: new Date(), lastAuditScore: Number(audit.percentageScore) },
+        data: { lastAuditAt: completedAt, lastAuditScore: Number(updated.percentageScore) },
       });
       await tx.branchTimelineEvent.create({
         data: {
@@ -101,7 +141,7 @@ export class AuditWorkflowService {
           action: "AUDIT_APPROVED",
           entityType: "Audit",
           entityId: audit.id,
-          description: status === "COMPLETED" ? "Denetim onaylandı ve kapatıldı." : "Denetim onaylandı, takip aksiyonları bekleniyor.",
+          description: "Denetim onaylandı ve kapatıldı.",
         },
       });
       return updated;

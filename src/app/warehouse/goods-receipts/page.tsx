@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GoodsReceiptForm } from "@/components/warehouse/goods-receipt-form";
 import { prisma } from "@/lib/prisma";
 import { emptyOnMissingSchema } from "@/lib/supply-chain-data";
 import { dateTime } from "@/lib/warehouse";
@@ -8,14 +9,35 @@ import { dateTime } from "@/lib/warehouse";
 export const dynamic = "force-dynamic";
 
 export default async function GoodsReceiptsPage() {
-  const rows = await emptyOnMissingSchema(
+  const [rows, openOrders] = await Promise.all([
+    emptyOnMissingSchema(
     prisma.goodsReceipt.findMany({
-      include: { warehouse: { select: { name: true } }, supplier: { select: { name: true } }, items: { select: { id: true } } },
+      include: {
+        warehouse: { select: { name: true } },
+        supplier: { select: { name: true } },
+        purchaseOrder: { select: { orderNumber: true } },
+        items: { select: { id: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
     "GoodsReceipt",
-  );
+    ),
+    prisma.purchaseOrder.findMany({
+      where: { status: { in: ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] } },
+      include: {
+        supplier: { select: { name: true } },
+        warehouse: { select: { name: true } },
+        items: {
+          where: { remainingQuantity: { gt: 0 } },
+          select: { productId: true, productName: true, sku: true, unit: true, remainingQuantity: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+      orderBy: { expectedDeliveryDate: "asc" },
+      take: 80,
+    }),
+  ]);
   const waiting = rows.filter((row) => ["PENDING_MAPPING", "PENDING_RECEIPT", "IN_PROGRESS"].includes(row.status)).length;
   const discrepancy = rows.filter((row) => row.discrepancyStatus !== "NONE").length;
   const completed = rows.filter((row) => ["COMPLETED", "APPROVED"].includes(row.status)).length;
@@ -23,6 +45,17 @@ export default async function GoodsReceiptsPage() {
   return (
     <AppShell activeHref="/warehouse/goods-receipts" eyebrow="Merkez depo" title="Bekleyen Mal Kabuller">
       <div className="space-y-5">
+        <GoodsReceiptForm
+          orders={openOrders
+            .filter((order) => order.items.length)
+            .map((order) => ({
+              id: order.id,
+              orderNumber: order.orderNumber,
+              supplierName: order.supplier.name,
+              warehouseName: order.warehouse.name,
+              items: order.items,
+            }))}
+        />
         <section className="grid gap-3 md:grid-cols-3">
           <Metric title="Bekleyen" value={waiting} />
           <Metric title="Fark İncelemesi" value={discrepancy} />
@@ -39,7 +72,9 @@ export default async function GoodsReceiptsPage() {
                     {row.discrepancyStatus !== "NONE" ? <Badge variant="outline">{row.discrepancyStatus}</Badge> : null}
                   </div>
                   <p className="mt-2 font-semibold">{row.invoiceNumber ?? row.externalDocumentId ?? row.id}</p>
-                  <p className="text-sm text-[#65705f]">{row.warehouse.name} · {row.supplier?.name ?? "Tedarikçi yok"} · Kalem: {row.items.length}</p>
+                  <p className="text-sm text-[#65705f]">
+                    {row.warehouse.name} · {row.supplier?.name ?? "Tedarikçi yok"} · {row.purchaseOrder?.orderNumber ?? "PO bağlantısı yok"} · Kalem: {row.items.length}
+                  </p>
                 </div>
                 <p className="text-sm text-[#65705f]">{dateTime(row.createdAt)}</p>
               </CardContent>

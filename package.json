@@ -8,13 +8,19 @@
     "postinstall": "node scripts/prisma-generate-safe.mjs",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed"
+    "db:schema:read": "node scripts/read-production-schema.mjs",
+    "db:migrate:status": "prisma migrate status",
+    "db:migrate:deploy": "node scripts/run-production-migrations.mjs",
+    "db:seed": "prisma db seed",
+    "openings:ensure-checklists": "tsx scripts/ensure-opening-checklists.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@prisma/client": "^6.19.0",
+    "@vercel/blob": "^2.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.23.0",

@@ -1,13 +1,16 @@
 "use server";
 
+import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireBranchOperationAccess, requireCentralOperationsAccess } from "@/lib/operations/access";
+import { requireBranchOperationAccess, requireCentralOperationsAccess, requireOperationsUser } from "@/lib/operations/access";
+import { AuditScoringService } from "@/lib/operations/audit-scoring-service";
 import { AuditWorkflowService, scoreForAnswer } from "@/lib/operations/audit-workflow-service";
 import { BranchHealthScoreService } from "@/lib/operations/health-score-service";
 import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/storage";
 
 const templateSchema = z.object({
   name: z.string().trim().min(2),
@@ -16,6 +19,7 @@ const templateSchema = z.object({
   branchConcept: z.string().optional(),
   ownershipType: z.string().optional(),
   passingScore: z.coerce.number().min(0).max(100),
+  requiresPhoto: z.string().optional(),
 });
 
 const assignmentSchema = z.object({
@@ -56,12 +60,16 @@ const defaultSections = [
   "Resmî Belgeler",
   "Genel Değerlendirme",
 ];
+const auditPhotoMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+const maxAuditPhotoSize = 15 * 1024 * 1024;
+const bool = (value?: string) => value === "on" || value === "1";
 
 export async function createAuditTemplate(_state: { message: string }, formData: FormData) {
   const user = await requireCentralOperationsAccess();
   const parsed = templateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { message: "Denetim şablonu bilgileri eksik veya hatalı." };
   const input = parsed.data;
+  const requiresPhoto = bool(input.requiresPhoto);
   try {
     await prisma.auditTemplate.create({
       data: {
@@ -91,7 +99,7 @@ export async function createAuditTemplate(_state: { message: string }, formData:
                 isCritical: index === 3 || index === 8,
                 criticalFailureValue: index === 3 || index === 8 ? "FAIL" : null,
                 requiresComment: true,
-                requiresPhoto: index === 3 || index === 8,
+                requiresPhoto: requiresPhoto || index === 3 || index === 8,
                 requiresCorrectiveAction: true,
                 autoCreateTaskOnFailure: true,
                 taskPriorityOnFailure: index === 3 || index === 8 ? "URGENT" : "HIGH",
@@ -132,7 +140,11 @@ export async function createAuditAssignment(_state: { message: string }, formDat
   if (!parsed.success) return { message: "Denetim ataması bilgileri eksik veya hatalı." };
   const input = parsed.data;
   await requireBranchOperationAccess(input.branchId);
-  const template = await prisma.auditTemplate.findUnique({ where: { id: input.templateId } });
+  const [template, branch] = await Promise.all([
+    prisma.auditTemplate.findUnique({ where: { id: input.templateId } }),
+    prisma.branch.findUnique({ where: { id: input.branchId }, select: { branchName: true, city: true, district: true } }),
+  ]);
+  if (!branch) return { message: "Seçilen şube bulunamadı." };
   if (!template || template.status !== "PUBLISHED") return { message: "Yalnızca yayımlanmış şablon atanabilir." };
   await prisma.auditAssignment.create({
     data: {
@@ -159,20 +171,30 @@ export async function createAuditAssignment(_state: { message: string }, formDat
     },
   });
   revalidatePath("/operations");
-  return { message: "Denetim ataması oluşturuldu." };
+  revalidatePath(`/branches/${input.branchId}`);
+  revalidatePath("/branch-portal");
+  return { message: `${branch.branchName} (${[branch.city, branch.district].filter(Boolean).join(" / ")}) için denetim ataması oluşturuldu.` };
 }
 
 export async function startAuditAssignment(assignmentId: string) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
+  const assignment = await prisma.auditAssignment.findUnique({ where: { id: assignmentId }, select: { branchId: true } });
+  if (!assignment) throw new Error("Denetim ataması bulunamadı.");
+  await requireBranchOperationAccess(assignment.branchId);
   await new AuditWorkflowService().startAssignment(assignmentId, user.id);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${assignment.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function saveAuditAnswer(_state: { message: string }, formData: FormData) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
   const parsed = answerSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { message: "Denetim cevabı eksik veya hatalı." };
   const input = parsed.data;
+  const files = formData.getAll("photos").filter((value): value is File => value instanceof File && value.size > 0);
+  if (files.some((file) => !auditPhotoMimeTypes.includes(file.type as typeof auditPhotoMimeTypes[number]))) return { message: "Denetim fotoğrafı JPG, PNG veya WEBP formatında olmalıdır." };
+  if (files.some((file) => file.size > maxAuditPhotoSize)) return { message: "Her denetim fotoğrafı en fazla 15 MB olabilir." };
   const audit = await prisma.audit.findUnique({ where: { id: input.auditId }, select: { branchId: true, status: true } });
   if (!audit) return { message: "Denetim bulunamadı." };
   await requireBranchOperationAccess(audit.branchId);
@@ -182,8 +204,21 @@ export async function saveAuditAnswer(_state: { message: string }, formData: For
     include: { options: true, section: true },
   });
   if (!question) return { message: "Soru bulunamadı." };
+  if (question.requiresPhoto && input.answerValue !== "NOT_APPLICABLE" && !files.length) {
+    const existingAnswer = await prisma.auditAnswer.findUnique({
+      where: { auditId_questionId: { auditId: input.auditId, questionId: input.questionId } },
+      select: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true }, take: 1 } },
+    });
+    if (!existingAnswer?.evidences.length) return { message: "Bu soru için fotoğraf zorunlu. Lütfen fotoğraf yükleyin." };
+  }
   const selected = question.options.find((option) => option.value === input.answerValue);
   const scored = scoreForAnswer(input.answerValue, question.maximumScore, question.criticalFailureValue);
+  const stored: { file: File; fileName: string; filePath: string }[] = [];
+  try {
+    for (const file of files) {
+      const saved = await storage.save(file);
+      stored.push({ file, ...saved });
+    }
   const answer = await prisma.auditAnswer.upsert({
     where: { auditId_questionId: { auditId: input.auditId, questionId: input.questionId } },
     create: {
@@ -213,6 +248,32 @@ export async function saveAuditAnswer(_state: { message: string }, formData: For
       answeredAt: new Date(),
     },
   });
+  for (const item of stored) {
+    const document = await prisma.document.create({
+      data: {
+        fileName: item.fileName,
+        originalFileName: path.basename(item.file.name),
+        filePath: item.filePath,
+        mimeType: item.file.type,
+        fileSize: item.file.size,
+        documentType: "AUDIT_PHOTO",
+        version: "1.0",
+        description: input.comment || "Denetim fotoğrafı",
+        branchId: audit.branchId,
+        uploadedBy: user.name,
+      },
+    });
+    await prisma.auditEvidence.create({
+      data: {
+        auditId: input.auditId,
+        answerId: answer.id,
+        documentId: document.id,
+        evidenceType: "PHOTO",
+        caption: input.comment || path.basename(item.file.name),
+        uploadedById: user.id,
+      },
+    });
+  }
   if (!scored.isPassed && question.autoCreateTaskOnFailure) {
     await new AuditWorkflowService().createFindingFromAnswer({
       auditId: input.auditId,
@@ -227,13 +288,23 @@ export async function saveAuditAnswer(_state: { message: string }, formData: For
     });
   }
   revalidatePath("/operations");
-  return { message: "Denetim cevabı kaydedildi." };
+  revalidatePath(`/branches/${audit.branchId}`);
+  return { message: files.length ? "Denetim cevabı ve fotoğraf kaydedildi." : "Denetim cevabı kaydedildi." };
+  } catch (error) {
+    await Promise.all(stored.map((item) => storage.remove(item.filePath)));
+    return { message: error instanceof Error ? error.message : "Denetim fotoğrafı kaydedilemedi." };
+  }
 }
 
 export async function submitAudit(auditId: string) {
-  const user = await requireCentralOperationsAccess();
+  const user = await requireOperationsUser();
+  const existing = await prisma.audit.findUnique({ where: { id: auditId }, select: { branchId: true } });
+  if (!existing) throw new Error("Denetim bulunamadı.");
+  await requireBranchOperationAccess(existing.branchId);
   await new AuditWorkflowService().submitAudit(auditId, user.id);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${existing.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function approveAudit(auditId: string) {
@@ -241,6 +312,8 @@ export async function approveAudit(auditId: string) {
   const audit = await new AuditWorkflowService().approveAudit(auditId, user.id);
   await new BranchHealthScoreService().calculate(audit.branchId);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${audit.branchId}`);
+  revalidatePath("/branch-portal");
 }
 
 export async function createFinding(_state: { message: string }, formData: FormData) {
@@ -271,6 +344,14 @@ export async function createFinding(_state: { message: string }, formData: FormD
 
 export async function recalculateBranchHealth(branchId: string) {
   await requireBranchOperationAccess(branchId);
+  const latestAudit = await prisma.audit.findFirst({
+    where: { branchId, status: { in: ["COMPLETED", "REVIEW_REQUIRED", "SUBMITTED"] } },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (latestAudit) await new AuditScoringService().scoreAudit(latestAudit.id);
   await new BranchHealthScoreService().calculate(branchId);
   revalidatePath("/operations");
+  revalidatePath(`/branches/${branchId}`);
+  revalidatePath("/branch-portal");
 }

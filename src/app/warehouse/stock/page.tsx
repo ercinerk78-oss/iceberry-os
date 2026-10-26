@@ -1,7 +1,10 @@
-import { adjustStock, createProduct } from "@/app/orders/actions";
+import Link from "next/link";
+
+import { adjustStock, archiveProduct, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProductCreateForm } from "@/components/warehouse/product-create-form";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/warehouse";
 
@@ -27,10 +30,21 @@ export default async function StockPage() {
         id: true,
         name: true,
         sku: true,
+        barcode: true,
         salePrice: true,
         currency: true,
         minimumStockLevel: true,
+        unit: true,
         category: { select: { name: true } },
+        units: {
+          select: { id: true, code: true, name: true, conversionFactor: true, isBase: true, isPurchaseDefault: true, isShipmentDefault: true },
+          orderBy: [{ isBase: "desc" }, { conversionFactor: "asc" }],
+        },
+        barcodes: {
+          where: { isActive: true },
+          select: { id: true, barcode: true, unitName: true, conversionFactor: true, barcodeType: true },
+          orderBy: { createdAt: "desc" },
+        },
         stocks: {
           select: {
             id: true,
@@ -55,27 +69,7 @@ export default async function StockPage() {
               <CardTitle>Yeni Ürün</CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={createProduct} className="grid gap-2 sm:grid-cols-2">
-                <input name="name" placeholder="Ürün adı" className={input} required />
-                <input name="sku" placeholder="SKU" className={input} required />
-                <input name="barcode" placeholder="Barkod" className={input} />
-                <select name="categoryId" className={input} required>
-                  <option value="">Kategori</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                <input name="unit" defaultValue="Adet" className={input} />
-                <input name="vatRate" type="number" defaultValue="20" className={input} />
-                <input name="purchasePrice" type="number" step="0.01" placeholder="Alış fiyatı" className={input} />
-                <input name="salePrice" type="number" step="0.01" placeholder="Satış fiyatı" className={input} required />
-                <input name="currency" defaultValue="TRY" className={input} />
-                <input name="minimumStockLevel" type="number" defaultValue="0" className={input} />
-                <textarea name="description" placeholder="Açıklama" className="rounded-lg border p-3 sm:col-span-2" />
-                <Button className="sm:col-span-2">Ürünü Kaydet</Button>
-              </form>
+              <ProductCreateForm categories={categories} />
             </CardContent>
           </Card>
 
@@ -107,11 +101,21 @@ export default async function StockPage() {
           </Card>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border bg-white">
+        <div className="rounded-xl border bg-white">
+          <div className="flex flex-col gap-1 border-b border-[#edf0e9] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-[#17201b]">Aktif Ürün Listesi</h2>
+              <p className="text-sm text-[#65705f]">Pasife alınan ürünler bu listede ve ürün seçimlerinde görünmez.</p>
+            </div>
+            <div className="rounded-lg bg-[#ecfbdc] px-3 py-2 text-sm font-semibold text-[#2f5f20]">
+              Toplam aktif ürün: {products.length}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
-                {["Ürün", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı"].map((header) => (
+                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı", "Etiket", "İşlem"].map((header) => (
                   <th key={header} className="p-3 text-left">
                     {header}
                   </th>
@@ -130,6 +134,7 @@ export default async function StockPage() {
                           {product.name}
                           <div className="text-xs text-[#65705f]">{product.sku}</div>
                         </td>
+                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
                         <td className="p-3">{product.category.name}</td>
                         <td className="p-3">{stock.warehouse.name}</td>
                         <td className="p-3">{stock.quantity}</td>
@@ -137,21 +142,117 @@ export default async function StockPage() {
                         <td className="p-3 font-semibold">{stock.availableQuantity}</td>
                         <td className="p-3">{product.minimumStockLevel}</td>
                         <td className="p-3">{money(product.salePrice, product.currency)}</td>
+                        <td className="p-3">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/warehouse/stock/labels/${product.id}`}>Etiket</Link>
+                          </Button>
+                        </td>
+                        <td className="p-3">
+                          <form action={archiveProduct.bind(null, product.id)}>
+                            <Button size="sm" variant="destructive">Pasife Al</Button>
+                          </form>
+                        </td>
                       </tr>
                     ))
                   : [
                       <tr key={product.id} className="border-t">
                         <td className="p-3 font-semibold">{product.name}</td>
+                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
                         <td className="p-3">{product.category.name}</td>
-                        <td colSpan={6} className="p-3 text-amber-700">
+                        <td colSpan={7} className="p-3 text-amber-700">
                           Henüz stok kaydı yok.
+                        </td>
+                        <td className="p-3">
+                          <form action={archiveProduct.bind(null, product.id)}>
+                            <Button size="sm" variant="destructive">Pasife Al</Button>
+                          </form>
                         </td>
                       </tr>,
                     ],
               )}
             </tbody>
           </table>
+          </div>
         </div>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          {products.map((product) => (
+            <Card key={product.id} className="shadow-none">
+              <CardHeader>
+                <CardTitle>{product.name}</CardTitle>
+                <p className="text-sm text-[#65705f]">
+                  Ana birim: {product.unit} · Ana barkod: {product.barcode ?? "Yok"}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border bg-[#f8faf6] p-3">
+                  <h3 className="font-semibold">Tanımlı Birimler</h3>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {product.units.map((unit) => (
+                      <div key={unit.id} className="flex flex-wrap justify-between gap-2 rounded border bg-white p-2">
+                        <span><b>{unit.name}</b> ({unit.code})</span>
+                        <span>{unit.conversionFactor} {product.unit}</span>
+                      </div>
+                    ))}
+                    {!product.units.length ? <p className="text-[#65705f]">Henüz ek birim tanımlı değil.</p> : null}
+                  </div>
+                </div>
+
+                <form action={saveProductUnit} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input name="name" placeholder="Birim adı: Koli" className={input} required />
+                  <input name="code" placeholder="Kod: KOLI" className={input} required />
+                  <input name="conversionFactor" type="number" min="0.01" step="0.01" placeholder={`Kaç ${product.unit}?`} className={input} required />
+                  <input name="notes" placeholder="Not" className={input} />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input name="isPurchaseDefault" type="checkbox" />
+                    Satın alma varsayılanı
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input name="isShipmentDefault" type="checkbox" />
+                    Sevkiyat varsayılanı
+                  </label>
+                  <Button className="sm:col-span-2">Birim Kaydet</Button>
+                </form>
+
+                <div className="rounded-lg border bg-[#f8faf6] p-3">
+                  <h3 className="font-semibold">Tanımlı Barkodlar</h3>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {product.barcodes.map((barcode) => (
+                      <div key={barcode.id} className="flex flex-wrap justify-between gap-2 rounded border bg-white p-2">
+                        <span><b>{barcode.barcode}</b> · {barcode.unitName}</span>
+                        <span>{barcode.conversionFactor} {product.unit}</span>
+                      </div>
+                    ))}
+                    {!product.barcodes.length ? <p className="text-[#65705f]">Ek barkod tanımlı değil.</p> : null}
+                  </div>
+                </div>
+
+                <form action={saveProductBarcode} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input name="barcode" placeholder="Barkod" className={input} required />
+                  <select name="productUnitId" className={input} defaultValue="">
+                    <option value="">Birim seçmeden kaydet</option>
+                    {product.units.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.name} - {unit.conversionFactor} {product.unit}
+                      </option>
+                    ))}
+                  </select>
+                  <input name="unitName" placeholder="Birim adı: Koli" className={input} />
+                  <input name="conversionFactor" type="number" min="0.01" step="0.01" placeholder={`Kaç ${product.unit}?`} className={input} required />
+                  <select name="barcodeType" className={input} defaultValue="UNIT">
+                    <option value="UNIT">Birim barkodu</option>
+                    <option value="SUPPLIER">Tedarikçi barkodu</option>
+                    <option value="INTERNAL">Depo iç etiketi</option>
+                  </select>
+                  <input name="notes" placeholder="Not" className={input} />
+                  <Button className="sm:col-span-2">Barkod Kaydet</Button>
+                </form>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
       </div>
     </AppShell>
   );

@@ -61,9 +61,30 @@ const linkSchema = z.object({
   notes: optionalString,
 });
 
+const candidateLinkSchema = z.object({
+  candidateId: z.string().min(1, "Aday seçimi zorunludur."),
+  locationId: z.string().min(1, "Lokasyon seçimi zorunludur."),
+  matchStatus: z.string().default("SUGGESTED") as z.ZodType<MatchStatus>,
+  nextFollowUpAt: optionalDate,
+  notes: optionalString,
+});
+
 const documentSchema = z.object({
   documentType: z.string().min(1) as z.ZodType<LocationDocumentType>,
   description: optionalString,
+});
+
+const uploadedDocumentSchema = z.object({
+  documentType: z.string().min(1) as z.ZodType<LocationDocumentType>,
+  description: optionalString,
+  files: z.array(z.object({
+    fileName: z.string().min(1),
+    originalFileName: z.string().min(1),
+    filePath: z.string().url(),
+    fileUrl: z.string().url(),
+    mimeType: z.enum(["application/pdf", "image/jpeg", "image/png"]),
+    fileSize: z.number().int().positive().max(25 * 1024 * 1024),
+  })).min(1),
 });
 
 function refresh(locationId?: string, leadId?: string) {
@@ -72,6 +93,13 @@ function refresh(locationId?: string, leadId?: string) {
   revalidatePath("/dashboard");
   if (locationId) revalidatePath(`/locations/${locationId}`);
   if (leadId) revalidatePath(`/leads/${leadId}`);
+}
+
+function refreshCandidateLocation(locationId?: string, candidateId?: string) {
+  refresh(locationId);
+  revalidatePath("/candidates");
+  revalidatePath("/pipeline");
+  if (candidateId) revalidatePath(`/candidates/${candidateId}`);
 }
 
 function parsedLocationData(formData: FormData) {
@@ -190,6 +218,44 @@ export async function uploadLocationDocuments(locationId: string, _: LocationAct
   }
 }
 
+export async function registerLocationDocumentUploads(locationId: string, payload: unknown): Promise<LocationActionState> {
+  const user = await requireUser();
+  await requirePermission("locations.upload_document");
+  const parsed = uploadedDocumentSchema.safeParse(payload);
+  if (!parsed.success) return { success: false, message: "Yüklenen dosya bilgileri doğrulanamadı." };
+
+  const location = await prisma.candidateLocation.findFirst({ where: { id: locationId, archivedAt: null }, select: { id: true } });
+  if (!location) return { success: false, message: "Lokasyon bulunamadı." };
+
+  try {
+    await prisma.$transaction(
+      parsed.data.files.map((file) =>
+        prisma.candidateLocationDocument.create({
+          data: {
+            locationId,
+            documentType: parsed.data.documentType,
+            fileName: path.basename(file.fileName),
+            originalFileName: path.basename(file.originalFileName),
+            filePath: file.filePath,
+            fileUrl: file.fileUrl,
+            mimeType: file.mimeType,
+            fileSize: file.fileSize,
+            description: parsed.data.description || null,
+            uploadedByUserId: user.id,
+          },
+        }),
+      ),
+    );
+    refresh(locationId);
+
+    return { success: true, message: `${parsed.data.files.length} dosya yüklendi.` };
+  } catch (error) {
+    console.error("[locations] blob document registration failed", error);
+    await Promise.all(parsed.data.files.map((file) => storage.remove(file.filePath)));
+    return { success: false, message: "Dosyalar kaydedilemedi." };
+  }
+}
+
 export async function archiveLocationDocument(documentId: string) {
   await requirePermission("locations.upload_document");
   const document = await prisma.candidateLocationDocument.findUnique({ where: { id: documentId } });
@@ -240,6 +306,57 @@ export async function linkLocationToLead(_: LocationActionState, formData: FormD
   } catch (error) {
     console.error("[locations] link lead failed", error);
     return { success: false, message: "Lokasyon lead ile eşleştirilemedi." };
+  }
+}
+
+export async function linkLocationToCandidate(_: LocationActionState, formData: FormData): Promise<LocationActionState> {
+  const user = await requireUser();
+  await requirePermission("locations.link_lead");
+  const parsed = candidateLinkSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { success: false, message: "Aday ve lokasyon seçimini kontrol edin." };
+
+  try {
+    const [location, candidate] = await Promise.all([
+      prisma.candidateLocation.findFirst({ where: { id: parsed.data.locationId, archivedAt: null }, select: { name: true } }),
+      prisma.franchiseCandidate.findFirst({ where: { id: parsed.data.candidateId, archivedAt: null }, select: { fullName: true } }),
+    ]);
+    if (!location) return { success: false, message: "Lokasyon bulunamadı." };
+    if (!candidate) return { success: false, message: "Aday bulunamadı." };
+
+    await prisma.$transaction([
+      prisma.candidateLocationMatch.upsert({
+        where: { candidateId_locationId: { candidateId: parsed.data.candidateId, locationId: parsed.data.locationId } },
+        update: {
+          matchStatus: parsed.data.matchStatus,
+          nextFollowUpAt: parsed.data.nextFollowUpAt ? new Date(parsed.data.nextFollowUpAt) : null,
+          notes: parsed.data.notes || null,
+        },
+        create: {
+          candidateId: parsed.data.candidateId,
+          locationId: parsed.data.locationId,
+          matchStatus: parsed.data.matchStatus,
+          assignedByUserId: user.id,
+          presentedAt: parsed.data.matchStatus === "SENT_TO_LEAD" ? new Date() : null,
+          nextFollowUpAt: parsed.data.nextFollowUpAt ? new Date(parsed.data.nextFollowUpAt) : null,
+          notes: parsed.data.notes || null,
+        },
+      }),
+      prisma.candidateTimelineEvent.create({
+        data: {
+          candidateId: parsed.data.candidateId,
+          eventType: "LOCATION_SUGGESTED",
+          title: "Aday lokasyon bağlandı",
+          description: `${location.name} lokasyonu ${candidate.fullName} adayına bağlandı.`,
+          actorName: user.name,
+        },
+      }),
+    ]);
+    refreshCandidateLocation(parsed.data.locationId, parsed.data.candidateId);
+
+    return { success: true, message: "Lokasyon adaya bağlandı." };
+  } catch (error) {
+    console.error("[locations] link candidate failed", error);
+    return { success: false, message: "Lokasyon adaya bağlanamadı." };
   }
 }
 
@@ -296,6 +413,41 @@ export async function updateLocationMatch(matchId: string, _: LocationActionStat
   }
 }
 
+export async function updateCandidateLocationMatch(matchId: string, _: LocationActionState, formData: FormData): Promise<LocationActionState> {
+  await requirePermission("locations.link_lead");
+  const matchStatus = String(formData.get("matchStatus") || "SUGGESTED") as MatchStatus;
+  const nextFollowUpAt = String(formData.get("nextFollowUpAt") || "");
+  const notes = String(formData.get("notes") || "");
+
+  try {
+    const match = await prisma.candidateLocationMatch.update({
+      where: { id: matchId },
+      data: {
+        matchStatus,
+        presentedAt: matchStatus === "SENT_TO_LEAD" ? new Date() : undefined,
+        nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : null,
+        notes: notes || null,
+      },
+      include: { location: { select: { name: true } }, candidate: { select: { fullName: true } } },
+    });
+
+    await prisma.candidateTimelineEvent.create({
+      data: {
+        candidateId: match.candidateId,
+        eventType: "LOCATION_STATUS_CHANGE",
+        title: "Lokasyon durumu güncellendi",
+        description: `${match.location.name} lokasyon eşleşmesi '${matchStatusLabel(matchStatus)}' olarak güncellendi.`,
+      },
+    });
+    refreshCandidateLocation(match.locationId, match.candidateId);
+
+    return { success: true, message: "Eşleşme durumu güncellendi." };
+  } catch (error) {
+    console.error("[locations] candidate match update failed", error);
+    return { success: false, message: "Eşleşme durumu güncellenemedi." };
+  }
+}
+
 export async function unlinkLocationMatch(matchId: string) {
   await requirePermission("locations.link_lead");
   const match = await prisma.leadCandidateLocation.delete({ where: { id: matchId } });
@@ -307,6 +459,23 @@ export async function unlinkLocationMatch(matchId: string) {
     },
   });
   refresh(match.locationId, match.leadId);
+}
+
+export async function unlinkCandidateLocationMatch(matchId: string) {
+  await requirePermission("locations.link_lead");
+  const match = await prisma.candidateLocationMatch.delete({
+    where: { id: matchId },
+    include: { location: { select: { name: true } } },
+  });
+  await prisma.candidateTimelineEvent.create({
+    data: {
+      candidateId: match.candidateId,
+      eventType: "LOCATION_UNLINKED",
+      title: "Aday lokasyon bağlantısı kaldırıldı",
+      description: `${match.location.name} lokasyon bağlantısı kaldırıldı.`,
+    },
+  });
+  refreshCandidateLocation(match.locationId, match.candidateId);
 }
 
 export async function importLocations(_: LocationActionState, formData: FormData): Promise<LocationActionState> {

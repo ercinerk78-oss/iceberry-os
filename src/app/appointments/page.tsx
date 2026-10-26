@@ -1,285 +1,577 @@
-import Link from "next/link";
-import { CalendarClock, CheckCircle2, Filter, RotateCcw, XCircle } from "lucide-react";
 import type { Prisma } from "@prisma/client";
+import { PhoneCall, Search, XCircle } from "lucide-react";
 
 import {
-  changeLeadAppointmentStatusForm,
-  completeLeadAppointmentForm,
-  createLeadAppointmentForm,
-  rescheduleLeadAppointment,
+  addSequentialMessageLeadNoteForm,
+  deactivateAppointmentLeadForm,
+  markAppointmentLeadInvalidFormForm,
+  markAppointmentNoShowFollowUpUnreachableForm,
+  markLeadUnreachableForm,
+  markAppointmentSequentialMessageSentForm,
+  moveLeadToSequentialMessageFlowForm,
 } from "@/app/appointments/actions";
 import { AppShell } from "@/components/app-shell";
+import { AppointmentLeadEditDialog } from "@/components/appointments/appointment-lead-edit-dialog";
+import { AppointmentSchedulerDialog } from "@/components/appointments/appointment-scheduler-dialog";
+import { AppointmentSubmitButton } from "@/components/appointments/appointment-submit-button";
+import { ManualLeadEntry } from "@/components/appointments/manual-lead-entry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  APPOINTMENT_STATUS_LABELS,
-  APPOINTMENT_TYPE_LABELS,
-  appointmentStatusLabel,
-  appointmentTypeLabel,
-} from "@/lib/appointments";
-import { formatDate } from "@/lib/candidates";
-import { LEAD_CATEGORY_LABELS, leadCategoryLabel } from "@/lib/leads";
+import { activeLeadWhere } from "@/lib/active-records";
+import { APPOINTMENT_TIME_ZONE, formatAppointmentRange } from "@/lib/appointments";
+import { leadStatusLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive, phoneDigits } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
+const LEAD_OPTION_LIMIT = 200;
+const UNREACHABLE_ACTIVITY_TYPES = new Set(["APPOINTMENT_CALL_UNREACHABLE", "APPOINTMENT_NO_SHOW"]);
+const SEQUENTIAL_FLOW_ACTIVITY_TYPE = "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW";
+const HIDDEN_CARD_ACTIVITY_TYPES = new Set(["CREATE"]);
+const PASSIVE_WARNING_TYPES = [
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_1",
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_2",
+  "APPOINTMENT_PASSIVE_WARNING_MESSAGE_3",
+] as const;
+
 type Params = {
-  date?: string;
-  assignedUserId?: string;
-  appointmentType?: string;
-  status?: string;
-  leadCategory?: string;
-  city?: string;
+  lead?: string;
+  q?: string;
 };
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const where: Prisma.LeadAppointmentWhereInput = {};
+  const q = params.q?.trim();
+  const phoneQuery = phoneDigits(q);
+  const searchWhere: Prisma.LeadWhereInput | undefined = q
+    ? {
+        OR: [
+          { fullName: containsInsensitive(q) },
+          { phone: { contains: phoneQuery ?? q } },
+          { email: containsInsensitive(q) },
+          { city: containsInsensitive(q) },
+          { source: containsInsensitive(q) },
+          { requestedConcept: containsInsensitive(q) },
+          { description: containsInsensitive(q) },
+        ],
+      }
+    : undefined;
+  const leadWhere = activeLeadWhere({
+    AND: [...(params.lead ? [{ id: params.lead }] : []), ...(searchWhere ? [searchWhere] : [])],
+  });
 
-  if (params.date && params.date !== "today") {
-    const start = new Date(`${params.date}T00:00:00`);
-    const end = new Date(`${params.date}T23:59:59`);
-    where.appointmentDate = { gte: start, lte: end };
-  } else if (params.date === "today") {
-    where.appointmentDate = { gte: startOfDay, lt: endOfDay };
-  }
-  if (params.assignedUserId) where.assignedUserId = params.assignedUserId;
-  if (params.appointmentType) where.appointmentType = params.appointmentType;
-  if (params.status) where.status = params.status;
-  if (params.leadCategory) where.lead = { leadCategory: params.leadCategory };
-  if (params.city) where.lead = { ...(where.lead as Prisma.LeadWhereInput), city: params.city };
-
-  const [appointments, leads, users, cities] = await Promise.all([
-    prisma.leadAppointment.findMany({
-      where,
-      include: { lead: { select: { id: true, fullName: true, city: true, leadCategory: true } } },
-      orderBy: { appointmentDate: "asc" },
-    }).catch((error) => {
-      console.error("Appointments table fallback", error);
-      return [];
-    }),
+  const [appointmentLeadOptions, visibleLeads, users] = await Promise.all([
     prisma.lead.findMany({
-      where: { convertedCandidateId: null },
+      where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
-      take: 100,
+      take: LEAD_OPTION_LIMIT,
+    }),
+    prisma.lead.findMany({
+      where: leadWhere,
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        city: true,
+        source: true,
+        requestedConcept: true,
+        investmentBudget: true,
+        description: true,
+        processStatus: true,
+        status: true,
+        nextFollowUpAt: true,
+        leadCategory: true,
+        invalidReasonDetail: true,
+        activities: {
+          select: { id: true, type: true, description: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        },
+      },
+      orderBy: [{ nextFollowUpAt: "asc" }, { leadDate: "desc" }],
+      take: LEAD_OPTION_LIMIT,
     }),
     prisma.user.findMany({
       where: { isActive: true, archivedAt: null },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.lead.findMany({ select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
   ]);
 
-  const groups = [
-    {
-      title: "Bugünkü Randevular",
-      icon: CalendarClock,
-      items: appointments.filter((item) => item.appointmentDate >= startOfDay && item.appointmentDate < endOfDay),
-    },
-    {
-      title: "Yaklaşan Randevular",
-      icon: CalendarClock,
-      items: appointments.filter(
-        (item) =>
-          item.appointmentDate >= endOfDay &&
-          !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status),
-      ),
-    },
-    {
-      title: "Geciken Randevular",
-      icon: XCircle,
-      items: appointments.filter(
-        (item) => item.appointmentDate < startOfDay && !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status),
-      ),
-    },
-    {
-      title: "Tamamlanan Randevular",
-      icon: CheckCircle2,
-      items: appointments.filter((item) => item.status === "COMPLETED"),
-    },
-    {
-      title: "İptal Edilenler",
-      icon: XCircle,
-      items: appointments.filter((item) => item.status === "CANCELLED"),
-    },
-    {
-      title: "Gelmeyenler",
-      icon: RotateCcw,
-      items: appointments.filter((item) => item.status === "NO_SHOW"),
-    },
-    {
-      title: "Ertelenen Randevular",
-      icon: RotateCcw,
-      items: appointments.filter((item) => item.status === "RESCHEDULED"),
-    },
-  ];
+  const appointmentLeadOptionItems = appointmentLeadOptions.map((lead) => [lead.id, `${lead.fullName} - ${lead.city}`] as [string, string]);
+  const userOptionItems = users.map((user) => [user.name, user.name] as [string, string]);
+  const leadStatusOf = (lead: { processStatus: string | null; status: string }) => lead.processStatus || lead.status;
+  const schedulableLeadStatuses = new Set(["NEW", "TO_BE_CALLED"]);
+  const appointmentCallUnreachableStatuses = new Set(["APPOINTMENT_CALL_UNREACHABLE", "UNREACHABLE"]);
+  const appointmentNoShowFollowUpStatuses = new Set(["APPOINTMENT_NO_SHOW_FOLLOW_UP"]);
+  const invalidApplicationLeads = visibleLeads
+    .filter((lead) => lead.leadCategory === "INVALID_FORM")
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const invalidApplicationLeadIds = new Set(invalidApplicationLeads.map((lead) => lead.id));
+  const sequentialMessageLeads = visibleLeads
+    .filter((lead) => {
+      const status = leadStatusOf(lead);
+      const isUnreachableFlow = appointmentCallUnreachableStatuses.has(status) || appointmentNoShowFollowUpStatuses.has(status);
+
+      return !invalidApplicationLeadIds.has(lead.id) && isUnreachableFlow && (manuallyMovedToSequentialMessageFlow(lead) || unreachableAttemptCount(lead) >= 5);
+    })
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const sequentialMessageLeadIds = new Set(sequentialMessageLeads.map((lead) => lead.id));
+  const schedulableLeads = visibleLeads.filter((lead) => schedulableLeadStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id));
+  const appointmentCallUnreachableLeads = visibleLeads
+    .filter((lead) => appointmentCallUnreachableStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id))
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
+  const appointmentNoShowFollowUpLeads = visibleLeads
+    .filter((lead) => appointmentNoShowFollowUpStatuses.has(leadStatusOf(lead)) && !sequentialMessageLeadIds.has(lead.id) && !invalidApplicationLeadIds.has(lead.id))
+    .sort((first, second) => latestActionTime(second) - latestActionTime(first));
 
   return (
-    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevular">
+    <AppShell activeHref="/appointments" eyebrow="Randevu departmanı" title="Randevu Oluşturma" action={<ManualLeadEntry />}>
       <div className="space-y-5">
-        <Card className="shadow-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Filter className="size-4" />
-              Randevu Filtreleri
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <input name="date" defaultValue={params.date === "today" ? "" : params.date} type="date" className="h-10 rounded-lg border px-3 text-sm" />
-              <Select name="assignedUserId" current={params.assignedUserId} first="Tüm sorumlular" options={users.map((user) => [user.name, user.name])} />
-              <Select name="appointmentType" current={params.appointmentType} first="Tüm tipler" options={Object.entries(APPOINTMENT_TYPE_LABELS)} />
-              <Select name="status" current={params.status} first="Tüm durumlar" options={Object.entries(APPOINTMENT_STATUS_LABELS)} />
-              <Select name="leadCategory" current={params.leadCategory} first="Tüm kategoriler" options={Object.entries(LEAD_CATEGORY_LABELS)} />
-              <Select name="city" current={params.city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-              <div className="flex gap-2 md:col-span-3 xl:col-span-6">
-                <Button>Filtrele</Button>
-                <Button asChild type="button" variant="outline">
-                  <Link href="/appointments">Temizle</Link>
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+        <form className="flex flex-col gap-2 rounded-xl border bg-white p-4 shadow-sm md:flex-row md:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#65705f]" />
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Ad, telefon, e-posta, şehir, kaynak, konsept veya not ara"
+              className="h-11 w-full rounded-lg border border-[#dfe4dc] bg-white pl-10 pr-3 text-sm"
+            />
+          </label>
+          <Button className="bg-[#17201b] text-white">Ara</Button>
+          {q ? (
+            <Button asChild variant="outline">
+              <a href="/appointments">Temizle</a>
+            </Button>
+          ) : null}
+        </form>
 
-        <Card className="shadow-none">
-          <CardHeader>
-            <CardTitle className="text-base">Yeni Randevu Oluştur</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={createLeadAppointmentForm} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Select name="leadId" first="Lead seç" options={leads.map((lead) => [lead.id, `${lead.fullName} · ${lead.city}`])} required />
-              <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="endTime" type="time" className="h-10 rounded-lg border px-3 text-sm" />
-              <Select name="appointmentType" options={Object.entries(APPOINTMENT_TYPE_LABELS)} required />
-              <Select name="assignedUserId" first="Sorumlu seç" options={users.map((user) => [user.name, user.name])} />
-              <input name="title" placeholder="Başlık" className="h-10 rounded-lg border px-3 text-sm" />
-              <label className="grid gap-1 text-sm"><span>İl</span><input name="city" autoComplete="address-level1" className="h-10 min-w-0 rounded-lg border px-3 text-sm" /></label>
-              <label className="grid gap-1 text-sm"><span>İlçe</span><input name="district" autoComplete="address-level2" className="h-10 min-w-0 rounded-lg border px-3 text-sm" /></label>
-              <input name="location" placeholder="Lokasyon" className="h-10 rounded-lg border px-3 text-sm" />
-              <input name="meetingLink" placeholder="Online görüşme linki" className="h-10 rounded-lg border px-3 text-sm" />
-              <textarea name="notes" placeholder="Randevu notu" className="min-h-20 rounded-lg border p-3 text-sm md:col-span-2 xl:col-span-5" />
-              <Button className="h-10 bg-[#17201b] text-white">Randevu Oluştur</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 xl:grid-cols-2">
-          {groups.map((group) => (
-            <section key={group.title} className="rounded-lg border border-[#dfe4dc] bg-white p-4">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2 font-semibold">
-                  <group.icon className="size-4" />
-                  {group.title}
-                </h2>
-                <Badge variant="secondary">{group.items.length}</Badge>
-              </div>
-              <div className="space-y-3">
-                {group.items.map((appointment) => (
-                  <article key={appointment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
-                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-                      <div>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge>{appointmentStatusLabel(appointment.status)}</Badge>
-                          <Badge variant="secondary">{appointmentTypeLabel(appointment.appointmentType)}</Badge>
-                          <Badge variant="secondary">{leadCategoryLabel(appointment.lead.leadCategory)}</Badge>
+        <div className="grid gap-4 2xl:grid-cols-2">
+          <Card className="shadow-none">
+            <details open>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevu Adayları</span>
+                    <Badge variant="secondary">{schedulableLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {schedulableLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                            <Badge variant="outline">{lead.source}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName} - {lead.city}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone}</p>
                         </div>
-                        <Link href={`/leads/${appointment.leadId}`} className="mt-3 block font-semibold hover:underline">
-                          {appointment.title}
-                        </Link>
-                        <p className="mt-1 text-sm text-[#65705f]">
-                          {appointment.lead.fullName} · {appointment.lead.city} · {formatDate(appointment.appointmentDate.toISOString())}
-                        </p>
-                        {appointment.location ? <p className="mt-1 text-sm text-[#65705f]">Lokasyon: {appointment.location}</p> : null}
-                        {appointment.meetingLink ? (
-                          <Link href={appointment.meetingLink} target="_blank" className="mt-1 inline-block text-sm font-medium text-[#17201b] underline">
-                            Online görüşme linki
-                          </Link>
-                        ) : null}
-                        {appointment.notes ? <p className="mt-2 text-sm text-[#65705f]">{appointment.notes}</p> : null}
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentLeadEditDialog lead={lead} />
+                          <LeadDispositionForm
+                            leadId={lead.id}
+                            leads={appointmentLeadOptionItems}
+                            users={userOptionItems}
+                            unreachableAction={markLeadUnreachableForm.bind(null, lead.id)}
+                          />
+                        </div>
                       </div>
-                      <div className="grid gap-2">
-                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "NO_SHOW")} className="flex flex-wrap gap-2">
-                          <input name="reason" placeholder="Gelmedi nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-                          <Button size="sm" variant="outline">Gelmedi</Button>
-                        </form>
-                        <form action={changeLeadAppointmentStatusForm.bind(null, appointment.id, "CANCELLED")} className="flex flex-wrap gap-2">
-                          <input name="reason" placeholder="İptal nedeni" className="h-9 min-w-0 rounded-lg border px-3 text-sm" />
-                          <Button size="sm" variant="outline">İptal Et</Button>
-                        </form>
+                      <LeadCardNotes lead={lead} />
+                    </article>
+                  ))}
+                  {!schedulableLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Randevu bekleyen aday bulunmuyor.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevu İçin Ulaşılamayanlar</span>
+                    <Badge variant="secondary">{appointmentCallUnreachableLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {appointmentCallUnreachableLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                            <Badge variant="outline">{lead.source}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Tekrar arama: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                        </div>
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentLeadEditDialog lead={lead} />
+                          <LeadDispositionForm
+                            leadId={lead.id}
+                            leads={appointmentLeadOptionItems}
+                            users={userOptionItems}
+                            unreachableAction={markLeadUnreachableForm.bind(null, lead.id)}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <details className="mt-3 rounded-lg bg-white p-3">
-                      <summary className="cursor-pointer text-sm font-medium">Sonuç / Erteleme</summary>
-                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                        <form action={completeLeadAppointmentForm.bind(null, appointment.id)} className="grid gap-2">
-                          <textarea name="notes" placeholder="Görüşme notu" className="min-h-20 rounded-lg border p-3 text-sm" />
-                          <input name="outcome" placeholder="Görüşme sonucu" required className="h-10 rounded-lg border px-3 text-sm" />
-                          <Select name="leadCategory" first="Kategori seç" options={Object.entries(LEAD_CATEGORY_LABELS)} />
-                          <input name="nextAction" placeholder="Sonraki aksiyon" className="h-10 rounded-lg border px-3 text-sm" />
-                          <input name="nextFollowUpAt" type="datetime-local" className="h-10 rounded-lg border px-3 text-sm" />
-                          <label className="flex items-center gap-2 text-sm">
-                            <input name="convertToCandidate" value="1" type="checkbox" />
-                            Franchise adayına dönüştür
-                          </label>
-                          <Button size="sm">Tamamla</Button>
-                        </form>
-                        <form action={rescheduleLeadAppointment.bind(null, appointment.id)} className="grid content-start gap-2">
-                          <input name="appointmentDate" required type="date" className="h-10 rounded-lg border px-3 text-sm" />
-                          <input name="appointmentTime" required type="time" className="h-10 rounded-lg border px-3 text-sm" />
-                          <input name="rescheduleReason" placeholder="Erteleme nedeni" className="h-10 rounded-lg border px-3 text-sm" />
-                          <Button size="sm" variant="outline">Yeni Tarihe Ertele</Button>
-                        </form>
+                      <LeadCardNotes lead={lead} />
+                    </article>
+                  ))}
+                  {!appointmentCallUnreachableLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Randevu için ulaşılamayan lead yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Randevu Saatinde Ulaşılamadı</span>
+                    <Badge variant="secondary">{appointmentNoShowFollowUpLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {appointmentNoShowFollowUpLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-rose-200 bg-rose-50/60 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                            <Badge variant="outline">{lead.source}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Satış takibi: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                        </div>
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentLeadEditDialog lead={lead} />
+                          <LeadDispositionForm
+                            leadId={lead.id}
+                            leads={appointmentLeadOptionItems}
+                            users={userOptionItems}
+                            unreachableAction={markAppointmentNoShowFollowUpUnreachableForm.bind(null, lead.id)}
+                          />
+                        </div>
                       </div>
-                    </details>
-                  </article>
-                ))}
-                {!group.items.length ? (
-                  <p className="py-8 text-center text-sm text-[#65705f]">Bu bölümde randevu yok.</p>
-                ) : null}
-              </div>
-            </section>
-          ))}
+                      <LeadCardNotes lead={lead} />
+                    </article>
+                  ))}
+                  {!appointmentNoShowFollowUpLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Randevu saatinde ulaşılamayan lead yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Sıralı Mesaj</span>
+                    <Badge variant="secondary">{sequentialMessageLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {sequentialMessageLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{leadStatusLabel(lead.processStatus || lead.status)}</Badge>
+                            <Badge variant="outline">{unreachableAttemptCount(lead)} ulaşılamadı</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.nextFollowUpAt ? <p className="mt-1 text-xs text-[#8a9484]">Sonraki takip: {formatAppointmentRange(lead.nextFollowUpAt)}</p> : null}
+                        </div>
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentSchedulerDialog
+                            leads={appointmentLeadOptionItems}
+                            users={userOptionItems}
+                            initialLeadId={lead.id}
+                            label="Randevu Oluştur"
+                          />
+                          <SequentialMessageButtons leadId={lead.id} lead={lead} />
+                          <SequentialMessageNoteForm leadId={lead.id} />
+                          <PassiveLeadForm leadId={lead.id} defaultReason="UNREACHABLE" />
+                        </div>
+                      </div>
+                      <LeadCardNotes lead={lead} />
+                    </article>
+                  ))}
+                  {!sequentialMessageLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">5 kez ulaşılamayan ve mesaj sürecine alınacak aday yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
+          <Card className="shadow-none">
+            <details>
+              <summary className="list-none cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-3 text-base">
+                    <span>Hatalı Başvuru</span>
+                    <Badge variant="secondary">{invalidApplicationLeads.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+              </summary>
+              <CardContent>
+                <div className="space-y-3">
+                  {invalidApplicationLeads.map((lead) => (
+                    <article key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">Hatalı Form</Badge>
+                            <Badge variant="outline">{lead.source}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold">{lead.fullName}</h3>
+                          <p className="mt-1 text-sm text-[#65705f]">{lead.phone} - {lead.city}</p>
+                          {lead.invalidReasonDetail ? <p className="mt-2 text-sm text-[#65705f]">Neden: {lead.invalidReasonDetail}</p> : null}
+                        </div>
+                        <div className="grid shrink-0 gap-2 sm:grid-cols-2 md:min-w-72">
+                          <CallButton phone={lead.phone} />
+                          <AppointmentLeadEditDialog lead={lead} />
+                        </div>
+                      </div>
+                      <LeadCardNotes lead={lead} />
+                    </article>
+                  ))}
+                  {!invalidApplicationLeads.length ? (
+                    <p className="rounded-lg border border-dashed border-[#dfe4dc] p-8 text-center text-sm text-[#65705f]">Hatalı başvuru olarak ayrılan lead yok.</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </details>
+          </Card>
+
         </div>
+
       </div>
     </AppShell>
   );
 }
 
-function Select({
-  name,
-  current,
-  first,
-  options,
-  required,
+function phoneHref(phone: string) {
+  const normalized = phone.replace(/[^\d+]/g, "");
+  return `tel:${normalized || phone}`;
+}
+
+function CallButton({ phone }: { phone: string }) {
+  return (
+    <Button asChild size="sm" variant="outline">
+      <a href={phoneHref(phone)}>
+        <PhoneCall className="size-4" />
+        Ara
+      </a>
+    </Button>
+  );
+}
+
+function LeadDispositionForm({
+  leadId,
+  leads,
+  users,
+  unreachableAction,
 }: {
-  name: string;
-  current?: string;
-  first?: string;
-  options: [string, string][];
-  required?: boolean;
+  leadId: string;
+  leads: [string, string][];
+  users: [string, string][];
+  unreachableAction: (formData: FormData) => Promise<void>;
 }) {
   return (
-    <select
-      aria-label={name}
-      name={name}
-      defaultValue={current ?? ""}
-      required={required}
-      className="h-10 rounded-lg border bg-white px-3 text-sm"
-    >
-      {first ? <option value="">{first}</option> : null}
-      {options.map(([value, label]) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </select>
+    <form className="grid gap-2 rounded-lg border border-[#dfe4dc] bg-white p-2 sm:col-span-2">
+      <textarea
+        name="note"
+        placeholder="Not yaz"
+        className="min-h-16 resize-y rounded-lg border px-3 py-2 text-sm"
+        maxLength={500}
+      />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <AppointmentSubmitButton formAction={unreachableAction} size="sm" variant="outline" pendingLabel="İşaretleniyor...">
+          Ulaşılamadı
+        </AppointmentSubmitButton>
+        <AppointmentSchedulerDialog leads={leads} users={users} initialLeadId={leadId} label="Randevu Oluştur" />
+        <AppointmentSubmitButton formAction={moveLeadToSequentialMessageFlowForm.bind(null, leadId)} size="sm" variant="outline" pendingLabel="Taşınıyor...">
+          Sıralı Mesajlara Al
+        </AppointmentSubmitButton>
+        <AppointmentSubmitButton formAction={markAppointmentLeadInvalidFormForm.bind(null, leadId)} size="sm" variant="outline" pendingLabel="Taşınıyor...">
+          Hatalı Başvuru
+        </AppointmentSubmitButton>
+        <AppointmentSubmitButton
+          formAction={deactivateAppointmentLeadForm.bind(null, leadId)}
+          name="reason"
+          value="OTHER"
+          size="sm"
+          variant="outline"
+          pendingLabel="Pasife alınıyor..."
+          className="sm:col-span-2"
+        >
+          Pasife Al
+        </AppointmentSubmitButton>
+      </div>
+    </form>
+  );
+}
+
+function latestActionTime(lead: {
+  activities: { createdAt: Date }[];
+  nextFollowUpAt: Date | null;
+}) {
+  return lead.activities[0]?.createdAt.getTime() ?? lead.nextFollowUpAt?.getTime() ?? 0;
+}
+
+function unreachableAttemptCount(lead: { activities: { type: string }[] }) {
+  return lead.activities.filter((activity) => UNREACHABLE_ACTIVITY_TYPES.has(activity.type)).length;
+}
+
+function manuallyMovedToSequentialMessageFlow(lead: { activities: { type: string }[] }) {
+  return lead.activities.some((activity) => activity.type === SEQUENTIAL_FLOW_ACTIVITY_TYPE);
+}
+
+function sequentialMessageSent(lead: { activities: { type: string }[] }, step: number) {
+  return lead.activities.some((activity) => activity.type === PASSIVE_WARNING_TYPES[step - 1]);
+}
+
+function SequentialMessageButtons({
+  leadId,
+  lead,
+}: {
+  leadId: string;
+  lead: { activities: { type: string }[] };
+}) {
+  return (
+    <div className="grid gap-2 rounded-lg border border-blue-200 bg-white p-2">
+      {[1, 2, 3].map((step) => {
+        const sent = sequentialMessageSent(lead, step);
+
+        return sent ? (
+          <Button key={step} type="button" size="sm" variant="outline" disabled>
+            {step}. mesaj atıldı
+          </Button>
+        ) : (
+          <form key={step} action={markAppointmentSequentialMessageSentForm.bind(null, leadId)}>
+            <input type="hidden" name="step" value={step} />
+            <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Kaydediliyor...">
+              {step}. mesaj atıldı
+            </AppointmentSubmitButton>
+          </form>
+        );
+      })}
+    </div>
+  );
+}
+
+function SequentialMessageNoteForm({ leadId }: { leadId: string }) {
+  return (
+    <form action={addSequentialMessageLeadNoteForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-blue-200 bg-white p-2 sm:col-span-2">
+      <textarea
+        name="note"
+        placeholder="Sıralı mesaj notu"
+        className="min-h-20 resize-y rounded-lg border px-3 py-2 text-sm"
+        maxLength={500}
+        required
+      />
+      <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Kaydediliyor..." className="w-full">
+        Not Ekle
+      </AppointmentSubmitButton>
+    </form>
+  );
+}
+
+function LeadCardNotes({
+  lead,
+}: {
+  lead: {
+    description: string | null;
+    activities: { id: string; type: string; description: string; createdAt: Date }[];
+  };
+}) {
+  const visibleActivities = lead.activities.filter((activity) => !HIDDEN_CARD_ACTIVITY_TYPES.has(activity.type));
+  const hasNotes = Boolean(lead.description) || visibleActivities.length > 0;
+  if (!hasNotes) return null;
+
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-[#edf0e9] bg-white p-3 text-xs">
+      {lead.description ? (
+        <div>
+          <p className="font-semibold text-[#364036]">Alınan Not</p>
+          <p className="mt-1 whitespace-pre-line text-[#65705f]">{lead.description}</p>
+        </div>
+      ) : null}
+      {visibleActivities.length ? (
+        <div>
+          <p className="font-semibold text-[#364036]">Son 3 İşlem</p>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
+            {visibleActivities.slice(0, 3).map((activity) => (
+              <div key={activity.id} className="min-w-0 rounded-md bg-[#f8faf6] p-2">
+                <p className="font-medium text-[#17201b]">{formatActivityDate(activity.createdAt)}</p>
+                <p className="mt-0.5 break-words text-[#65705f]">{activity.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatActivityDate(value: Date) {
+  return value.toLocaleString("tr-TR", {
+    timeZone: APPOINTMENT_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function PassiveLeadForm({ leadId, defaultReason = "WITHDREW" }: { leadId: string; defaultReason?: string }) {
+  return (
+    <form action={deactivateAppointmentLeadForm.bind(null, leadId)} className="grid gap-2 rounded-lg border border-amber-200 bg-white p-2">
+      <select name="reason" defaultValue={defaultReason} className="h-9 rounded-lg border px-2 text-sm">
+        <option value="WITHDREW">Vazgeçti</option>
+        <option value="WRONG_APPLICATION">Yanlış başvuru</option>
+        <option value="NOT_ELIGIBLE">Yapamıyor / uygun değil</option>
+        <option value="UNREACHABLE">Ulaşılamıyor</option>
+        <option value="OTHER">Diğer</option>
+      </select>
+      <AppointmentSubmitButton size="sm" variant="outline" pendingLabel="Pasife alınıyor...">
+        <XCircle className="size-4" />
+        Pasife Al
+      </AppointmentSubmitButton>
+    </form>
   );
 }

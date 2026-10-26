@@ -45,13 +45,14 @@ async function main() {
   await prisma.candidateTask.deleteMany();
   await prisma.candidateInteraction.deleteMany();
   await prisma.franchiseCandidate.deleteMany();
-  const roleRows=await Promise.all([["Genel Müdür","GENERAL_MANAGER","Sistemin tamamına erişir."],["Operasyon Müdürü","OPERATIONS_MANAGER","Operasyonel modüllerin tamamına erişir."],["Bayi Yöneticisi","FRANCHISE_MANAGER","Bayi ve franchise operasyonlarına erişir."],["Depo Sorumlusu","WAREHOUSE_MANAGER","Depo ve sevkiyat işlemlerine erişir."]].map(([ad,kod,aciklama])=>prisma.role.create({data:{ad,kod,aciklama}})));
+  const roleRows=await Promise.all([["Genel Müdür","GENERAL_MANAGER","Sistemin tamamına erişir."],["Operasyon Müdürü","OPERATIONS_MANAGER","Operasyonel modüllerin tamamına erişir."],["Bayi Yöneticisi","FRANCHISE_MANAGER","Bayi ve franchise operasyonlarına erişir."],["Depo Sorumlusu","WAREHOUSE_MANAGER","Depo ve sevkiyat işlemlerine erişir."],["Randevu Departmanı","APPOINTMENT_DEPARTMENT","Lead arama, randevu ve görev yönetimi."],["Mimari Proje ve Uygulama Departmanı","ARCHITECTURE_PROJECT_IMPLEMENTATION","Mimari proje, uygulama ve açılış teknik süreçlerini yönetir."],["Eğitim Departmanı","TRAINING_DEPARTMENT","Eğitim Akademisi, atama ve eğitim raporlarını yönetir."],["Reklam Uygulamaları Departmanı","ADVERTISING_OPERATIONS","Reklam, lead kaynakları ve kampanya operasyonlarını takip eder."]].map(([ad,kod,aciklama])=>prisma.role.create({data:{ad,kod,aciklama}})));
   const passwordHash=await hashPassword("Iceberry123!");
   const mockUsers=[["Genel Müdür","sales@iceberry.com.tr","+90 532 100 10 10","GENERAL_MANAGER"],["Yönetim Asistanı","yonetim@iceberry.local","+90 532 100 10 11","GENERAL_MANAGER"],["Operasyon Müdürü","finans@iceberry.com.tr","+90 532 200 20 20","OPERATIONS_MANAGER"],["Operasyon Uzmanı","operasyon@iceberry.local","+90 532 200 20 21","OPERATIONS_MANAGER"],["Bayi Yöneticisi","bayiyonetici@iceberry.local","+90 532 300 30 30","FRANCHISE_MANAGER"],["Bayi Operasyon Uzmanı","bayioperasyon@iceberry.local","+90 532 300 30 31","FRANCHISE_MANAGER"],["Depo Sorumlusu","depo@iceberry.local","+90 532 400 40 40","WAREHOUSE_MANAGER"],["Sevkiyat Uzmanı","sevkiyat@iceberry.local","+90 532 400 40 41","WAREHOUSE_MANAGER"]] as const;
   await prisma.user.createMany({data:mockUsers.map(([name,email,phone,role])=>({name,email,phone,role,roleId:roleRows.find(r=>r.kod===role)!.id,passwordHash}))});
   const categories = await Promise.all([
     ["Sarf Malzemeleri", "Günlük operasyon sarfları"], ["Ambalaj", "Paketleme ve servis ürünleri"],
     ["Ekipman", "Şube operasyon ekipmanları"], ["Tekstil", "Markalı tekstil ürünleri"],
+    ["Gıda", "Gıda ürünleri"],
     ["Temizlik", "Hijyen ve temizlik ürünleri"], ["Pazarlama", "Marka ve tanıtım materyalleri"],
   ].map(([name,description],orderIndex)=>prisma.productCategory.create({data:{name,description,orderIndex}})));
   const warehouse=await prisma.warehouse.create({data:{name:"Iceberry Merkez Depo",city:"İstanbul",district:"Ümraniye",address:"Iceberry Lojistik Merkezi",responsiblePerson:"Depo Operasyon",phone:"+90 216 555 10 10"}});
@@ -59,8 +60,8 @@ async function main() {
     ["Iceberry Karton Bardak 12 oz","AMB-1201",0,"Koli",500,720,20,24],
     ["Logolu Taşıma Çantası","AMB-1202",1,"Paket",180,290,20,40],
     ["Barista Önlüğü","TEK-3101",3,"Adet",350,590,20,12],
-    ["Tezgâh Menü Panosu","PAZ-5101",5,"Adet",1200,1850,20,5],
-    ["Hijyen Başlangıç Seti","TEM-4101",4,"Set",450,690,20,10],
+    ["Tezgâh Menü Panosu","PAZ-5101",6,"Adet",1200,1850,20,5],
+    ["Hijyen Başlangıç Seti","TEM-4101",5,"Set",450,690,20,10],
     ["Self Cafe Servis Tepsisi","EKP-2101",2,"Adet",280,430,20,16],
   ] as const;
   for(const [name,sku,categoryIndex,unit,purchasePrice,salePrice,vatRate,minimumStockLevel] of samples){const product=await prisma.product.create({data:{name,sku,categoryId:categories[categoryIndex].id,unit,purchasePrice,salePrice,vatRate,minimumStockLevel}});await prisma.warehouseStock.create({data:{warehouseId:warehouse.id,productId:product.id,quantity:100,reservedQuantity:0,availableQuantity:100}})}
@@ -100,25 +101,25 @@ async function main() {
   }
 
   const leads = [
-    ["Deniz Yalçın", "+90 532 410 22 18", "deniz.yalcin@mail.com", "İstanbul", "Instagram", "Cafe", "Yeni"],
-    ["Burcu Keleş", "+90 535 221 44 09", "burcu.keles@mail.com", "Ankara", "Facebook", "Corner", "Arandı"],
-    ["Ali Rıza Eren", "+90 544 812 16 30", "ali.eren@mail.com", "İzmir", "Web", "Self Cafe", "Ulaşılamadı"],
-    ["Gökçe Tan", "+90 533 907 55 42", "gokce.tan@mail.com", "Bursa", "WhatsApp", "Cafe", "Randevu"],
-    ["Serhat Acar", "+90 505 334 78 11", "serhat.acar@mail.com", "Antalya", "Manuel", "Corner", "Lokasyon Bekleniyor"],
-    ["Pınar Özdemir", "+90 536 188 73 20", "pinar.ozdemir@mail.com", "Muğla", "Instagram", "Self Cafe", "Yeni"],
-    ["Cemal Ergin", "+90 551 467 21 63", "cemal.ergin@mail.com", "Adana", "Web", "Cafe", "Reddedildi"],
-    ["Sibel Koç", "+90 537 653 89 14", "sibel.koc@mail.com", "Kocaeli", "Facebook", "Corner", "Arandı"],
-    ["Oğuz Karaca", "+90 542 119 45 87", "oguz.karaca@mail.com", "Samsun", "WhatsApp", "Cafe", "Randevu"],
-    ["Eylül Akın", "+90 530 772 31 96", "eylul.akin@mail.com", "Mersin", "Instagram", "Self Cafe", "Yeni"],
-    ["Volkan Işık", "+90 545 923 67 10", "volkan.isik@mail.com", "Konya", "Manuel", "Corner", "Adaya Dönüştürüldü"],
-    ["Asena Gül", "+90 539 406 28 75", "asena.gul@mail.com", "Eskişehir", "Web", "Cafe", "Adaya Dönüştürüldü"],
+    ["Deniz Yalçın", "+90 532 410 22 18", "deniz.yalcin@mail.com", "İstanbul", "Instagram", "Cafe", "NEW"],
+    ["Burcu Keleş", "+90 535 221 44 09", "burcu.keles@mail.com", "Ankara", "Facebook", "Corner", "TO_BE_CALLED"],
+    ["Ali Rıza Eren", "+90 544 812 16 30", "ali.eren@mail.com", "İzmir", "Web", "Self Cafe", "UNREACHABLE"],
+    ["Gökçe Tan", "+90 533 907 55 42", "gokce.tan@mail.com", "Bursa", "WhatsApp", "Cafe", "APPOINTMENT_SCHEDULED"],
+    ["Serhat Acar", "+90 505 334 78 11", "serhat.acar@mail.com", "Antalya", "Manuel", "Corner", "UNDER_EVALUATION"],
+    ["Pınar Özdemir", "+90 536 188 73 20", "pinar.ozdemir@mail.com", "Muğla", "Instagram", "Self Cafe", "NEW"],
+    ["Cemal Ergin", "+90 551 467 21 63", "cemal.ergin@mail.com", "Adana", "Web", "Cafe", "CLOSED"],
+    ["Sibel Koç", "+90 537 653 89 14", "sibel.koc@mail.com", "Kocaeli", "Facebook", "Corner", "TO_BE_CALLED"],
+    ["Oğuz Karaca", "+90 542 119 45 87", "oguz.karaca@mail.com", "Samsun", "WhatsApp", "Cafe", "APPOINTMENT_SCHEDULED"],
+    ["Eylül Akın", "+90 530 772 31 96", "eylul.akin@mail.com", "Mersin", "Instagram", "Self Cafe", "NEW"],
+    ["Volkan Işık", "+90 545 923 67 10", "volkan.isik@mail.com", "Konya", "Manuel", "Corner", "CONVERTED_TO_CANDIDATE"],
+    ["Asena Gül", "+90 539 406 28 75", "asena.gul@mail.com", "Eskişehir", "Web", "Cafe", "CONVERTED_TO_CANDIDATE"],
   ] as const;
   for (const [index, lead] of leads.entries()) {
     const [fullName, phone, email, city, source, requestedConcept, status] = lead;
     const leadDate = index < 3 ? new Date() : new Date(2026, 6, 13 - index, 10 + (index % 5), 15);
     await prisma.lead.create({ data: { fullName, phone, email, city, source, requestedConcept, status, leadDate, activities: { create: [
       { type: "Lead geldi", description: `${source} kaynağından yeni lead kaydı oluştu.`, createdAt: leadDate },
-      ...(status !== "Yeni" ? [{ type: "Durum değişti", description: `Lead durumu ${status} olarak güncellendi.`, createdAt: new Date(leadDate.getTime() + 3600000) }] : []),
+      ...(status !== "NEW" ? [{ type: "Durum değişti", description: `Lead durumu ${status} olarak güncellendi.`, createdAt: new Date(leadDate.getTime() + 3600000) }] : []),
     ] } } });
   }
 }

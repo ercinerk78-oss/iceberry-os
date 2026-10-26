@@ -3,18 +3,19 @@ import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Download, LineChart, Search } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
-import { approveRevenue, createBranchRevenue, lockRevenue, rejectRevenue } from "@/app/branch-revenues/actions";
+import { approveRevenue, lockRevenue, rejectRevenue } from "@/app/branch-revenues/actions";
 import { AppShell } from "@/components/app-shell";
+import { BranchRevenueEditForm } from "@/components/branch-revenues/branch-revenue-edit-form";
+import { BranchRevenueForm } from "@/components/branch-revenues/branch-revenue-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accessibleBranchIds } from "@/lib/branch-access";
+import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import {
-  FINAL_REVENUE_STATUSES,
-  REVENUE_CURRENCIES,
   REVENUE_SOURCE_LABELS,
-  REVENUE_SOURCES,
   REVENUE_STATUS_LABELS,
+  VISIBLE_REVENUE_STATUSES,
   formatMoney,
   formatPercent,
   monthPeriod,
@@ -23,7 +24,8 @@ import {
   realizationRate,
 } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords, type BranchRevenueRecordWithUser } from "@/lib/branch-revenue-data";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, label } from "@/lib/franchise";
+import { branchConceptLabel } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +36,7 @@ type RevenueBranch = {
   branchName: string;
   city: string;
   concept: string;
+  conceptRelation?: { name: string } | null;
   status: string;
 };
 type RevenueRowData = {
@@ -48,13 +51,14 @@ type RevenueRowData = {
 };
 
 const get = (params: Params, key: string) => (typeof params[key] === "string" ? params[key] : "");
-const finalStatuses = [...FINAL_REVENUE_STATUSES];
+const visibleRevenueStatuses: string[] = [...VISIBLE_REVENUE_STATUSES];
 
 export default async function BranchRevenuesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const now = new Date();
-  const year = Number(get(params, "year") || now.getFullYear());
-  const month = Number(get(params, "month") || now.getMonth() + 1);
+  const defaultPeriod = previousMonth(now.getFullYear(), now.getMonth() + 1);
+  const year = Number(get(params, "year") || defaultPeriod.year);
+  const month = Number(get(params, "month") || defaultPeriod.month);
   const q = get(params, "q");
   const city = get(params, "city");
   const concept = get(params, "concept");
@@ -64,16 +68,17 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const { periodStart } = monthPeriod(year, month);
   const prev = previousMonth(year, month);
   const prevPeriod = monthPeriod(prev.year, prev.month);
-  const branchWhere: Prisma.BranchWhereInput = {
+  const branchAnd: Prisma.BranchWhereInput[] = [];
+  if (q) branchAnd.push({ OR: [{ branchName: { contains: q } }, { city: { contains: q } }] });
+  if (concept) branchAnd.push({ OR: [{ conceptId: concept }, { concept }] });
+  const branchWhere = withNonHotelMainBranchWhere({
     archivedAt: null,
     ...(branchIds ? { id: { in: branchIds } } : {}),
-    ...(q ? { OR: [{ branchName: { contains: q } }, { city: { contains: q } }] } : {}),
     ...(city ? { city } : {}),
-    ...(concept ? { concept } : {}),
     ...(status ? { status } : {}),
-  };
+  }, branchAnd);
 
-  const [branches, currentRecords, previousRecords, yearRecords, cities] = await Promise.all([
+  const [branches, currentRecords, previousRecords, yearRecords, cities, concepts] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,
       select: {
@@ -81,6 +86,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
         branchName: true,
         city: true,
         concept: true,
+        conceptRelation: { select: { name: true } },
         status: true,
       },
       orderBy: { branchName: "asc" },
@@ -95,11 +101,12 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
       include: { enteredBy: { select: { name: true } } },
     }),
     safeFindBranchRevenueRecords({
-      where: { periodType: "MONTHLY", year, branch: branchWhere, status: { in: finalStatuses } },
+      where: { periodType: "MONTHLY", year, branch: branchWhere, status: { in: visibleRevenueStatuses } },
       include: { enteredBy: { select: { name: true } } },
       orderBy: { periodStart: "asc" },
     }),
-    prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null }), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ where: visibleMainBranchConceptWhere, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   const currentByBranch = new Map(currentRecords.map((record) => [record.branchId, record]));
@@ -107,35 +114,40 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
   const rows = branches.map((branch) => {
     const current = currentByBranch.get(branch.id);
     const previous = previousByBranch.get(branch.id);
-    const actual = current && finalStatuses.includes(current.status as typeof finalStatuses[number]) ? current.grossRevenue : 0;
-    const previousActual = previous && finalStatuses.includes(previous.status as typeof finalStatuses[number]) ? previous.grossRevenue : 0;
+    const actual = current && visibleRevenueStatuses.includes(current.status) ? current.grossRevenue : 0;
+    const previousActual = previous && visibleRevenueStatuses.includes(previous.status) ? previous.grossRevenue : 0;
     const change = actual - previousActual;
     const targetRate = realizationRate(actual, current?.targetRevenue);
 
     return { branch, current, previous, actual, previousActual, change, changeRate: percentChange(actual, previousActual), targetRate };
   }).filter((row) => {
-    if (filter === "missing") return !row.current;
-    if (filter === "target-met") return row.targetRate != null && row.targetRate >= 100;
-    if (filter === "target-missed") return row.current?.targetRevenue && (row.targetRate ?? 0) < 100;
+    const hasCurrentRevenue = hasVisibleCurrentRevenue(row);
+    if (filter === "missing") return !hasCurrentRevenue;
+    if (filter === "target-met") return hasCurrentRevenue && row.targetRate != null && row.targetRate >= 100;
+    if (filter === "target-missed") return hasCurrentRevenue && row.current?.targetRevenue && (row.targetRate ?? 0) < 100;
     if (filter === "increased") return row.change > 0;
     if (filter === "decreased") return row.change < 0;
     return true;
   });
 
-  const finalCurrent = currentRecords.filter((record) => finalStatuses.includes(record.status as typeof finalStatuses[number]));
+  const finalCurrent = currentRecords.filter((record) => visibleRevenueStatuses.includes(record.status));
+  const finalCurrentBranchIds = new Set(finalCurrent.map((record) => record.branchId));
   const totalsByCurrency = groupTotal(finalCurrent);
-  const avgByCurrency = Object.fromEntries(Object.entries(totalsByCurrency).map(([currency, total]) => [currency, total / Math.max(1, branches.length)]));
-  const best = [...rows].sort((a, b) => b.actual - a.actual)[0];
-  const worst = [...rows].filter((row) => row.current).sort((a, b) => a.actual - b.actual)[0];
-  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => finalStatuses.includes(record.status as typeof finalStatuses[number])));
-  const targetMet = rows.filter((row) => row.targetRate != null && row.targetRate >= 100).length;
-  const targetMissed = rows.filter((row) => row.current?.targetRevenue && (row.targetRate ?? 0) < 100).length;
-  const missing = rows.filter((row) => !row.current).length;
+  const avgByCurrency = groupAverage(finalCurrent);
+  const rowsWithCurrentRevenue = rows.filter(hasVisibleCurrentRevenue);
+  const best = [...rowsWithCurrentRevenue].sort((a, b) => b.actual - a.actual)[0];
+  const worst = [...rowsWithCurrentRevenue].sort((a, b) => a.actual - b.actual)[0];
+  const previousTotalByCurrency = groupTotal(previousRecords.filter((record) => visibleRevenueStatuses.includes(record.status) && finalCurrentBranchIds.has(record.branchId)));
+  const targetMet = rowsWithCurrentRevenue.filter((row) => row.targetRate != null && row.targetRate >= 100).length;
+  const targetMissed = rowsWithCurrentRevenue.filter((row) => row.current?.targetRevenue && (row.targetRate ?? 0) < 100).length;
+  const missing = rows.filter((row) => !hasVisibleCurrentRevenue(row)).length;
   const monthlyTotals = Array.from({ length: 12 }, (_, index) => {
     const monthNo = index + 1;
     const records = yearRecords.filter((record) => record.month === monthNo);
+    const total = records.reduce((sum, record) => sum + Number(record.grossRevenue || 0), 0);
+    const currencyTotals = groupTotal(records);
 
-    return { label: String(monthNo).padStart(2, "0"), total: records.reduce((sum, record) => sum + record.grossRevenue, 0) };
+    return { label: String(monthNo).padStart(2, "0"), monthNo, total, currencyTotals };
   });
   const maxBar = Math.max(1, ...rows.map((row) => row.actual));
   const maxLine = Math.max(1, ...monthlyTotals.map((item) => item.total));
@@ -154,7 +166,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
               {Array.from({ length: 12 }, (_, index) => index + 1).map((item) => <option key={item} value={item}>{item}. Ay</option>)}
             </select>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
+            <Select name="concept" current={concept} first="Tüm konseptler" options={concepts.map((item) => [item.id, item.name])} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
             <Select name="filter" current={filter} first="Performans filtresi" options={[["missing", "Veri girişi eksik"], ["target-met", "Hedefe ulaşan"], ["target-missed", "Hedef altında"], ["increased", "Ciro artan"], ["decreased", "Ciro düşen"]]} />
             <div className="flex gap-2 md:col-span-3 xl:col-span-8">
@@ -191,14 +203,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
           <Card className="shadow-none">
             <CardHeader><CardTitle>Aylık Toplam Ciro Eğrisi</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex h-52 items-end gap-2 border-b border-l border-[#dfe4dc] p-3">
-                {monthlyTotals.map((item) => (
-                  <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                    <div className="w-full rounded-t bg-[#17201b]" style={{ height: `${Math.max(4, (item.total / maxLine) * 180)}px` }} />
-                    <span className="text-xs text-[#65705f]">{item.label}</span>
-                  </div>
-                ))}
-              </div>
+              <MonthlyRevenueChart items={monthlyTotals} maxTotal={maxLine} />
             </CardContent>
           </Card>
         </section>
@@ -206,33 +211,17 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
         <Card className="shadow-none">
           <CardHeader><CardTitle>Manuel Ciro Girişi</CardTitle></CardHeader>
           <CardContent>
-            <form action={createBranchRevenue} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Select name="branchId" current="" first="Şube seç" options={branches.map((branch) => [branch.id, branch.branchName])} />
-              <input name="year" type="number" defaultValue={year} className="h-10 rounded-lg border px-3" />
-              <input name="month" type="number" min={1} max={12} defaultValue={month} className="h-10 rounded-lg border px-3" />
-              <input name="grossRevenue" required type="number" min={0} step="0.01" placeholder="Gerçekleşen ciro" className="h-10 rounded-lg border px-3" />
-              <input name="targetRevenue" type="number" min={0} step="0.01" placeholder="Ciro hedefi" className="h-10 rounded-lg border px-3" />
-              <Select name="currency" current="TRY" first="" options={REVENUE_CURRENCIES.map((item) => [item, item])} />
-              <input name="transactionCount" type="number" min={0} placeholder="İşlem sayısı" className="h-10 rounded-lg border px-3" />
-              <input name="averageTicket" type="number" min={0} step="0.01" placeholder="Ortalama sepet" className="h-10 rounded-lg border px-3" />
-              <Select name="source" current="MANUAL" first="" options={REVENUE_SOURCES.map((item) => [item, REVENUE_SOURCE_LABELS[item]])} />
-              <input name="supportFile" type="file" className="h-10 rounded-lg border px-3 py-2 text-sm md:col-span-2" />
-              <input name="notes" placeholder="Açıklama" className="h-10 rounded-lg border px-3 xl:col-span-2" />
-              <div className="flex gap-2 md:col-span-2 xl:col-span-6">
-                <Button name="submit" value="">Taslak Kaydet</Button>
-                <Button name="submit" value="1" className="bg-[#17201b] text-white">Onaya Gönder</Button>
-              </div>
-            </form>
+            <BranchRevenueForm branches={branches} year={year} month={month} />
           </CardContent>
         </Card>
 
-        <RevenueTable rows={rows} />
+        <RevenueTable rows={rows} branches={branches} />
       </div>
     </AppShell>
   );
 }
 
-function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
+function RevenueTable({ rows, branches }: { rows: RevenueRowData[]; branches: RevenueBranch[] }) {
   return (
     <Card className="overflow-hidden shadow-none">
       <div className="hidden overflow-x-auto lg:block">
@@ -241,8 +230,11 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
             <tr>{["Şube", "Şehir", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Kaynak", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row) => <RevenueRow key={row.branch.id} row={row} />)}
+            {rows.map((row) => <RevenueRow key={row.branch.id} row={row} branches={branches} />)}
           </tbody>
+          <tfoot className="border-t-2 border-[#17201b] bg-[#f8faf6]">
+            <RevenueTotalRow rows={rows} />
+          </tfoot>
         </table>
       </div>
       <div className="grid gap-3 p-3 lg:hidden">
@@ -253,12 +245,50 @@ function RevenueTable({ rows }: { rows: RevenueRowData[] }) {
             <p className="text-sm text-[#65705f]">Değişim {formatPercent(row.changeRate)} · Hedef {formatPercent(row.targetRate)}</p>
           </div>
         ))}
+        <RevenueTotalCard rows={rows} />
       </div>
     </Card>
   );
 }
 
-function RevenueRow({ row }: { row: RevenueRowData }) {
+function RevenueTotalRow({ rows }: { rows: RevenueRowData[] }) {
+  const totals = revenueTotals(rows);
+  const trendIcon = totals.overallChange >= 0 ? <ArrowUpRight className="size-4 text-emerald-700" /> : <ArrowDownRight className="size-4 text-rose-700" />;
+
+  return (
+    <tr className="font-semibold">
+      <td className="px-4 py-4">Tüm Türkiye</td>
+      <td className="px-4 py-4">Tüm şehirler</td>
+      <td className="px-4 py-4">Tüm konseptler</td>
+      <td className="px-4 py-4">{moneyList(totals.actual)}</td>
+      <td className="px-4 py-4">{moneyList(totals.previous)}</td>
+      <td className="px-4 py-4">{moneyList(totals.change)}</td>
+      <td className="px-4 py-4"><span className="inline-flex items-center gap-1">{trendIcon}{percentList(totals.changeRate)}</span></td>
+      <td className="px-4 py-4">{moneyList(totals.target)}</td>
+      <td className="px-4 py-4">{percentList(totals.targetRate)}</td>
+      <td className="px-4 py-4">{moneyList(totals.dailyAverage)}</td>
+      <td className="px-4 py-4">Toplam</td>
+      <td className="px-4 py-4">Seçili dönem</td>
+      <td className="px-4 py-4"><Badge variant="outline">{rows.filter(hasVisibleCurrentRevenue).length} şube</Badge></td>
+      <td className="px-4 py-4">—</td>
+    </tr>
+  );
+}
+
+function RevenueTotalCard({ rows }: { rows: RevenueRowData[] }) {
+  const totals = revenueTotals(rows);
+
+  return (
+    <div className="rounded-lg border-2 border-[#17201b] bg-white p-4">
+      <div className="flex justify-between gap-3"><b>Tüm Türkiye</b><Badge>{rows.filter(hasVisibleCurrentRevenue).length} şube</Badge></div>
+      <div className="mt-3 text-xl font-semibold">{moneyList(totals.actual)}</div>
+      <p className="mt-2 text-sm text-[#65705f]">Değişim {percentList(totals.changeRate)} · Hedef {percentList(totals.targetRate)}</p>
+      <p className="mt-1 text-sm text-[#65705f]">Günlük ortalama {moneyList(totals.dailyAverage)}</p>
+    </div>
+  );
+}
+
+function RevenueRow({ row, branches }: { row: RevenueRowData; branches: RevenueBranch[] }) {
   const current = row.current;
   const days = current ? Math.max(1, Math.ceil((current.periodEnd.getTime() - current.periodStart.getTime()) / 86400000) + 1) : 1;
   const trendIcon = row.change >= 0 ? <ArrowUpRight className="size-4 text-emerald-700" /> : <ArrowDownRight className="size-4 text-rose-700" />;
@@ -267,7 +297,7 @@ function RevenueRow({ row }: { row: RevenueRowData }) {
     <tr>
       <td className="px-4 py-4 font-semibold"><Link href={`/branches/${row.branch.id}?tab=${encodeURIComponent("KPI ve Performans")}`} className="underline">{row.branch.branchName}</Link></td>
       <td className="px-4 py-4">{row.branch.city}</td>
-      <td className="px-4 py-4">{label(BRANCH_CONCEPTS, row.branch.concept)}</td>
+      <td className="px-4 py-4">{branchConceptLabel(row.branch.conceptRelation, row.branch.concept)}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.actual, current.currency) : "—"}</td>
       <td className="px-4 py-4">{row.previous ? formatMoney(row.previousActual, row.previous.currency) : "—"}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.change, current.currency) : "—"}</td>
@@ -284,6 +314,10 @@ function RevenueRow({ row }: { row: RevenueRowData }) {
             {current.status === "SUBMITTED" ? <form action={approveRevenue.bind(null, current.id)}><Button size="sm" variant="outline">Onayla</Button></form> : null}
             {current.status === "SUBMITTED" ? <form action={rejectRevenue.bind(null, current.id)} className="flex gap-1"><input name="rejectionReason" placeholder="Ret nedeni" className="h-7 w-28 rounded border px-2 text-xs" /><Button size="sm" variant="outline">Reddet</Button></form> : null}
             {current.status === "APPROVED" ? <form action={lockRevenue.bind(null, current.id)}><Button size="sm" variant="outline">Kilitle</Button></form> : null}
+            <details className="w-full">
+              <summary className="cursor-pointer rounded border px-2 py-1 text-xs font-medium hover:bg-[#f8faf6]">Düzelt</summary>
+              <BranchRevenueEditForm record={current} branches={branches} />
+            </details>
           </div>
         ) : "—"}
       </td>
@@ -318,11 +352,116 @@ function groupTotal(records: BranchRevenueRecordWithUser[]) {
   }, {});
 }
 
+function MonthlyRevenueChart({
+  items,
+  maxTotal,
+}: {
+  items: { label: string; monthNo: number; total: number; currencyTotals: Record<string, number> }[];
+  maxTotal: number;
+}) {
+  return (
+    <div className="rounded-lg border border-[#dfe4dc] bg-[#fbfcf9] p-4">
+      <div className="flex h-56 items-end gap-2 border-b border-l border-[#dfe4dc] px-2 pt-8">
+        {items.map((item) => {
+          const barPercent = item.total > 0 ? Math.max(3, (item.total / maxTotal) * 100) : 0;
+          const valueText = moneyText(item.currencyTotals);
+
+          return (
+            <div key={item.label} className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+              <button
+                type="button"
+                title={`${item.monthNo}. ay: ${valueText}`}
+                aria-label={`${item.monthNo}. ay toplam ciro ${valueText}`}
+                className="relative flex h-full w-full items-end rounded-t outline-none focus-visible:ring-2 focus-visible:ring-[#6fbe44]"
+              >
+                <span
+                  className="w-full rounded-t bg-[#17201b] transition-all group-hover:bg-[#6fbe44] group-focus-within:bg-[#6fbe44]"
+                  style={{ height: `${barPercent}%` }}
+                />
+              </button>
+              <span className="text-xs text-[#65705f]">{item.label}</span>
+              <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 z-10 hidden min-w-max -translate-x-1/2 rounded-lg border border-[#dfe4dc] bg-white px-3 py-2 text-xs font-semibold text-[#17201b] shadow-lg group-hover:block group-focus-within:block">
+                {valueText}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs text-[#65705f]">Ayın üzerine gelince veya dokununca toplam ciro görünür.</p>
+    </div>
+  );
+}
+
+function groupAverage(records: BranchRevenueRecordWithUser[]) {
+  const totals = groupTotal(records);
+  const counts = records.reduce<Record<string, number>>((acc, record) => {
+    acc[record.currency] = (acc[record.currency] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.fromEntries(Object.entries(totals).map(([currency, total]) => [currency, total / Math.max(1, counts[currency] ?? 0)]));
+}
+
+function hasVisibleCurrentRevenue(row: RevenueRowData) {
+  return !!row.current && visibleRevenueStatuses.includes(row.current.status);
+}
+
+function revenueTotals(rows: RevenueRowData[]) {
+  const rowsWithCurrentRevenue = rows.filter(hasVisibleCurrentRevenue);
+  const totals = rowsWithCurrentRevenue.reduce(
+    (acc, row) => {
+      const currency = row.current?.currency ?? "TRY";
+      const days = row.current ? Math.max(1, Math.ceil((row.current.periodEnd.getTime() - row.current.periodStart.getTime()) / 86400000) + 1) : 1;
+      const target = row.current?.targetRevenue ?? 0;
+
+      acc.actual[currency] = (acc.actual[currency] ?? 0) + row.actual;
+      acc.previous[currency] = (acc.previous[currency] ?? 0) + row.previousActual;
+      acc.change[currency] = (acc.change[currency] ?? 0) + row.change;
+      acc.target[currency] = (acc.target[currency] ?? 0) + target;
+      acc.dailyAverage[currency] = (acc.dailyAverage[currency] ?? 0) + (row.current ? row.actual / days : 0);
+      acc.overallChange += row.change;
+
+      return acc;
+    },
+    {
+      actual: {} as Record<string, number>,
+      previous: {} as Record<string, number>,
+      change: {} as Record<string, number>,
+      target: {} as Record<string, number>,
+      dailyAverage: {} as Record<string, number>,
+      changeRate: {} as Record<string, number>,
+      targetRate: {} as Record<string, number | null>,
+      overallChange: 0,
+    },
+  );
+
+  for (const currency of Array.from(new Set([...Object.keys(totals.actual), ...Object.keys(totals.previous), ...Object.keys(totals.target)]))) {
+    totals.changeRate[currency] = percentChange(totals.actual[currency] ?? 0, totals.previous[currency] ?? 0);
+    totals.targetRate[currency] = realizationRate(totals.actual[currency] ?? 0, totals.target[currency] ?? 0);
+  }
+
+  return totals;
+}
+
 function moneyList(values: Record<string, number>) {
   const entries = Object.entries(values);
   if (!entries.length) return "—";
 
   return <div className="space-y-1">{entries.map(([currency, value]) => <p key={currency}>{formatMoney(value, currency)}</p>)}</div>;
+}
+
+function moneyText(values: Record<string, number>) {
+  const entries = Object.entries(values);
+  if (!entries.length) return "Veri yok";
+
+  return entries.map(([currency, value]) => formatMoney(value, currency)).join(" / ");
+}
+
+function percentList(values: Record<string, number | null>) {
+  const entries = Object.entries(values);
+  if (!entries.length) return "â€”";
+
+  return <div className="space-y-1">{entries.map(([currency, value]) => <p key={currency}>{currency}: {formatPercent(value)}</p>)}</div>;
 }
 
 function growthList(current: Record<string, number>, previous: Record<string, number>) {

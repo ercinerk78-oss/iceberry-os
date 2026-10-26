@@ -5,6 +5,8 @@ export const ORDER_STATUSES = [
   ["WAREHOUSE_QUEUE", "Depo Sırasında"],
   ["PREPARING", "Hazırlanıyor"],
   ["READY", "Sevkiyata Hazır"],
+  ["PARTIAL_SHIPMENT", "Kısmi Sevk"],
+  ["BACKORDER_PENDING", "Eksik Ürün Bekliyor"],
   ["SHIPPED", "Sevk Edildi"],
   ["DELIVERED", "Teslim Edildi"],
   ["REJECTED", "Reddedildi"],

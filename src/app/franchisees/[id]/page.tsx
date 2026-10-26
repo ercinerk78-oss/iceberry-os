@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { archiveBranch, setBranchStatus } from "@/app/branches/actions";
+import { setBranchStatus } from "@/app/branches/actions";
 import { updateFranchisee } from "@/app/franchisees/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
@@ -10,6 +10,7 @@ import { FranchiseeForm } from "@/components/franchisees/franchisee-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { visibleMainBranchConceptWhere } from "@/lib/branch-visibility";
 import { BRANCH_STATUSES, FRANCHISEE_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
 
@@ -54,6 +55,11 @@ export default async function FranchiseeDetail({
     contractEndDate: record.contractEndDate?.toISOString() ?? "",
   };
   const update = updateFranchisee.bind(null, id);
+  const conceptOptions = await prisma.branchConcept.findMany({
+    where: { isActive: true, ...visibleMainBranchConceptWhere },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  const defaultConcept = conceptOptions.find((concept) => concept.code === "CORNER") ?? conceptOptions[0];
 
   return (
     <AppShell activeHref="/branches" eyebrow="Şube bağlantısı" title={record.companyName}>
@@ -113,11 +119,6 @@ export default async function FranchiseeDetail({
                                 {branch.status === "ACTIVE" ? "Pasife Al" : "Aktifleştir"}
                               </Button>
                             </form>
-                            <form action={archiveBranch.bind(null, branch.id)}>
-                              <Button size="sm" variant="outline">
-                                Arşivle
-                              </Button>
-                            </form>
                           </>
                         ) : null}
                         <Button asChild size="sm" variant="outline">
@@ -140,10 +141,12 @@ export default async function FranchiseeDetail({
                       city: record.city,
                       district: record.district ?? "",
                       address: record.address ?? "",
-                      concept: "CORNER",
+                      conceptId: defaultConcept?.id ?? "",
+                      concept: defaultConcept?.code ?? "CORNER",
                       locationType: "OTHER",
                       status: "CONTRACTED",
                     }}
+                    conceptOptions={conceptOptions}
                   />
                 </div>
               </div>

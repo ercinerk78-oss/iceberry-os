@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlugZap, ShieldCheck, UsersRound } from "lucide-react";
+import { Palette, PlugZap, ShieldCheck, UsersRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,12 @@ export default async function SettingsPage() {
       description: "Meta, WhatsApp, Ticimax ve Paraşüt bağlantı ayarları.",
       href: "/settings/integrations",
       icon: PlugZap,
+    },
+    {
+      title: "Şube Konseptleri",
+      description: "Konsept, renk, ikon ve yatırım bilgilerini yönetin.",
+      href: "/settings/branch-concepts",
+      icon: Palette,
     },
     {
       title: "Yetki Özeti",

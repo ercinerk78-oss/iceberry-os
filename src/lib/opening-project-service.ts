@@ -1,11 +1,13 @@
 import { Prisma, type OpeningProjectStatus, type OpeningRiskLevel, type PrismaClient } from "@prisma/client";
 
+import { OpeningChecklistService } from "@/lib/opening-checklist-service";
 import { defaultMilestonesByStage, defaultOpeningTemplateStages } from "@/lib/openings";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+const OPENING_PROJECT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
-const activeProjectStatuses: OpeningProjectStatus[] = [
+export const activeProjectStatuses: OpeningProjectStatus[] = [
   "DRAFT",
   "PLANNING",
   "IN_PROGRESS",
@@ -57,17 +59,6 @@ export class OpeningProjectService {
                 requiresApproval: Boolean(milestone.approval),
                 requiresDocument: Boolean(milestone.document),
                 requiresAudit: Boolean(milestone.audit),
-                tasks: {
-                  create: milestone.tasks.map((title, taskIndex) => ({
-                    title,
-                    priority: milestone.critical ? "HIGH" : "NORMAL",
-                    dueOffsetDays: taskIndex + 1,
-                    requiresApproval: Boolean(milestone.approval),
-                    requiresDocument: Boolean(milestone.document),
-                    autoCreate: true,
-                    sortOrder: taskIndex + 1,
-                  })),
-                },
               })),
             },
           })),
@@ -99,7 +90,26 @@ export class OpeningProjectService {
     description?: string | null;
     createdById?: string | null;
   }) {
-    return prisma.$transaction(async (tx) => {
+    const templateId = input.templateId || (await OpeningProjectService.ensureDefaultTemplate()).id;
+    return prisma.$transaction(
+      (tx) => OpeningProjectService.createFromBranchInTransaction(tx, { ...input, templateId }),
+      OPENING_PROJECT_TRANSACTION_OPTIONS,
+    );
+  }
+
+  static async createFromBranchInTransaction(tx: Tx, input: {
+    branchId: string;
+    templateId?: string | null;
+    targetOpeningDate: Date;
+    plannedStartDate?: Date | null;
+    projectManagerId?: string | null;
+    operationManagerId?: string | null;
+    architecturalLeadId?: string | null;
+    openingCoordinatorId?: string | null;
+    plannedBudget?: Prisma.Decimal | number | string | null;
+    description?: string | null;
+    createdById?: string | null;
+  }) {
       const branch = await tx.branch.findFirst({
         where: { id: input.branchId, archivedAt: null },
         include: {
@@ -170,7 +180,7 @@ export class OpeningProjectService {
         });
 
         for (const milestoneTemplate of stageTemplate.milestones) {
-          const milestone = await tx.openingMilestone.create({
+          await tx.openingMilestone.create({
             data: {
               projectId: project.id,
               projectStageId: stage.id,
@@ -191,28 +201,6 @@ export class OpeningProjectService {
             },
           });
 
-          for (const taskTemplate of milestoneTemplate.tasks.filter((task) => task.autoCreate)) {
-            const task = await tx.branchTask.create({
-              data: {
-                branchId: branch.id,
-                title: taskTemplate.title,
-                description: taskTemplate.description || `${milestone.nameSnapshot} kilometre taşı kapsamında otomatik oluşturuldu.`,
-                assignedRole: taskTemplate.defaultOwnerRole || milestoneTemplate.defaultOwnerRole,
-                createdById: input.createdById,
-                priority: taskTemplate.priority,
-                status: "OPEN",
-                dueDate: addDays(plannedStart, taskTemplate.dueOffsetDays),
-                requiresFile: taskTemplate.requiresDocument,
-                requiresApproval: taskTemplate.requiresApproval,
-                sourceType: "OPENING_PROJECT",
-                sourceId: project.id,
-                openingProjectId: project.id,
-                openingStageId: stage.id,
-                openingMilestoneId: milestone.id,
-              },
-            });
-            await tx.openingMilestone.update({ where: { id: milestone.id }, data: { relatedTaskId: task.id } });
-          }
         }
         dayCursor = addDays(plannedEnd, 1);
       }
@@ -244,8 +232,8 @@ export class OpeningProjectService {
       });
 
       await OpeningProjectService.seedReadinessChecks(tx, project.id);
+      await OpeningChecklistService.seedForProjectInTransaction(tx, project, input.createdById);
       return OpeningProjectService.recalculateProject(project.id, tx);
-    });
   }
 
   static async seedReadinessChecks(tx: Tx, projectId: string) {

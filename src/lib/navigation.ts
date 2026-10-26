@@ -1,0 +1,172 @@
+import { hasPermissionWithOverrides, routePermission, type Permission } from "@/lib/permissions";
+
+export type NavigationIconKey =
+  | "Bell"
+  | "Building2"
+  | "CalendarCheck2"
+  | "CalendarRange"
+  | "CheckSquare"
+  | "Columns3"
+  | "FolderOpen"
+  | "GraduationCap"
+  | "Landmark"
+  | "LayoutDashboard"
+  | "LineChart"
+  | "MapPinned"
+  | "MessageSquareText"
+  | "Package"
+  | "Palette"
+  | "PlugZap"
+  | "Settings"
+  | "ShoppingCart"
+  | "ShieldCheck"
+  | "Store"
+  | "Truck"
+  | "UsersRound"
+  | "Warehouse";
+
+export type NavigationItem = {
+  id: string;
+  key: string;
+  href: string;
+  icon: NavigationIconKey;
+  permission: Permission;
+};
+
+export type NavigationGroup = {
+  id: string;
+  key: string;
+  icon: NavigationIconKey;
+  children: NavigationItem[];
+};
+
+export type VisibleNavigationGroup = NavigationGroup & {
+  children: NavigationItem[];
+};
+
+function item(id: string, key: string, href: string, icon: NavigationIconKey): NavigationItem {
+  const permission = routePermission(href);
+  if (!permission) throw new Error(`Navigation permission missing for ${href}`);
+  return { id, key, href, icon, permission };
+}
+
+export const dashboardNavigation = item("dashboard", "navigation.dashboard", "/dashboard", "LayoutDashboard");
+
+export const navigationGroups: NavigationGroup[] = [
+  {
+    id: "franchise",
+    key: "navigationGroups.franchise",
+    icon: "Building2",
+    children: [
+      item("appointments", "navigation.appointments", "/appointments", "CalendarCheck2"),
+      item("appointmentList", "navigation.appointmentList", "/appointments/list", "CalendarRange"),
+      item("candidates", "navigation.candidates", "/candidates", "UsersRound"),
+      item("locations", "navigation.locations", "/locations", "MapPinned"),
+      item("pipeline", "navigation.pipeline", "/pipeline", "Columns3"),
+      item("tasks", "navigation.tasks", "/tasks", "CheckSquare"),
+    ],
+  },
+  {
+    id: "opening",
+    key: "navigationGroups.opening",
+    icon: "CalendarRange",
+    children: [item("openings", "navigation.openings", "/openings", "CalendarRange")],
+  },
+  {
+    id: "branch",
+    key: "navigationGroups.branch",
+    icon: "Store",
+    children: [
+      item("branches", "navigation.branches", "/branches", "Store"),
+      item("branchVisits", "navigation.branchVisits", "/branch-visits", "CalendarCheck2"),
+      item("branchPortal", "navigation.branchPortal", "/branch-portal", "CheckSquare"),
+      item("branchRevenues", "navigation.branchRevenues", "/branch-revenues", "LineChart"),
+      item("operations", "navigation.operations", "/operations", "ShieldCheck"),
+      item("branchMap", "navigation.branchMap", "/branch-map", "MapPinned"),
+    ],
+  },
+  {
+    id: "academy",
+    key: "navigationGroups.academy",
+    icon: "GraduationCap",
+    children: [item("academy", "navigation.academy", "/academy", "GraduationCap")],
+  },
+  {
+    id: "procurement",
+    key: "navigationGroups.procurement",
+    icon: "ShoppingCart",
+    children: [
+      item("procurement", "navigation.procurement", "/procurement", "ShoppingCart"),
+      item("purchaseRequests", "navigation.purchaseRequests", "/procurement/requests", "CheckSquare"),
+      item("purchaseOrders", "navigation.purchaseOrders", "/procurement/orders", "Package"),
+      item("purchaseSuppliers", "navigation.purchaseSuppliers", "/procurement/suppliers", "Store"),
+      item("purchaseReports", "navigation.purchaseReports", "/procurement/reports", "LineChart"),
+    ],
+  },
+  {
+    id: "warehouseLogistics",
+    key: "navigationGroups.warehouseLogistics",
+    icon: "Warehouse",
+    children: [
+      item("orders", "navigation.orders", "/orders", "ShoppingCart"),
+      item("orderAdmin", "navigation.orderAdmin", "/orders/admin", "Package"),
+      item("warehouseOrders", "navigation.warehouseOrders", "/warehouse/orders", "Package"),
+      item("shipments", "navigation.shipments", "/warehouse/shipments", "Truck"),
+      item("warehouse", "navigation.warehouse", "/warehouse", "Warehouse"),
+      item("stock", "navigation.stock", "/warehouse/stock", "Warehouse"),
+      item("warehousePurchaseRequests", "navigation.warehousePurchaseRequests", "/warehouse/purchase-requests", "CheckSquare"),
+      item("goodsReceipts", "navigation.goodsReceipts", "/warehouse/goods-receipts", "CheckSquare"),
+      item("lots", "navigation.lots", "/warehouse/lots", "CalendarRange"),
+      item("counts", "navigation.counts", "/warehouse/counts", "CheckSquare"),
+      item("productMappings", "navigation.productMappings", "/warehouse/product-mappings", "Package"),
+      item("compliance", "navigation.compliance", "/warehouse/compliance", "Bell"),
+      item("movements", "navigation.movements", "/warehouse/movements", "LineChart"),
+    ],
+  },
+  {
+    id: "documents",
+    key: "navigationGroups.documents",
+    icon: "FolderOpen",
+    children: [item("documents", "navigation.documents", "/documents", "FolderOpen")],
+  },
+  {
+    id: "reports",
+    key: "navigationGroups.reports",
+    icon: "LineChart",
+    children: [item("reports", "navigation.reports", "/reports", "LineChart")],
+  },
+  {
+    id: "system",
+    key: "navigationGroups.system",
+    icon: "Settings",
+    children: [
+      item("settings", "navigation.settings", "/settings", "Settings"),
+      item("branchConcepts", "navigation.branchConcepts", "/settings/branch-concepts", "Palette"),
+      item("users", "navigation.users", "/settings/users", "UsersRound"),
+    ],
+  },
+];
+
+export function isNavigationItemActive(href: string, activeHref: string, pathname?: string | null) {
+  const current = pathname || activeHref;
+  const exactOnlyParents = new Set(["/appointments", "/orders", "/procurement", "/settings", "/warehouse"]);
+  if (exactOnlyParents.has(href)) return current === href || activeHref === href;
+
+  return current === href || activeHref === href || activeHref.startsWith(`${href}/`);
+}
+
+export function visibleNavigationForRole(role: string, permissions?: readonly Permission[] | null) {
+  const dashboard = hasPermissionWithOverrides(role, dashboardNavigation.permission, permissions) ? dashboardNavigation : null;
+  const groups = navigationGroups
+    .map((group) => ({
+      ...group,
+      children: group.children.filter((child) => hasPermissionWithOverrides(role, child.permission, permissions)),
+    }))
+    .filter((group) => group.children.length > 0);
+
+  return { dashboard, groups };
+}
+
+export function activeNavigationGroupId(groups: VisibleNavigationGroup[], activeHref: string, pathname?: string | null) {
+  return groups.find((group) => group.children.some((child) => isNavigationItemActive(child.href, activeHref, pathname)))?.id ?? null;
+}

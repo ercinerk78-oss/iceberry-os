@@ -17,6 +17,7 @@ type Permission =
   | "openings"
   | "orders"
   | "order_admin"
+  | "procurement"
   | "warehouse"
   | "reports"
   | "settings"
@@ -63,6 +64,7 @@ const allPermissions: Permission[] = [
   "openings",
   "orders",
   "order_admin",
+  "procurement",
   "warehouse",
   "reports",
   "settings",
@@ -93,22 +95,28 @@ const rolePermissions: Record<string, readonly Permission[]> = {
   GENERAL_MANAGER: allPermissions.filter((permission) => permission !== "franchisees"),
   OPERATIONS_MANAGER: allPermissions.filter((permission) => !["settings", "users", "franchisees", "locations.delete", "locations.archive", "locations.view_financials"].includes(permission)),
   FRANCHISE_MANAGER: ["dashboard", "branch_portal", "tasks", "documents", "branches", "branch_revenue", "openings", "operations", "locations.view", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
-  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "openings", "tasks", "academy.view"],
-  MUHASEBE: ["dashboard", "orders", "order_admin", "invoice", "integrations", "reports", "finance", "openings", "documents"],
-  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  RANDEVU_DEPARTMANI: ["dashboard", "leads", "appointments", "tasks", "locations.view", "locations.link_lead", "academy.view"],
-  ARCHITECTURAL_LEAD: ["dashboard", "openings", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  WAREHOUSE_MANAGER: ["warehouse", "stock_manage", "shipment_manage", "procurement", "openings", "tasks", "academy.view"],
+  MUHASEBE: ["dashboard", "orders", "order_admin", "procurement", "invoice", "integrations", "reports", "finance", "openings", "documents"],
+  APPOINTMENT_DEPARTMENT: ["dashboard", "leads", "appointments", "candidates", "tasks", "locations.view", "locations.link_lead", "academy.view"],
+  ARCHITECTURE_PROJECT_IMPLEMENTATION: ["dashboard", "openings", "branches", "tasks", "documents", "locations.view", "locations.create", "locations.update", "locations.upload_document", "academy.view"],
+  ADVERTISING_OPERATIONS: ["dashboard", "leads", "appointments", "candidates", "pipeline", "reports", "integrations", "academy.view"],
   OPENING_COORDINATOR: ["dashboard", "openings", "tasks", "documents", "orders", "warehouse", "locations.view", "locations.create", "locations.update", "locations.upload_document", "locations.link_lead", "academy.view", "academy.assign", "academy.reports"],
   AUDITOR: ["dashboard", "operations", "openings", "tasks", "documents", "locations.view", "academy.view"],
-  TRAINING_MANAGER: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
+  TRAINING_DEPARTMENT: ["dashboard", "academy.view", "academy.manage", "academy.assign", "academy.reports", "academy.certificates", "documents"],
   DOCUMENT_MANAGER: ["dashboard", "documents", "documents.manage", "academy.view", "academy.reports"],
-  BRANCH_OWNER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.assign", "academy.reports"],
-  BRANCH_MANAGER: ["branch_portal", "branches", "branch_revenue", "tasks", "documents", "finance", "operations", "openings", "academy.view", "academy.reports"],
-  BRANCH_STAFF: ["branch_portal", "tasks", "documents", "academy.view"],
+  BRANCH_OWNER: ["operations", "academy.view"],
+  BRANCH_MANAGER: ["operations", "academy.view"],
 };
 
-function hasRoutePermission(role: string, permission: Permission) {
-  return rolePermissions[role]?.includes(permission) ?? false;
+const branchRoles = new Set(["BRANCH_OWNER", "BRANCH_MANAGER"]);
+const branchRoleAllowedPermissions = new Set<Permission>(["operations", "academy.view"]);
+
+function hasRoutePermission(role: string, permission: Permission, permissions?: Permission[]) {
+  if (branchRoles.has(role) && !branchRoleAllowedPermissions.has(permission)) return false;
+  const defaults = rolePermissions[role] ?? [];
+  if (!permissions?.length) return defaults.includes(permission);
+
+  return new Set([...defaults, ...permissions]).has(permission);
 }
 
 function routePermission(path: string): Permission | null {
@@ -133,6 +141,7 @@ function routePermission(path: string): Permission | null {
   if (path.startsWith("/branch-map")) return "branches";
   if (path.startsWith("/branch-revenues")) return "branch_revenue";
   if (path.startsWith("/openings")) return "openings";
+  if (path.startsWith("/procurement")) return "procurement";
   if (path.startsWith("/orders/admin")) return "order_admin";
   if (path.startsWith("/orders")) return "orders";
   if (path.startsWith("/warehouse")) return "warehouse";
@@ -143,8 +152,10 @@ function routePermission(path: string): Permission | null {
 
 function homeForRole(role: string) {
   if (role === "WAREHOUSE_MANAGER") return "/warehouse/orders";
-  if (role === "APPOINTMENT_DEPARTMENT" || role === "RANDEVU_DEPARTMANI") return "/leads";
-  if (["BRANCH_OWNER", "BRANCH_MANAGER", "BRANCH_STAFF", "FRANCHISE_MANAGER"].includes(role)) return "/branch-portal";
+  if (role === "APPOINTMENT_DEPARTMENT") return "/candidates";
+  if (role === "ARCHITECTURE_PROJECT_IMPLEMENTATION") return "/openings";
+  if (["BRANCH_OWNER", "BRANCH_MANAGER"].includes(role)) return "/operations";
+  if (role === "FRANCHISE_MANAGER") return "/branch-portal";
 
   return "/";
 }
@@ -156,11 +167,26 @@ function loginRedirect(request: NextRequest) {
   return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, request.url));
 }
 
+function legacyLeadRedirect(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  if (path !== "/leads" && !path.startsWith("/leads/")) return null;
+
+  const url = request.nextUrl.clone();
+  const leadId = path === "/leads" ? "" : path.replace(/^\/leads\//, "").split("/")[0];
+  url.pathname = "/candidates";
+  if (leadId) url.searchParams.set("leadId", leadId);
+
+  return NextResponse.redirect(url);
+}
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path.startsWith("/_next") || path === "/favicon.ico" || publicWebhookPrefixes.some((prefix) => path.startsWith(prefix))) {
     return NextResponse.next();
   }
+
+  const leadRedirect = legacyLeadRedirect(request);
+  if (leadRedirect) return leadRedirect;
 
   let session = null;
   try {
@@ -181,7 +207,7 @@ export async function proxy(request: NextRequest) {
   if (!session) return loginRedirect(request);
 
   const permission = routePermission(path);
-  if (permission && !hasRoutePermission(session.role, permission)) {
+  if (permission && !hasRoutePermission(session.role, permission, session.permissions)) {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 

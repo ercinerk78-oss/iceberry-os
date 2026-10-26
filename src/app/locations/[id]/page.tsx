@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Archive, Download, Eye, FileImage, FileText, MapPinned, Trash2 } from "lucide-react";
 
-import { archiveLocationDocument, unlinkLocationMatch } from "@/app/locations/actions";
+import { archiveLocationDocument, unlinkCandidateLocationMatch, unlinkLocationMatch } from "@/app/locations/actions";
 import { AppShell } from "@/components/app-shell";
-import { LeadLocationLinkForm, LocationDocumentUpload, LocationForm, MatchUpdateForm } from "@/components/locations/location-forms";
+import { CandidateLocationLinkForm, CandidateMatchUpdateForm, LeadLocationLinkForm, LocationDocumentUpload, LocationForm, MatchUpdateForm } from "@/components/locations/location-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { activeLeadWhere } from "@/lib/active-records";
 import { requireUser } from "@/lib/auth";
 import {
   conceptSuitabilityLabel,
@@ -27,18 +28,25 @@ import { prisma } from "@/lib/prisma";
 export default async function LocationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const canUpdate = hasPermission(user.role, "locations.update");
-  const canUpload = hasPermission(user.role, "locations.upload_document");
-  const canLinkLead = hasPermission(user.role, "locations.link_lead");
-  const canViewFinancials = hasPermission(user.role, "locations.view_financials");
+  const canUpdate = hasPermission(user.role, "locations.update", user.permissions);
+  const canUpload = hasPermission(user.role, "locations.upload_document", user.permissions);
+  const canLinkLead = hasPermission(user.role, "locations.link_lead", user.permissions);
+  const canViewFinancials = hasPermission(user.role, "locations.view_financials", user.permissions);
 
   const location = await prisma.candidateLocation.findUnique({
     where: { id },
     include: {
       documents: { where: { archivedAt: null }, orderBy: { createdAt: "desc" } },
       leadMatches: {
+        where: { lead: activeLeadWhere() },
         include: {
           lead: { select: { id: true, fullName: true, phone: true, city: true, requestedConcept: true, leadCategory: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      },
+      candidateMatches: {
+        include: {
+          candidate: { select: { id: true, fullName: true, phone: true, city: true, interestedConcept: true, status: true } },
         },
         orderBy: { updatedAt: "desc" },
       },
@@ -46,12 +54,18 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
   });
   if (!location) notFound();
 
-  const [leads, locations] = await Promise.all([
+  const [leads, candidates, locations] = await Promise.all([
     prisma.lead.findMany({
-      where: { convertedCandidateId: null },
+      where: activeLeadWhere(),
       select: { id: true, fullName: true, city: true, phone: true },
       orderBy: { leadDate: "desc" },
       take: 100,
+    }),
+    prisma.franchiseCandidate.findMany({
+      where: { archivedAt: null },
+      select: { id: true, fullName: true, city: true, phone: true },
+      orderBy: { updatedAt: "desc" },
+      take: 250,
     }),
     prisma.candidateLocation.findMany({
       where: { archivedAt: null },
@@ -78,7 +92,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         </div>
 
         <nav className="flex gap-2 overflow-x-auto rounded-lg border bg-white p-3">
-          {["Genel Bilgiler", "Finansal Bilgiler", "Raporlar ve Dosyalar", "Fotoğraflar", "Bağlı Leadler", "Görüşmeler", "Timeline", "Notlar"].map((tab) => (
+          {["Genel Bilgiler", "Finansal Bilgiler", "Raporlar ve Dosyalar", "Fotoğraflar", "Bağlı Leadler", "Bağlı Adaylar", "Görüşmeler", "Timeline", "Notlar"].map((tab) => (
             <a key={tab} href={`#${slug(tab)}`} className="shrink-0 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-[#f8faf6]">{tab}</a>
           ))}
         </nav>
@@ -154,7 +168,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
                 <article key={match.id} className="rounded-lg border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <Link href={`/leads/${match.leadId}`} className="font-semibold hover:underline">{match.lead.fullName}</Link>
+                      <Link href={`/candidates?leadId=${match.leadId}`} className="font-semibold hover:underline">{match.lead.fullName}</Link>
                       <p className="mt-1 text-sm text-[#65705f]">{match.lead.city} · {match.lead.phone} · {match.lead.requestedConcept}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Badge>{matchStatusLabel(match.matchStatus)}</Badge>
@@ -171,8 +185,35 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
           </Card>
         </section>
 
-        <section id={slug("Görüşmeler")}><Placeholder title="Görüşmeler" text="Lokasyon görüşmeleri bağlı lead aktiviteleri ve görevleri üzerinden izlenir." /></section>
-        <section id={slug("Timeline")}><Placeholder title="Timeline" text="Lead eşleştirme hareketleri ilgili lead zaman çizelgesine otomatik yazılır." /></section>
+        <section id={slug("Bağlı Adaylar")} className="grid gap-5 xl:grid-cols-[340px_1fr]">
+          {canLinkLead ? <CandidateLocationLinkForm candidates={candidates} locations={locations} locationId={location.id} /> : null}
+          <Card className="p-5 shadow-none">
+            <h2 className="font-semibold">Bağlı Adaylar</h2>
+            <div className="mt-4 space-y-3">
+              {location.candidateMatches.map((match) => (
+                <article key={match.id} className="rounded-lg border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/candidates/${match.candidateId}`} className="font-semibold hover:underline">{match.candidate.fullName}</Link>
+                      <p className="mt-1 text-sm text-[#65705f]">{match.candidate.city} · {match.candidate.phone} · {match.candidate.interestedConcept}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge>{matchStatusLabel(match.matchStatus)}</Badge>
+                        <Badge variant="secondary">{match.candidate.status}</Badge>
+                        {match.nextFollowUpAt ? <Badge variant="secondary">Takip: {dateTR(match.nextFollowUpAt)}</Badge> : null}
+                      </div>
+                    </div>
+                    {canLinkLead ? <form action={unlinkCandidateLocationMatch.bind(null, match.id)}><Button size="sm" variant="outline"><Trash2 className="size-4" />Bağlantıyı Kaldır</Button></form> : null}
+                  </div>
+                  {canLinkLead ? <div className="mt-4"><CandidateMatchUpdateForm match={match} /></div> : null}
+                </article>
+              ))}
+              {!location.candidateMatches.length ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-[#65705f]">Bu lokasyona henüz aday bağlanmadı.</p> : null}
+            </div>
+          </Card>
+        </section>
+
+        <section id={slug("Görüşmeler")}><Placeholder title="Görüşmeler" text="Lokasyon görüşmeleri bağlı lead ve aday aktiviteleri üzerinden izlenir." /></section>
+        <section id={slug("Timeline")}><Placeholder title="Timeline" text="Lead ve aday eşleştirme hareketleri ilgili kayıt zaman çizelgesine yazılır." /></section>
         <section id={slug("Notlar")}><Placeholder title="Notlar" text={location.internalNotes || location.description || "Bu lokasyon için ek not bulunmuyor."} /></section>
       </div>
     </AppShell>

@@ -20,7 +20,9 @@ import { idempotencyKey, stringifyPayload } from "@/lib/integrations/payload";
 import { ParasutClient } from "@/lib/integrations/parasut/client";
 import type { ParasutInvoicePayload } from "@/lib/integrations/parasut/types";
 import { BranchLedgerService } from "@/lib/finance/ledger-service";
+import { shipmentBasedInvoiceSummary } from "@/lib/order-invoicing";
 import { prisma } from "@/lib/prisma";
+import { syncPurchaseOrderReceiptProgress } from "@/lib/procurement-service";
 
 const invoiceBlockedOrderTypes = ["INTERNAL_TRANSFER", "BRANCH_TRANSFER", "SAMPLE", "WAREHOUSE_TRANSFER"];
 
@@ -133,6 +135,7 @@ export class ParasutInvoiceService {
     if (!warehouse) throw new Error("Aktif depo bulunamadı.");
     const supplierId = await matchSupplier(invoice);
     if (!supplierId) throw new Error(MANUAL_REVIEW_REASONS.SUPPLIER_MAPPING_REQUIRED);
+    const purchaseOrder = await matchPurchaseOrderForInvoice(invoice, supplierId);
 
     const items = await Promise.all(invoice.lines.map(async (line) => {
       const product = await matchParasutProduct(line.externalProductId, line.sku, line.barcode);
@@ -166,6 +169,7 @@ export class ParasutInvoiceService {
       data: {
         warehouseId: warehouse.id,
         supplierId,
+        purchaseOrderId: purchaseOrder?.id,
         sourceSystem: "PARASUT",
         externalDocumentId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -177,16 +181,26 @@ export class ParasutInvoiceService {
       },
       select: { id: true },
     });
-    await prisma.externalInvoice.update({ where: { id: saved.id }, data: { goodsReceiptId: receipt.id, matchedAt: new Date(), status: "GOODS_RECEIPT_PENDING" } });
+    await prisma.externalInvoice.update({
+      where: { id: saved.id },
+      data: {
+        goodsReceiptId: receipt.id,
+        purchaseOrderId: purchaseOrder?.id,
+        matchedAt: new Date(),
+        status: "GOODS_RECEIPT_PENDING",
+      },
+    });
     await createReconciliation({
       type: "PURCHASE_INVOICE_GOODS_RECEIPT",
       status: "MANUAL_REVIEW",
+      purchaseOrderId: purchaseOrder?.id,
       goodsReceiptId: receipt.id,
       externalInvoiceId: saved.id,
       externalAmount: invoice.total,
       currency: invoice.currency ?? "TRY",
-      details: "Fiziksel mal kabul bekleniyor.",
+      details: purchaseOrder ? "Satın alma siparişiyle eşleşti. Fiziksel mal kabul bekleniyor." : "Fiziksel mal kabul bekleniyor.",
     });
+    if (purchaseOrder) await syncPurchaseOrderReceiptProgress(purchaseOrder.id);
 
     return { entityType: "GoodsReceipt", entityId: receipt.id };
   }
@@ -196,6 +210,10 @@ export class ParasutInvoiceService {
     if (!order) throw new Error("Sipariş bulunamadı.");
     if (invoiceBlockedOrderTypes.includes(order.orderType)) throw new Error("İç transfer veya operasyonel transfer için satış faturası oluşturulamaz.");
     if (order.parasutInvoiceId) return { entityType: "FranchiseOrder", entityId: order.id, status: "EXISTING" };
+    if (!order.readyToShipAt) throw new Error("Depo kontrolü onaylanmadan satış faturası oluşturulamaz.");
+
+    const invoiceSummary = shipmentBasedInvoiceSummary(order.items);
+    if (!invoiceSummary.lines.length) throw new Error("Faturalanacak sevk onaylı ürün bulunamadı.");
 
     const customerMapping = order.branchId ? await prisma.externalCustomerMapping.findFirst({
       where: { branchId: order.branchId, provider: "PARASUT", isActive: true },
@@ -207,12 +225,12 @@ export class ParasutInvoiceService {
       orderId,
       orderNumber: order.orderNumber,
       contactExternalId: customerMapping.externalCustomerId,
-      total: order.grandTotal,
+      total: invoiceSummary.grandTotal,
       currency: order.currency,
-      lines: order.items.map((item) => ({
+      lines: invoiceSummary.lines.map(({ item, quantity }) => ({
         name: item.productName,
         sku: item.sku,
-        quantity: item.quantity,
+        quantity,
         unit: item.unit,
         unitPrice: item.unitPrice,
         vatRate: item.vatRate,
@@ -227,9 +245,9 @@ export class ParasutInvoiceService {
         invoiceStatus: response.status ?? "CREATED",
         financialStatus: ORDER_FINANCIAL_STATUSES.INVOICE_CREATED,
         invoicedAt: new Date(),
-        invoiceTotal: new Prisma.Decimal(response.total ?? order.grandTotal),
+        invoiceTotal: new Prisma.Decimal(response.total ?? invoiceSummary.grandTotal),
         invoiceCurrency: response.currency ?? order.currency,
-        activities: { create: { type: "PARASUT_SALES_INVOICE_CREATED", description: `Paraşüt satış faturası oluşturuldu: ${response.number ?? response.id}` } },
+        activities: { create: { type: "PARASUT_SALES_INVOICE_CREATED", description: `Paraşüt satış faturası sevk onaylı miktarlara göre oluşturuldu: ${response.number ?? response.id}` } },
       },
     });
 
@@ -279,6 +297,21 @@ async function matchOrderForInvoice(invoice: ParasutInvoicePayload) {
       ],
     },
     select: { id: true, grandTotal: true, currency: true, branchId: true, orderType: true },
+  });
+}
+
+async function matchPurchaseOrderForInvoice(invoice: ParasutInvoicePayload, supplierId: string) {
+  const reference = invoice.externalOrderId ?? invoice.orderReference;
+  if (!reference) return null;
+  return prisma.purchaseOrder.findFirst({
+    where: {
+      supplierId,
+      OR: [
+        { orderNumber: reference },
+        { externalReference: reference },
+      ],
+    },
+    select: { id: true },
   });
 }
 
@@ -361,6 +394,7 @@ async function createReconciliation(input: {
   status: string;
   orderId?: string;
   goodsReceiptId?: string;
+  purchaseOrderId?: string;
   externalInvoiceId?: string;
   internalAmount?: number;
   externalAmount?: number;
@@ -376,6 +410,7 @@ async function createReconciliation(input: {
       status: input.status,
       orderId: input.orderId,
       goodsReceiptId: input.goodsReceiptId,
+      purchaseOrderId: input.purchaseOrderId,
       externalInvoiceId: input.externalInvoiceId,
       internalAmount,
       externalAmount,

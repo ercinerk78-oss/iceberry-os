@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { convertLead } from "@/app/leads/actions";
@@ -9,10 +10,15 @@ import {
   APPOINTMENT_TYPES,
   appointmentTypeLabel,
   combineAppointmentDate,
+  formatAppointmentDateTime,
 } from "@/lib/appointments";
 import { requirePermission, requireUser } from "@/lib/auth";
+import { activeLeadWhere } from "@/lib/active-records";
 import { LEAD_CATEGORIES, leadCategoryLabel } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
+import { parseMultiValue, replaceLeadConcepts } from "@/lib/qualification";
+import { normalizeEmail, normalizePhone } from "@/lib/search";
+import { leadSchema, type LeadActionState } from "@/lib/validations/lead";
 
 const createAppointmentSchema = z.object({
   leadId: z.string().min(1),
@@ -44,10 +50,59 @@ const rescheduleSchema = z.object({
   rescheduleReason: z.string().trim().optional(),
 });
 
+const unreachableLeadSchema = z.object({
+  reason: z.string().trim().optional(),
+  note: z.string().trim().optional(),
+});
+
+const passiveLeadSchema = z.object({
+  reason: z.enum(["WITHDREW", "WRONG_APPLICATION", "NOT_ELIGIBLE", "UNREACHABLE", "OTHER"]),
+  note: z.string().trim().max(500, "Not çok uzun.").optional(),
+});
+
+const sequentialMessageSchema = z.object({
+  step: z.coerce.number().int().min(1).max(3),
+});
+
+const sequentialMessageNoteSchema = z.object({
+  note: z.string().trim().min(2, "Not en az 2 karakter olmalıdır.").max(500, "Not çok uzun."),
+});
+
+const invalidAppointmentLeadSchema = z.object({
+  note: z.string().trim().max(500, "Not çok uzun.").optional(),
+});
+
+const passiveLeadReasonLabels: Record<z.infer<typeof passiveLeadSchema>["reason"], string> = {
+  WITHDREW: "Vazgeçti",
+  WRONG_APPLICATION: "Yanlış başvuru",
+  NOT_ELIGIBLE: "Yapamıyor / uygun değil",
+  UNREACHABLE: "Ulaşılamıyor",
+  OTHER: "Diğer",
+};
+
+const manualLeadAppointmentSchema = leadSchema.extend({
+  leadCategory: z.enum(LEAD_CATEGORIES).optional().or(z.literal("")),
+  leadStatus: z.string().optional(),
+  appointmentDate: z.string().optional(),
+  appointmentTime: z.string().optional(),
+  endTime: z.string().optional(),
+  appointmentType: z.enum(APPOINTMENT_TYPES).optional().or(z.literal("")),
+  assignedUserId: z.string().optional(),
+  title: z.string().trim().optional(),
+  location: z.string().trim().optional(),
+  meetingLink: z.string().trim().optional(),
+  appointmentNotes: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if ((data.appointmentDate || data.appointmentTime || data.appointmentType) && (!data.appointmentDate || !data.appointmentTime || !data.appointmentType)) {
+    ctx.addIssue({ code: "custom", path: ["appointmentDate"], message: "Randevu oluşturmak için tarih, saat ve görüşme tipi birlikte girilmelidir." });
+  }
+});
+
 export type AppointmentActionState = {
   success: boolean;
   message: string;
   errors?: Record<string, string[]>;
+  redirectHref?: string;
 };
 
 const initialError = { success: false, message: "Form bilgilerini kontrol edin." };
@@ -56,19 +111,15 @@ function refresh(leadId?: string) {
   revalidatePath("/");
   revalidatePath("/dashboard");
   revalidatePath("/leads");
+  revalidatePath("/candidates");
+  revalidatePath("/pipeline");
   revalidatePath("/appointments");
   revalidatePath("/tasks");
   if (leadId) revalidatePath(`/leads/${leadId}`);
 }
 
 function formattedDate(value: Date) {
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
+  return formatAppointmentDateTime(value);
 }
 
 export async function createLeadAppointment(
@@ -85,12 +136,29 @@ export async function createLeadAppointment(
     const data = parsed.data;
     const startDateTime = combineAppointmentDate(data.appointmentDate, data.appointmentTime);
     const endDateTime = data.endTime ? combineAppointmentDate(data.appointmentDate, data.endTime) : null;
-    const lead = await prisma.lead.findUnique({
-      where: { id: data.leadId },
+    if (endDateTime && endDateTime <= startDateTime) {
+      return { success: false, message: "Bitiş saati başlangıç saatinden sonra olmalıdır." };
+    }
+    const lead = await prisma.lead.findFirst({
+      where: activeLeadWhere({ id: data.leadId }),
       select: { id: true, fullName: true },
     });
 
-    if (!lead) return { success: false, message: "Lead bulunamadı." };
+    if (!lead) return { success: false, message: "Lead bulunamadı veya aktif listeden kaldırılmış." };
+
+    const existingAppointment = await prisma.leadAppointment.findFirst({
+      where: {
+        leadId: lead.id,
+        startDateTime,
+        appointmentType: data.appointmentType,
+        status: { not: "CANCELLED" },
+      },
+      select: { id: true },
+    });
+
+    if (existingAppointment) {
+      return { success: true, message: "Bu randevu zaten kayıtlı. İkinci kayıt oluşturulmadı." };
+    }
 
     const title = data.title || `${lead.fullName} ile franchise görüşmesi`;
     const location = [data.city, data.district, data.location].filter(Boolean).join(" / ");
@@ -164,6 +232,137 @@ export async function createLeadAppointmentForm(formData: FormData) {
   await createLeadAppointment({ success: false, message: "" }, formData);
 }
 
+export async function createManualLeadFromAppointments(_: LeadActionState, formData: FormData): Promise<LeadActionState> {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = manualLeadAppointmentSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: "Lütfen manuel lead bilgilerini kontrol edin.", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  const data = parsed.data;
+  const normalizedPhone = normalizePhone(data.phone);
+  const normalizedEmail = normalizeEmail(data.email);
+  const duplicate = await prisma.lead.findFirst({
+    where: activeLeadWhere({
+      OR: [
+        ...(normalizedPhone ? [{ normalizedPhone }] : []),
+        ...(normalizedEmail ? [{ normalizedEmail }] : []),
+        { phone: data.phone },
+        ...(data.email ? [{ email: { equals: data.email, mode: "insensitive" as const } }] : []),
+      ],
+    }),
+    select: { id: true, fullName: true },
+  });
+
+  if (duplicate) {
+    return {
+      success: false,
+      message: `${duplicate.fullName} adında mevcut bir lead bulundu. Yeni lead oluşturulmadı; mevcut kayıt üzerinden yeni randevu oluşturabilirsiniz.`,
+      leadId: duplicate.id,
+      redirectHref: `/appointments?lead=${duplicate.id}`,
+      linkLabel: "Mevcut kaydı aç",
+    };
+  }
+
+  const concepts = parseMultiValue(formData.getAll("concepts"));
+  const selectedConcepts = concepts.length ? concepts : [data.requestedConcept];
+  const hasAppointment = Boolean(data.appointmentDate && data.appointmentTime && data.appointmentType);
+  const startDateTime = hasAppointment ? combineAppointmentDate(data.appointmentDate!, data.appointmentTime!) : null;
+  const endDateTime = hasAppointment && data.endTime ? combineAppointmentDate(data.appointmentDate!, data.endTime) : null;
+  const assignedUserId = data.assignedUserId || user.name;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const lead = await tx.lead.create({
+        data: {
+          fullName: data.fullName,
+          phone: data.phone,
+          email: data.email || null,
+          normalizedPhone: normalizedPhone || null,
+          normalizedEmail: normalizedEmail || null,
+          city: data.city,
+          source: "Manuel",
+          requestedConcept: selectedConcepts[0] || data.requestedConcept,
+          investmentBudget: data.investmentBudget || null,
+          description: data.description || null,
+          leadCategory: data.leadCategory || null,
+          status: hasAppointment ? "WAITING_FOR_APPOINTMENT" : data.leadStatus || "NEW",
+          processStatus: hasAppointment ? "WAITING_FOR_APPOINTMENT" : data.leadStatus || "NEW",
+          nextFollowUpAt: startDateTime,
+          assignedUserId,
+          manualOverrideFields: JSON.stringify(["fullName", "phone", "email", "city", "investmentBudget", "requestedConcept", "description"]),
+          activities: {
+            create: {
+              type: "CREATE",
+              description: `${user.name} randevular ekranından manuel lead oluşturdu.`,
+            },
+          },
+        },
+      });
+      await replaceLeadConcepts(tx, lead.id, selectedConcepts);
+
+      if (!hasAppointment || !startDateTime || !data.appointmentType) return { leadId: lead.id, appointmentId: null };
+
+      const title = data.title || `${data.fullName} ile franchise görüşmesi`;
+      const appointment = await tx.leadAppointment.create({
+        data: {
+          leadId: lead.id,
+          appointmentDate: startDateTime,
+          appointmentTime: data.appointmentTime!,
+          appointmentType: data.appointmentType,
+          type: data.appointmentType,
+          startDateTime,
+          endDateTime,
+          assignedUserId,
+          createdByUserId: user.id,
+          createdById: user.id,
+          status: "SCHEDULED",
+          title,
+          description: data.appointmentNotes || data.description || null,
+          location: data.location || null,
+          meetingLink: data.meetingLink || null,
+          notes: data.appointmentNotes || null,
+        },
+      });
+      await tx.leadTask.create({
+        data: {
+          leadId: lead.id,
+          title,
+          description: `Manuel giriş randevusu. Görüşme tipi: ${appointmentTypeLabel(data.appointmentType)}.`,
+          dueDate: startDateTime,
+          priority: "Yüksek",
+          status: "Açık",
+          assignedUserId,
+        },
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId: lead.id,
+          type: "APPOINTMENT_CREATED",
+          description: `${user.name}, manuel lead ile birlikte ${formattedDate(startDateTime)} için randevu oluşturdu.`,
+        },
+      });
+
+      return { leadId: lead.id, appointmentId: appointment.id };
+    });
+
+    refresh(result.leadId);
+    return {
+      success: true,
+      message: result.appointmentId ? "Manuel lead ve randevu birlikte oluşturuldu." : "Manuel lead oluşturuldu.",
+      leadId: result.leadId,
+      appointmentId: result.appointmentId ?? undefined,
+      redirectHref: `/appointments?lead=${result.leadId}`,
+      linkLabel: result.appointmentId ? "Randevuları aç" : "Lead kaydını aç",
+    };
+  } catch (error) {
+    console.error("Manual lead appointment create failed", error);
+    return { success: false, message: "Manuel lead kaydedilemedi." };
+  }
+}
+
 export async function completeLeadAppointment(
   appointmentId: string,
   _: AppointmentActionState,
@@ -224,12 +423,18 @@ export async function completeLeadAppointment(
       });
     });
 
-    if (parsed.data.convertToCandidate && !appointment.lead.convertedCandidateId) {
-      await convertLead(appointment.leadId);
-    }
+    const conversion = appointment.lead.convertedCandidateId
+      ? { success: true, candidateId: appointment.lead.convertedCandidateId }
+      : await convertLead(appointment.leadId);
 
     refresh(appointment.leadId);
-    return { success: true, message: "Randevu sonucu kaydedildi." };
+    return {
+      success: true,
+      message: conversion.success
+        ? "Görüşme kaydedildi. Franchise adayı sayfası açılıyor."
+        : "Görüşme kaydedildi. Adaya dönüştürme ayrıca kontrol edilmeli.",
+      redirectHref: conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined,
+    };
   } catch (error) {
     console.error("Lead appointment complete failed", error);
     return { success: false, message: "Randevu sonucu kaydedilemedi." };
@@ -238,6 +443,79 @@ export async function completeLeadAppointment(
 
 export async function completeLeadAppointmentForm(appointmentId: string, formData: FormData) {
   await completeLeadAppointment(appointmentId, { success: false, message: "" }, formData);
+}
+
+export async function openCandidateFromCompletedAppointment(
+  appointmentId: string,
+  previousState: AppointmentActionState,
+): Promise<AppointmentActionState> {
+  void previousState;
+  await requirePermission("appointments");
+  const user = await requireUser();
+  let redirectHref: string | undefined;
+
+  try {
+    const appointment = await prisma.leadAppointment.findUnique({
+      where: { id: appointmentId },
+      include: { lead: { select: { id: true, convertedCandidateId: true } } },
+    });
+
+    if (!appointment) return { success: false, message: "Randevu bulunamadı." };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.leadAppointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: "COMPLETED",
+          result: appointment.result || "Görüşüldü",
+          outcome: appointment.outcome || "Görüşme yapıldı. Detaylar aday sayfasında işlenecek.",
+          completedAt: appointment.completedAt ?? new Date(),
+        },
+      });
+      await tx.lead.update({
+        where: { id: appointment.leadId },
+        data: {
+          status: "MEETING_COMPLETED",
+          processStatus: "MEETING_COMPLETED",
+          lastContactAt: new Date(),
+        },
+      });
+      await tx.leadTask.updateMany({
+        where: {
+          leadId: appointment.leadId,
+          dueDate: appointment.appointmentDate,
+          status: { in: ["Açık", "Devam Ediyor"] },
+        },
+        data: { status: "Tamamlandı", completedAt: new Date() },
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId: appointment.leadId,
+          type: "APPOINTMENT_COMPLETED",
+          description: `${user.name} görüşmeyi tamamlandı olarak işaretledi. Detay girişi franchise adayı sayfasına yönlendirildi.`,
+        },
+      });
+    });
+
+    const conversion = appointment.lead.convertedCandidateId
+      ? { success: true, candidateId: appointment.lead.convertedCandidateId }
+      : await convertLead(appointment.leadId, { revalidate: false });
+
+    revalidatePath("/appointments");
+    revalidatePath("/candidates");
+    if (conversion.success && conversion.candidateId) revalidatePath(`/candidates/${conversion.candidateId}`);
+    redirectHref = conversion.success && conversion.candidateId ? `/candidates/${conversion.candidateId}` : undefined;
+  } catch (error) {
+    console.error("Open candidate from appointment failed", error);
+    return { success: false, message: "Franchise adayı sayfası açılamadı." };
+  }
+
+  if (redirectHref) redirect(redirectHref);
+
+  return {
+    success: false,
+    message: "Görüşme tamamlandı fakat adaya dönüştürme ayrıca kontrol edilmeli.",
+  };
 }
 
 export async function changeLeadAppointmentStatus(appointmentId: string, status: string, formData?: FormData) {
@@ -249,15 +527,43 @@ export async function changeLeadAppointmentStatus(appointmentId: string, status:
 
   try {
     const reason = String(formData?.get("reason") || "");
-    const appointment = await prisma.leadAppointment.update({
+    const appointment = await prisma.$transaction(async (tx) => tx.leadAppointment.update({
       where: { id: appointmentId },
       data: {
         status: parsed.data,
         cancelledAt: parsed.data === "CANCELLED" ? new Date() : null,
         cancellationReason: parsed.data === "CANCELLED" ? reason || null : undefined,
       },
-      select: { leadId: true },
-    });
+      select: { leadId: true, appointmentDate: true },
+    }));
+    if (parsed.data === "NO_SHOW") {
+      const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+      await prisma.$transaction([
+        prisma.lead.update({
+          where: { id: appointment.leadId },
+          data: { status: "APPOINTMENT_NO_SHOW_FOLLOW_UP", processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP", nextFollowUpAt: nextCallAt },
+        }),
+        prisma.leadTask.create({
+          data: {
+            leadId: appointment.leadId,
+            title: "Randevuda ulaşılamadı - tekrar randevu planla",
+            description: reason ? `Satış randevusu saatinde ulaşılamadı. Not: ${reason}` : "Satış randevusu saatinde ulaşılamadı.",
+            dueDate: nextCallAt,
+            priority: "Yüksek",
+            status: "Açık",
+            assignedUserId: user.name,
+          },
+        }),
+      ]);
+    }
+
+    if (parsed.data === "CANCELLED") {
+      await prisma.leadTask.updateMany({
+        where: { leadId: appointment.leadId, dueDate: appointment.appointmentDate, status: { in: ["Açık", "Devam Ediyor"] } },
+        data: { status: "İptal Edildi", completedAt: new Date() },
+      });
+    }
+
     await prisma.leadActivity.create({
       data: {
         leadId: appointment.leadId,
@@ -275,6 +581,412 @@ export async function changeLeadAppointmentStatus(appointmentId: string, status:
 
 export async function changeLeadAppointmentStatusForm(appointmentId: string, status: string, formData: FormData) {
   await changeLeadAppointmentStatus(appointmentId, status, formData);
+}
+
+export async function deleteLeadAppointment(appointmentId: string) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  const appointment = await prisma.leadAppointment.findUnique({
+    where: { id: appointmentId },
+    select: { leadId: true, appointmentDate: true, title: true },
+  });
+
+  if (!appointment) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leadAppointment.delete({ where: { id: appointmentId } });
+    await tx.leadTask.deleteMany({
+      where: {
+        leadId: appointment.leadId,
+        dueDate: appointment.appointmentDate,
+        title: appointment.title,
+        status: { in: ["Açık", "Devam Ediyor"] },
+      },
+    });
+
+    const nextAppointment = await tx.leadAppointment.findFirst({
+      where: {
+        leadId: appointment.leadId,
+        status: { in: ["SCHEDULED", "RESCHEDULED"] },
+        appointmentDate: { gte: new Date() },
+      },
+      select: { appointmentDate: true, assignedUserId: true },
+      orderBy: { appointmentDate: "asc" },
+    });
+
+    await tx.lead.update({
+      where: { id: appointment.leadId },
+      data: nextAppointment
+        ? {
+            status: "WAITING_FOR_APPOINTMENT",
+            processStatus: "WAITING_FOR_APPOINTMENT",
+            nextFollowUpAt: nextAppointment.appointmentDate,
+            assignedUserId: nextAppointment.assignedUserId || undefined,
+          }
+        : {
+            status: "TO_BE_CALLED",
+            processStatus: "TO_BE_CALLED",
+            nextFollowUpAt: null,
+          },
+    });
+
+    await tx.leadActivity.create({
+      data: {
+        leadId: appointment.leadId,
+        type: "APPOINTMENT_DELETED",
+        description: `${user.name} hatalı oluşturulan randevu kaydını sildi: ${formattedDate(appointment.appointmentDate)}.`,
+      },
+    });
+  });
+
+  refresh(appointment.leadId);
+}
+
+export async function deleteLeadAppointmentForm(appointmentId: string) {
+  await deleteLeadAppointment(appointmentId);
+}
+
+export async function markLeadUnreachable(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const reason = parsed.success ? parsed.data.reason || parsed.data.note || "" : "";
+  const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "APPOINTMENT_CALL_UNREACHABLE",
+        processStatus: "APPOINTMENT_CALL_UNREACHABLE",
+        lastContactAt: new Date(),
+        nextFollowUpAt: nextCallAt,
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadTask.create({
+      data: {
+        leadId: lead.id,
+        title: `Randevu için tekrar ara: ${lead.fullName}`,
+        description: reason ? `Randevu almak için ulaşılamadı. Not: ${reason}` : "Randevu almak için ulaşılamadı.",
+        dueDate: nextCallAt,
+        priority: "Normal",
+        status: "Açık",
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_CALL_UNREACHABLE",
+        description: `${user.name} lead aramasında ulaşılamadı olarak işaretledi.${reason ? ` Not: ${reason}` : ""}`,
+      },
+    });
+  });
+
+  refresh(lead.id);
+}
+
+export async function markLeadUnreachableForm(leadId: string, formData: FormData) {
+  await markLeadUnreachable(leadId, formData);
+}
+
+export async function markAppointmentNoShowFollowUpUnreachable(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = unreachableLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const reason = parsed.success ? parsed.data.reason || parsed.data.note || "" : "";
+  const nextCallAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "APPOINTMENT_NO_SHOW_FOLLOW_UP",
+        processStatus: "APPOINTMENT_NO_SHOW_FOLLOW_UP",
+        lastContactAt: new Date(),
+        nextFollowUpAt: nextCallAt,
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadTask.create({
+      data: {
+        leadId: lead.id,
+        title: `Randevu saatinde ulaşılamadı - tekrar ara: ${lead.fullName}`,
+        description: reason ? `Randevu saatinde ulaşılamayan lead tekrar arandı, yine ulaşılamadı. Not: ${reason}` : "Randevu saatinde ulaşılamayan lead tekrar arandı, yine ulaşılamadı.",
+        dueDate: nextCallAt,
+        priority: "Yüksek",
+        status: "Açık",
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_NO_SHOW",
+        description: `${user.name} randevu saati sonrası tekrar aramada ulaşılamadı olarak işaretledi.${reason ? ` Not: ${reason}` : ""}`,
+      },
+    });
+  });
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentNoShowFollowUpUnreachableForm(leadId: string, formData: FormData) {
+  await markAppointmentNoShowFollowUpUnreachable(leadId, formData);
+}
+
+export async function deactivateAppointmentLead(leadId: string, formData: FormData) {
+  await requirePermission("appointments");
+  const parsed = passiveLeadSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: {
+      id: true,
+      fullName: true,
+    },
+  });
+
+  if (!lead) return;
+
+  const reasonLabel = passiveLeadReasonLabels[parsed.data.reason];
+  const passiveNote = parsed.data.note?.trim();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "CLOSED",
+        processStatus: "CLOSED",
+        invalidReason: "OTHER",
+        invalidReasonDetail: passiveNote ? `${reasonLabel}: ${passiveNote}` : reasonLabel,
+        nextFollowUpAt: null,
+      },
+    });
+    await tx.leadAppointment.updateMany({
+      where: { leadId: lead.id, status: { in: ["SCHEDULED", "RESCHEDULED"] } },
+      data: {
+        status: "CANCELLED",
+        cancellationReason: `Lead pasife alındı: ${reasonLabel}`,
+        cancelledAt: new Date(),
+      },
+    });
+    await tx.leadTask.updateMany({
+      where: { leadId: lead.id, status: { in: ["Açık", "Devam Ediyor"] } },
+      data: { status: "İptal Edildi", completedAt: new Date() },
+    });
+    await tx.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "LEAD_PASSIVE",
+        description: `${lead.fullName} randevu akışından pasife alındı. Sebep: ${reasonLabel}.${passiveNote ? ` Not: ${passiveNote}` : ""}`,
+      },
+    });
+  });
+
+  refresh(lead.id);
+}
+
+export async function deactivateAppointmentLeadForm(leadId: string, formData: FormData) {
+  await deactivateAppointmentLead(leadId, formData);
+}
+
+export async function markAppointmentSequentialMessageSent(leadId: string, formData: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = sequentialMessageSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  const step = parsed.data.step;
+  await prisma.leadActivity.create({
+    data: {
+      leadId: lead.id,
+      type: `APPOINTMENT_PASSIVE_WARNING_MESSAGE_${step}`,
+      description: `${user.name}, pasife alma öncesi ${step}. WhatsApp mesajını gönderdi.`,
+    },
+  });
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentSequentialMessageSentForm(leadId: string, formData: FormData) {
+  await markAppointmentSequentialMessageSent(leadId, formData);
+}
+
+export async function addSequentialMessageLeadNote(leadId: string, formData: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = sequentialMessageNoteSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) return;
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.leadActivity.create({
+    data: {
+      leadId: lead.id,
+      type: "APPOINTMENT_SEQUENTIAL_MESSAGE_NOTE",
+      description: `${user.name}, sıralı mesaj sürecine not ekledi: ${parsed.data.note}`,
+    },
+  });
+
+  refresh(lead.id);
+}
+
+export async function addSequentialMessageLeadNoteForm(leadId: string, formData: FormData) {
+  await addSequentialMessageLeadNote(leadId, formData);
+}
+
+export async function moveLeadToSequentialMessageFlow(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = invalidAppointmentLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const note = parsed.success ? parsed.data.note : "";
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true, assignedUserId: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "APPOINTMENT_CALL_UNREACHABLE",
+        processStatus: "APPOINTMENT_CALL_UNREACHABLE",
+        lastContactAt: new Date(),
+        nextFollowUpAt: new Date(),
+        assignedUserId: lead.assignedUserId || user.name,
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_SEQUENTIAL_MESSAGE_FLOW",
+        description: `${user.name}, lead kaydını manuel olarak sıralı mesaj sürecine aldı.${note ? ` Not: ${note}` : ""}`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function moveLeadToSequentialMessageFlowForm(leadId: string, formData: FormData) {
+  await moveLeadToSequentialMessageFlow(leadId, formData);
+}
+
+export async function markAppointmentLeadInvalidForm(leadId: string, formData?: FormData) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+  const parsed = invalidAppointmentLeadSchema.safeParse(Object.fromEntries(formData ?? new FormData()));
+  const note = parsed.success ? parsed.data.note : "";
+
+  const lead = await prisma.lead.findFirst({
+    where: activeLeadWhere({ id: leadId }),
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        leadCategory: "INVALID_FORM",
+        invalidReason: "IRRELEVANT_APPLICATION",
+        invalidReasonDetail: note || "Randevu departmanı tarafından hatalı / yanlış başvuru olarak işaretlendi.",
+        nextFollowUpAt: null,
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "APPOINTMENT_INVALID_APPLICATION",
+        description: `${user.name}, lead kaydını hatalı başvuru kategorisine aldı.${note ? ` Not: ${note}` : ""}`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function markAppointmentLeadInvalidFormForm(leadId: string, formData: FormData) {
+  await markAppointmentLeadInvalidForm(leadId, formData);
+}
+
+export async function reactivateAppointmentLead(leadId: string) {
+  await requirePermission("appointments");
+  const user = await requireUser();
+
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: leadId,
+      convertedCandidateId: null,
+      OR: [{ status: "CLOSED" }, { processStatus: "CLOSED" }],
+    },
+    select: { id: true, fullName: true },
+  });
+
+  if (!lead) return;
+
+  await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: "TO_BE_CALLED",
+        processStatus: "TO_BE_CALLED",
+        invalidReason: null,
+        invalidReasonDetail: null,
+        nextFollowUpAt: new Date(),
+      },
+    }),
+    prisma.leadActivity.create({
+      data: {
+        leadId: lead.id,
+        type: "LEAD_REACTIVATED_FROM_APPOINTMENT",
+        description: `${user.name}, pasife alınan lead kaydını tekrar randevu akışına aldı.`,
+      },
+    }),
+  ]);
+
+  refresh(lead.id);
+}
+
+export async function reactivateAppointmentLeadForm(leadId: string) {
+  await reactivateAppointmentLead(leadId);
 }
 
 export async function rescheduleLeadAppointment(appointmentId: string, formData: FormData) {

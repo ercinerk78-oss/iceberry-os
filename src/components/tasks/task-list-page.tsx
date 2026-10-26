@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CalendarClock, Search } from "lucide-react";
+import { CalendarClock, CheckCircle2, ExternalLink, Search } from "lucide-react";
 
+import { completeTaskForm } from "@/app/tasks/actions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/candidates";
 import { isOpenTask, isToday } from "@/lib/pipeline";
 
@@ -31,14 +33,12 @@ export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; in
   const [city, setCity] = useState(ALL);
   const options = (getter: (task: TaskListItem) => string) =>
     Array.from(new Set(tasks.map(getter).filter(Boolean))).sort((a, b) => a.localeCompare(b, "tr"));
+
   const filtered = useMemo(
     () =>
       tasks.filter(
         (task) =>
-          (!q ||
-            `${task.title} ${task.relation.fullName}`
-              .toLocaleLowerCase("tr")
-              .includes(q.toLocaleLowerCase("tr"))) &&
+          (!q || `${task.title} ${task.relation.fullName}`.toLocaleLowerCase("tr").includes(q.toLocaleLowerCase("tr"))) &&
           (owner === ALL || task.assignedUserId === owner) &&
           (priority === ALL || task.priority === priority) &&
           (status === ALL || task.status === status) &&
@@ -51,6 +51,7 @@ export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; in
       ),
     [city, date, owner, person, priority, q, status, tasks],
   );
+
   const groups = [
     { title: "Bugünkü Görevler", items: filtered.filter((task) => isToday(task.dueDate) && isOpenTask(task.status)) },
     {
@@ -70,7 +71,7 @@ export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; in
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="flex h-10 items-center gap-2 rounded-lg border bg-[#f8faf6] px-3 xl:col-span-2">
             <Search className="size-4" />
-            <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Görev, lead veya aday ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+            <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Görev veya aday ara" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
           </label>
           <Filter label="Sorumlu kişi" value={owner} set={setOwner} items={options((task) => task.assignedUserId)} />
           <Filter label="Öncelik" value={priority} set={setPriority} items={options((task) => task.priority)} />
@@ -92,30 +93,43 @@ export function TaskListPage({ tasks, initialDate }: { tasks: TaskListItem[]; in
                 const late = isOpenTask(task.status) && new Date(task.dueDate) < new Date();
 
                 return (
-                  <Link
+                  <article
                     key={`${task.relation.type}-${task.id}`}
-                    href={task.relation.href}
-                    className={`block rounded-lg border p-4 transition hover:shadow-sm ${late ? "border-rose-300 bg-rose-50" : "border-[#edf0e9] bg-[#f8faf6]"}`}
+                    className={`rounded-lg border p-4 transition hover:shadow-sm ${late ? "border-rose-300 bg-rose-50" : "border-[#edf0e9] bg-[#f8faf6]"}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary">{task.relation.type === "lead" ? "Lead" : task.relation.type === "branch" ? "Şube" : "Aday"}</Badge>
-                          <Badge className={task.priority === "Acil" ? "bg-rose-700 text-white" : "bg-[#17201b] text-white"}>
-                            {task.priority}
-                          </Badge>
+                          <Badge variant="secondary">{task.relation.type === "branch" ? "Şube" : task.relation.type === "lead" ? "Lead" : "Aday"}</Badge>
+                          <Badge className={task.priority === "Acil" ? "bg-rose-700 text-white" : "bg-[#17201b] text-white"}>{task.priority}</Badge>
                         </div>
                         <h3 className="mt-3 font-semibold">{task.title}</h3>
                         <p className="mt-1 text-sm text-[#65705f]">
                           {task.relation.fullName} · {task.relation.city}
                         </p>
                       </div>
+                      <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
+                        {isOpenTask(task.status) ? (
+                          <form action={completeTaskForm.bind(null, task.id)}>
+                            <Button size="sm" className="bg-emerald-700 text-white hover:bg-emerald-800">
+                              <CheckCircle2 className="size-4" />
+                              Tamamla
+                            </Button>
+                          </form>
+                        ) : null}
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={task.relation.href}>
+                            <ExternalLink className="size-4" />
+                            Aç
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                     <p className={`mt-3 flex items-center gap-2 text-sm ${late ? "font-semibold text-rose-700" : "text-[#65705f]"}`}>
                       <CalendarClock className="size-4" />
                       {formatDate(task.dueDate)} · {task.assignedUserId}
                     </p>
-                  </Link>
+                  </article>
                 );
               })}
               {group.items.length === 0 ? <p className="py-8 text-center text-sm text-[#65705f]">Bu grupta görev yok.</p> : null}

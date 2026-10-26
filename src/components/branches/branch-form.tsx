@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
+import type { BranchConceptOption } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES, LOCATION_TYPES } from "@/lib/franchise";
 import type { FormState } from "@/lib/validations/franchise";
 
 type Values = Record<string, unknown>;
@@ -14,19 +17,31 @@ const initial: FormState = { success: false, message: "" };
 export function BranchForm({
   action,
   values = {},
+  conceptOptions,
   cancelHref,
+  extraFields,
 }: {
   action: (state: FormState, data: FormData) => Promise<FormState>;
   values?: Values;
+  conceptOptions: BranchConceptOption[];
   cancelHref?: string;
+  extraFields?: ReactNode;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, initial);
+  const currentConceptId = String(values.conceptId ?? "");
+
+  useEffect(() => {
+    if (state.success && state.redirectHref) {
+      router.push(state.redirectHref);
+    }
+  }, [router, state.redirectHref, state.success]);
 
   return (
     <form action={formAction} className="grid gap-4 md:grid-cols-2">
       <Section title="Temel Bilgiler" />
       <Field name="branchName" label="Şube Adı" value={values.branchName} required />
-      <Select name="concept" label="Konsept" value={String(values.concept ?? "CORNER")} options={BRANCH_CONCEPTS} />
+      <ConceptSelect value={currentConceptId} options={conceptOptions} />
       <Select name="locationType" label="Lokasyon Tipi" value={String(values.locationType ?? "STREET")} options={LOCATION_TYPES} />
       <Select name="status" label="Durum" value={String(values.status ?? "PLANNED")} options={BRANCH_STATUSES} />
 
@@ -34,6 +49,12 @@ export function BranchForm({
       <Field name="city" label="Şehir" value={values.city} required />
       <Field name="district" label="İlçe" value={values.district} />
       <Area name="address" label="Adres" value={values.address} />
+      <Section title="Harita Konumu" />
+      <Field name="latitude" label="Enlem" type="number" value={values.latitude} />
+      <Field name="longitude" label="Boylam" type="number" value={values.longitude} />
+      <p className="text-sm text-[#65705f] md:col-span-2">
+        Boş bırakırsanız sistem şehir, ilçe ve adres bilgisinden konumu otomatik bulmaya çalışır.
+      </p>
 
       <Section title="Operasyon" />
       <Field name="plannedOpeningDate" label="Planlanan Açılış" type="date" value={dateValue(values.plannedOpeningDate)} />
@@ -42,15 +63,17 @@ export function BranchForm({
       <Field name="marketingContributionRate" label="Pazarlama Katkı Oranı (%)" type="number" value={values.marketingContributionRate} />
       <Field name="operationsManager" label="Operasyon Sorumlusu" value={values.operationsManager} />
       <Area name="generalNotes" label="Genel Notlar" value={values.generalNotes} />
+      {extraFields}
 
       <input type="hidden" name="franchiseeId" value={String(values.franchiseeId ?? "")} />
+      <input type="hidden" name="concept" value={String(values.concept ?? "")} />
 
       {state.message ? (
         <p className={`rounded-lg p-3 text-sm md:col-span-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
           {state.message}
           {state.success && state.id ? (
-            <Link className="ml-2 font-semibold underline" href={`/branches/${state.id}`}>
-              Şube kaydını aç
+            <Link className="ml-2 font-semibold underline" href={state.redirectHref ?? `/branches/${state.id}`}>
+              {state.linkLabel ?? "Şube kaydını aç"}
             </Link>
           ) : null}
         </p>
@@ -61,7 +84,7 @@ export function BranchForm({
             <Link href={cancelHref}>Vazgeç</Link>
           </Button>
         ) : null}
-        <Button disabled={pending} className="bg-[#17201b] text-white">
+        <Button disabled={pending || conceptOptions.length === 0} className="bg-[#17201b] text-white">
           {pending ? "Kaydediliyor..." : "Kaydet"}
         </Button>
       </div>
@@ -93,8 +116,8 @@ function Field({
         required={required}
         name={name}
         type={type}
-        step={type === "number" ? "0.01" : undefined}
-        min={type === "number" ? 0 : undefined}
+        step={type === "number" ? (["latitude", "longitude"].includes(name) ? "0.000001" : "0.01") : undefined}
+        min={type === "number" && !["latitude", "longitude"].includes(name) ? 0 : undefined}
         defaultValue={String(value ?? "")}
         className="h-10 rounded-lg border bg-[#f8faf6] px-3"
       />
@@ -107,6 +130,24 @@ function Area({ name, label, value }: { name: string; label: string; value?: unk
     <label className="grid gap-2 text-sm font-medium md:col-span-2">
       <span>{label}</span>
       <textarea name={name} defaultValue={String(value ?? "")} rows={3} className="rounded-lg border bg-[#f8faf6] p-3" />
+    </label>
+  );
+}
+
+function ConceptSelect({ value, options }: { value: string; options: BranchConceptOption[] }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium">
+      <span>Konsept</span>
+      <select required name="conceptId" defaultValue={value} className="h-10 rounded-lg border bg-[#f8faf6] px-3">
+        <option value="">Konsept seçin</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+            {option.isActive === false ? " (Pasif)" : ""}
+          </option>
+        ))}
+      </select>
+      {!options.length ? <span className="text-xs text-rose-700">Aktif şube konsepti bulunamadı.</span> : null}
     </label>
   );
 }

@@ -103,7 +103,8 @@ SELECT
   NOW(),
   f."archivedAt"
 FROM "Franchisee" f
-WHERE NOT EXISTS (SELECT 1 FROM "Branch" b WHERE b."franchiseeId" = f."id");
+WHERE NOT EXISTS (SELECT 1 FROM "Branch" b WHERE b."franchiseeId" = f."id")
+ON CONFLICT DO NOTHING;
 
 UPDATE "Document" d
 SET "branchId" = b."id"

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const optionalMoney = z.preprocess((value) => {
+  if (value === null || value === undefined || value === "") return 0;
+  return value;
+}, z.coerce.number().min(0, "Tutar negatif olamaz.").default(0));
+
 export const orderSchema = z.object({
   franchiseeId: z.string().min(1, "Şube grubu seçmelisiniz."),
   branchId: z.string().optional(),
@@ -19,10 +24,10 @@ export const productSchema = z.object({
   barcode: z.string().optional(),
   categoryId: z.string().min(1, "Kategori seçmelisiniz."),
   unit: z.string().min(1),
-  vatRate: z.coerce.number().min(0),
-  purchasePrice: z.coerce.number().min(0),
-  salePrice: z.coerce.number().min(0),
+  vatRate: optionalMoney,
+  purchasePrice: optionalMoney,
+  salePrice: optionalMoney,
   currency: z.string().default("TRY"),
-  minimumStockLevel: z.coerce.number().min(0),
+  minimumStockLevel: optionalMoney,
   description: z.string().optional(),
 });

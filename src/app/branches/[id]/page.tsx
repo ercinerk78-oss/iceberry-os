@@ -1,19 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, CheckSquare, FileText, ShieldCheck, TrendingUp } from "lucide-react";
+import { CalendarClock, Check, CheckSquare, ClipboardCheck, FileText, ShieldCheck, TrendingUp } from "lucide-react";
 
-import { updateBranch } from "@/app/branches/actions";
+import { completeOperationCalendarItem, updateBranch, updateBranchNotes } from "@/app/branches/actions";
+import { cancelBranchVisit, completeBranchVisit, createBranchVisit } from "@/app/branches/visits/actions";
+import { startAuditAssignment, submitAudit } from "@/app/operations/actions";
 import { AppShell } from "@/components/app-shell";
 import { BranchForm } from "@/components/branches/branch-form";
+import { BranchTaskPanel } from "@/components/branches/branch-task-panel";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
+import { QuickAuditAnswerForm } from "@/components/operations/operation-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
-import { formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
+import { branchConceptLabel } from "@/lib/branch-concepts";
+import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { VISIBLE_REVENUE_STATUSES, formatMoney, formatPercent, percentChange, periodLabel, realizationRate } from "@/lib/branch-revenue";
 import { safeFindBranchRevenueRecords } from "@/lib/branch-revenue-data";
+import { visibleMainBranchConceptWhere } from "@/lib/branch-visibility";
 import { canAccessBranch } from "@/lib/branch-access";
+import { currentUser } from "@/lib/auth";
 import { OPENING_STATUSES, openingLabel } from "@/lib/openings";
+import { AUDIT_ASSIGNMENT_STATUS_LABELS, AUDIT_RESULT_LABELS, AUDIT_TYPE_LABELS, dateTR as operationDateTR, label as operationLabel, percentTR } from "@/lib/operations/labels";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +33,13 @@ const tabs = [
   "Görevler",
   "Dokümanlar",
   "Denetim Raporları",
-  "Şube Gelişim Planları",
+  "Operasyon Ziyaretleri",
   "Operasyon Takvimi",
   "KPI ve Performans",
   "Timeline",
   "Notlar",
 ] as const;
+const CANCELLED_VISIT_CLEANUP_CUTOFF = new Date("2026-08-17T13:20:00.000Z");
 
 export default async function BranchDetail({
   params,
@@ -42,16 +51,21 @@ export default async function BranchDetail({
   const { id } = await params;
   const { tab = "Genel" } = await searchParams;
   if (!(await canAccessBranch(id))) notFound();
+  const user = await currentUser();
   const branch = await prisma.branch.findUnique({
     where: { id },
     select: {
       id: true,
       franchiseeId: true,
+      conceptId: true,
       branchName: true,
       city: true,
       district: true,
       address: true,
+      latitude: true,
+      longitude: true,
       concept: true,
+      conceptRelation: true,
       locationType: true,
       openingDate: true,
       plannedOpeningDate: true,
@@ -64,8 +78,24 @@ export default async function BranchDetail({
       users: { include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } }, orderBy: { createdAt: "desc" } },
       tasks: { include: { evidence: true }, orderBy: { createdAt: "desc" } },
       audits: { orderBy: { auditDate: "desc" } },
-      developmentPlans: { orderBy: { createdAt: "desc" } },
-      operationCalendarItems: { orderBy: { startAt: "asc" } },
+      auditAssignments: { include: { template: { select: { name: true } } }, orderBy: { dueAt: "asc" } },
+      operationalAudits: {
+        include: {
+          template: {
+            include: {
+              sections: {
+                include: { questions: { include: { options: true } } },
+                orderBy: { sortOrder: "asc" },
+              },
+            },
+          },
+          answers: { include: { evidences: { where: { evidenceType: "PHOTO" }, select: { id: true } } } },
+          evidences: { where: { evidenceType: "PHOTO", documentId: { not: null } }, select: { id: true, caption: true, createdAt: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      visits: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: [{ plannedAt: "desc" }] },
+      operationCalendarItems: { where: { OR: [{ status: { not: "CANCELLED" } }, { updatedAt: { gte: CANCELLED_VISIT_CLEANUP_CUTOFF } }] }, orderBy: { startAt: "asc" } },
       timeline: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 },
       openings: {
         where: { archivedAt: null },
@@ -76,19 +106,29 @@ export default async function BranchDetail({
   });
 
   if (!branch) notFound();
-  const revenueRecords = await safeFindBranchRevenueRecords({
-    where: { branchId: id },
-    include: { enteredBy: { select: { name: true } } },
-    orderBy: { periodStart: "desc" },
-    take: 36,
-  });
+  const [revenueRecords, conceptOptions] = await Promise.all([
+    safeFindBranchRevenueRecords({
+      where: { branchId: id },
+      include: { enteredBy: { select: { name: true } } },
+      orderBy: { periodStart: "desc" },
+      take: 36,
+    }),
+    prisma.branchConcept.findMany({
+      where: { OR: [{ isActive: true, ...visibleMainBranchConceptWhere }, ...(branch.conceptId ? [{ id: branch.conceptId }] : [])] },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   const activeOpening = branch.openings.find((opening) => !["COMPLETED", "CANCELLED"].includes(opening.status));
   const activeStage = activeOpening?.stages.find((stage) => stage.status === "IN_PROGRESS");
   const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status));
   const overdueTasks = openTasks.filter((task) => task.dueDate && task.dueDate < new Date());
+  const openAuditAssignments = branch.auditAssignments.filter((assignment) => ["ASSIGNED", "PLANNED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status));
+  const activeOperationalAudits = branch.operationalAudits.filter((audit) => ["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const lastOperationalAudit = branch.operationalAudits[0];
   const lastAudit = branch.audits[0];
-  const activeDevelopmentPlans = branch.developmentPlans.filter((plan) => !["COMPLETED", "CANCELLED"].includes(plan.status));
+  const lastAuditScore = lastOperationalAudit ? percentTR(Number(lastOperationalAudit.percentageScore)) : (lastAudit?.score ?? "—");
+  const openCalendarItems = branch.operationCalendarItems.filter((item) => item.status !== "COMPLETED");
   const values = {
     ...branch,
     openingDate: branch.openingDate?.toISOString() ?? "",
@@ -104,20 +144,27 @@ export default async function BranchDetail({
               <div className="flex flex-wrap gap-2">
                 <Badge>{label(BRANCH_STATUSES, branch.status)}</Badge>
                 <Badge variant="secondary">Şube</Badge>
-                <Badge variant="secondary">{label(BRANCH_CONCEPTS, branch.concept)}</Badge>
+                <Badge variant="secondary">{branchConceptLabel(branch.conceptRelation, branch.concept)}</Badge>
               </div>
               <p className="mt-3 text-sm text-[#65705f]">
                 {branch.city}
                 {branch.district ? ` / ${branch.district}` : ""} · Planlanan açılış {formatDate(branch.plannedOpeningDate)}
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               <Metric label="Açık Görev" value={openTasks.length} icon={CheckSquare} />
               <Metric label="Geciken Görev" value={overdueTasks.length} icon={CalendarClock} />
-              <Metric label="Son Denetim" value={lastAudit?.score ?? "—"} icon={ShieldCheck} />
+              <Metric label="Açık Denetim" value={openAuditAssignments.length + activeOperationalAudits.length} icon={ClipboardCheck} />
+              <Metric label="Son Denetim" value={lastAuditScore} icon={ShieldCheck} />
             </div>
           </div>
         </Card>
+
+        <BranchAuditNotice
+          branchId={id}
+          assignments={openAuditAssignments}
+          activeAudits={activeOperationalAudits}
+        />
 
         <Card className="shadow-none">
           <CardHeader className="border-b">
@@ -130,19 +177,19 @@ export default async function BranchDetail({
             </nav>
           </CardHeader>
           <CardContent className="p-5">
-            {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} /> : null}
+            {tab === "Genel" ? <BranchForm action={updateBranch.bind(null, id)} values={values} conceptOptions={conceptOptions} /> : null}
             {tab === "Açılış Süreci" ? <OpeningPanel activeOpening={activeOpening} activeStageTitle={activeStage?.title} /> : null}
             {tab === "Kullanıcılar" ? <UsersPanel users={branch.users} /> : null}
-            {tab === "Görevler" ? <TasksPanel tasks={branch.tasks} /> : null}
+            {tab === "Görevler" ? <BranchTaskPanel branchId={id} tasks={branch.tasks} canReview={!["BRANCH_OWNER", "BRANCH_MANAGER"].includes(user?.role ?? "")} /> : null}
             {tab === "Dokümanlar" ? <RelatedDocumentsPanel relation="branch" relationId={id} documents={branch.documents} /> : null}
-            {tab === "Denetim Raporları" ? <AuditPanel audits={branch.audits} /> : null}
-            {tab === "Şube Gelişim Planları" ? <DevelopmentPanel plans={branch.developmentPlans} /> : null}
+            {tab === "Denetim Raporları" ? <AuditPanel assignments={branch.auditAssignments} operationalAudits={branch.operationalAudits} legacyAudits={branch.audits} /> : null}
+            {tab === "Operasyon Ziyaretleri" ? <BranchVisitsPanel branchId={id} visits={branch.visits} /> : null}
             {tab === "Operasyon Takvimi" ? <CalendarPanel items={branch.operationCalendarItems} /> : null}
             {tab === "KPI ve Performans" ? (
-              <RevenuePerformance records={revenueRecords} healthScore={null} activePlanCount={activeDevelopmentPlans.length} lastAuditScore={lastAudit?.score} />
+              <RevenuePerformance records={revenueRecords} healthScore={null} activePlanCount={openCalendarItems.length} lastAuditScore={lastAudit?.score} />
             ) : null}
             {tab === "Timeline" ? <TimelinePanel events={branch.timeline} /> : null}
-            {tab === "Notlar" ? <Empty title="Notlar" text={branch.generalNotes ?? "Bu şube için not bulunmuyor."} /> : null}
+            {tab === "Notlar" ? <NotesPanel branchId={id} notes={branch.generalNotes} /> : null}
           </CardContent>
         </Card>
       </div>
@@ -190,28 +237,408 @@ function UsersPanel({ users }: { users: { id: string; role: string; user: { name
   return <List items={users.map((item) => `${item.user.name} · ${item.role} · ${item.user.email}`)} />;
 }
 
-function TasksPanel({ tasks }: { tasks: { id: string; title: string; status: string; dueDate: Date | null; evidence: unknown[] }[] }) {
-  if (!tasks.length) return <Empty title="Görevler" text="Bu şubeye atanmış görev yok." />;
+function BranchAuditNotice({
+  branchId,
+  assignments,
+  activeAudits,
+}: {
+  branchId: string;
+  assignments: { id: string; auditType: string; status: string; dueAt: Date; template: { name: string } }[];
+  activeAudits: { id: string; auditType: string; status: string; result: string; percentageScore: unknown; createdAt: Date; template: { name: string } }[];
+}) {
+  if (!assignments.length && !activeAudits.length) return null;
 
-  return <List items={tasks.map((task) => `${task.title} · ${task.status} · ${formatDate(task.dueDate)} · Kanıt: ${task.evidence.length}`)} />;
+  const firstAssignment = assignments[0];
+  const firstAudit = activeAudits[0];
+
+  return (
+    <Card className="border-[#b9df9c] bg-[#f3faef] shadow-none">
+      <CardContent className="flex flex-col justify-between gap-4 p-4 lg:flex-row lg:items-center">
+        <div className="flex gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#6fbe44] text-white">
+            <ClipboardCheck className="size-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold">Bu şubede açık operasyon denetimi var</h2>
+            <p className="mt-1 text-sm text-[#65705f]">
+              {firstAssignment
+                ? `${firstAssignment.template.name} · ${operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, firstAssignment.status)} · Son tarih ${operationDateTR(firstAssignment.dueAt)}`
+                : `${firstAudit?.template.name} · ${operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, firstAudit?.status)} · ${percentTR(Number(firstAudit?.percentageScore ?? 0))}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {firstAssignment && ["ASSIGNED", "PLANNED"].includes(firstAssignment.status) ? (
+            <form action={startAuditAssignment.bind(null, firstAssignment.id)}>
+              <Button variant="outline">Denetimi Başlat</Button>
+            </form>
+          ) : null}
+          <Button asChild>
+            <Link href={`/branches/${branchId}?tab=${encodeURIComponent("Denetim Raporları")}`}>Denetimleri Aç</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
-function AuditPanel({ audits }: { audits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[] }) {
-  if (!audits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim raporu yok." />;
+function AuditPanel({
+  assignments,
+  operationalAudits,
+  legacyAudits,
+}: {
+  assignments: { id: string; auditType: string; status: string; dueAt: Date; priority: string; template: { name: string } }[];
+  operationalAudits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    template: { name: string; sections: { questions: { id: string; title: string; requiresPhoto: boolean; options: { label: string; value: string }[] }[] }[] };
+    answers: { questionId: string; isNotApplicable: boolean; evidences: { id: string }[] }[];
+    evidences: { id: string; caption: string | null; createdAt: Date }[];
+  }[];
+  legacyAudits: { title: string; status: string; score: number | null; auditDate: Date; criticalCount: number }[];
+}) {
+  if (!assignments.length && !operationalAudits.length && !legacyAudits.length) return <Empty title="Denetim Raporları" text="Bu şube için denetim kaydı yok." />;
+  const newAssignments = assignments.filter((assignment) => ["ASSIGNED", "PLANNED", "OVERDUE"].includes(assignment.status));
+  const inProgressAudits = operationalAudits.filter((audit) => audit.status === "IN_PROGRESS");
+  const reviewAudits = operationalAudits.filter((audit) => ["SUBMITTED", "REVIEW_REQUIRED"].includes(audit.status));
+  const completedAudits = operationalAudits.filter((audit) => ["APPROVED", "COMPLETED"].includes(audit.status));
+  const otherAudits = operationalAudits.filter((audit) => !["IN_PROGRESS", "SUBMITTED", "REVIEW_REQUIRED", "APPROVED", "COMPLETED"].includes(audit.status));
+  const openQuestions = operationalAudits.filter((audit) => audit.status === "IN_PROGRESS").flatMap((audit) => {
+    const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
 
-  return <List items={audits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />;
+    return audit.template.sections.flatMap((section) => section.questions.filter((question) => {
+      const answer = answers.get(question.id);
+      return !answer || (question.requiresPhoto && !answer.isNotApplicable && answer.evidences.length === 0);
+    }).map((question) => {
+      const answer = answers.get(question.id);
+
+      return {
+        id: question.id,
+        title: `${audit.template.name} · ${question.title}${answer ? " · Fotoğraf bekliyor" : ""}`,
+        auditId: audit.id,
+        requiresPhoto: question.requiresPhoto,
+        photoCount: answer?.evidences.length ?? 0,
+        options: question.options.map((option) => ({ label: option.label, value: option.value })),
+      };
+    }));
+  });
+  const activeProgress = operationalAudits
+    .filter((audit) => audit.status === "IN_PROGRESS")
+    .map((audit) => {
+      const questions = audit.template.sections.flatMap((section) => section.questions);
+      const answers = new Map(audit.answers.map((answer) => [answer.questionId, answer]));
+      const answered = questions.filter((question) => answers.has(question.id)).length;
+      const missingPhotos = questions.filter((question) => {
+        const answer = answers.get(question.id);
+        return question.requiresPhoto && answer && !answer.isNotApplicable && answer.evidences.length === 0;
+      }).length;
+
+      return {
+        id: audit.id,
+        templateName: audit.template.name,
+        total: questions.length,
+        answered,
+        remaining: Math.max(0, questions.length - answered),
+        missingPhotos,
+      };
+    });
+
+  return (
+    <div className="space-y-5">
+      <section className="grid gap-3 md:grid-cols-3">
+        <AuditWorkStatus title="Yeni Denetim" value={newAssignments.length} text="Başlatılmayı bekleyen denetim" />
+        <AuditWorkStatus title="Cevap Bekleyen" value={openQuestions.length} text="Şube tarafından tamamlanacak madde" />
+        <AuditWorkStatus title="Merkez İncelemesi" value={reviewAudits.length} text="Gönderilmiş ve kapanmayı bekleyen denetim" />
+      </section>
+
+      {activeProgress.length ? <AuditProgressSummary items={activeProgress} /> : null}
+      {openQuestions.length ? <QuickAuditAnswerForm openQuestions={openQuestions} /> : null}
+
+      <section className="space-y-3 rounded-lg border border-[#dfe4dc] bg-white p-4">
+        <h3 className="font-semibold">Yeni Operasyon Denetimleri</h3>
+        {newAssignments.map((assignment) => (
+          <article key={assignment.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{assignment.template.name}</p>
+                <p className="text-sm text-[#65705f]">
+                  {operationLabel(AUDIT_TYPE_LABELS, assignment.auditType)} · Son tarih {operationDateTR(assignment.dueAt)}
+                </p>
+              </div>
+              <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, assignment.status)}</Badge>
+            </div>
+            {["ASSIGNED", "PLANNED"].includes(assignment.status) ? (
+              <form action={startAuditAssignment.bind(null, assignment.id)} className="mt-3">
+                <Button size="sm" variant="outline">Denetimi Başlat</Button>
+              </form>
+            ) : null}
+          </article>
+        ))}
+        {!newAssignments.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">Başlatılmayı bekleyen yeni denetim yok.</p> : null}
+      </section>
+
+      <AuditList
+        title="Devam Eden Denetimler"
+        emptyText="Devam eden operasyon denetimi yok."
+        audits={inProgressAudits}
+        showSubmit
+      />
+
+      <AuditList
+        title="Merkez İncelemesindeki Denetimler"
+        emptyText="Merkez incelemesinde denetim yok."
+        audits={reviewAudits}
+      />
+
+      {otherAudits.length ? (
+        <AuditList
+          title="Diğer Denetimler"
+          emptyText="Diğer denetim kaydı yok."
+          audits={otherAudits}
+        />
+      ) : null}
+
+      <details className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+        <summary className="cursor-pointer font-semibold">Tamamlanan Denetimler ({completedAudits.length})</summary>
+        <div className="mt-3">
+          <AuditList
+            title=""
+            emptyText="Tamamlanan denetim yok."
+            audits={completedAudits}
+          />
+        </div>
+      </details>
+
+      {legacyAudits.length ? (
+        <details className="rounded-lg border border-[#dfe4dc] bg-white p-4">
+          <summary className="cursor-pointer font-semibold">Eski Denetim Raporları ({legacyAudits.length})</summary>
+          <div className="mt-3">
+            <List items={legacyAudits.map((audit) => `${audit.title} · ${audit.status} · Puan: ${audit.score ?? "—"} · Kritik: ${audit.criticalCount} · ${formatDate(audit.auditDate)}`)} />
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
 }
 
-function DevelopmentPanel({ plans }: { plans: { title: string; status: string; priority: string; dueDate: Date | null }[] }) {
-  if (!plans.length) return <Empty title="Şube Gelişim Planları" text="Bu şube için gelişim planı yok." />;
-
-  return <List items={plans.map((plan) => `${plan.title} · ${plan.status} · ${plan.priority} · ${formatDate(plan.dueDate)}`)} />;
+function AuditWorkStatus({ title, value, text }: { title: string; value: number; text: string }) {
+  return (
+    <div className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
+      <p className="text-sm text-[#65705f]">{title}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs text-[#65705f]">{text}</p>
+    </div>
+  );
 }
 
-function CalendarPanel({ items }: { items: { title: string; eventType: string; startAt: Date; status: string }[] }) {
+function AuditList({
+  title,
+  emptyText,
+  audits,
+  showSubmit = false,
+}: {
+  title: string;
+  emptyText: string;
+  audits: {
+    id: string;
+    auditType: string;
+    status: string;
+    result: string;
+    percentageScore: unknown;
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+    template: { name: string };
+    evidences: { id: string }[];
+  }[];
+  showSubmit?: boolean;
+}) {
+  return (
+    <section className="space-y-3 rounded-lg border border-[#dfe4dc] bg-white p-4">
+      {title ? <h3 className="font-semibold">{title}</h3> : null}
+      {audits.map((audit) => (
+        <article key={audit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">{audit.template.name}</p>
+              <p className="text-sm text-[#65705f]">
+                {operationLabel(AUDIT_TYPE_LABELS, audit.auditType)} · {operationLabel(AUDIT_RESULT_LABELS, audit.result)} · {percentTR(Number(audit.percentageScore))}
+              </p>
+              <p className="mt-1 text-xs text-[#65705f]">
+                Oluşturma {operationDateTR(audit.createdAt)}
+                {audit.submittedAt ? ` · Gönderim ${operationDateTR(audit.submittedAt)}` : ""}
+                {audit.completedAt ? ` · Tamamlanma ${operationDateTR(audit.completedAt)}` : ""}
+              </p>
+            </div>
+            <Badge variant="outline">{operationLabel(AUDIT_ASSIGNMENT_STATUS_LABELS, audit.status)}</Badge>
+          </div>
+          {showSubmit && audit.status === "IN_PROGRESS" ? (
+            <form action={submitAudit.bind(null, audit.id)} className="mt-3">
+              <Button size="sm" variant="outline">Denetimi Gönder</Button>
+            </form>
+          ) : null}
+          {audit.evidences.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {audit.evidences.map((evidence, index) => (
+                <Button key={evidence.id} asChild size="sm" variant="outline">
+                  <a href={`/api/audit-evidence/${evidence.id}`} target="_blank" rel="noreferrer">
+                    Fotoğraf {index + 1}
+                  </a>
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </article>
+      ))}
+      {!audits.length ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-[#65705f]">{emptyText}</p> : null}
+    </section>
+  );
+}
+
+function AuditProgressSummary({
+  items,
+}: {
+  items: { id: string; templateName: string; total: number; answered: number; remaining: number; missingPhotos: number }[];
+}) {
+  return (
+    <section className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => {
+        const progress = item.total ? Math.round((item.answered / item.total) * 100) : 0;
+
+        return (
+          <div key={item.id} className="rounded-lg border border-[#dfe4dc] bg-[#f8faf6] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">{item.templateName}</p>
+                <p className="mt-1 text-sm text-[#65705f]">{item.answered}/{item.total} soru cevaplandı</p>
+              </div>
+              <Badge variant="secondary">%{progress}</Badge>
+            </div>
+            <div className="mt-3 h-2 rounded-full bg-white">
+              <div className="h-2 rounded-full bg-[#6fbe44]" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+              <span className="rounded-lg bg-white px-3 py-2">Kalan: {item.remaining}</span>
+              <span className="rounded-lg bg-white px-3 py-2">Fotoğraf bekleyen: {item.missingPhotos}</span>
+              <span className="rounded-lg bg-white px-3 py-2">Durum: Devam ediyor</span>
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function BranchVisitsPanel({ branchId, visits }: { branchId: string; visits: { id: string; title: string; visitType: string; plannedAt: Date; completedAt: Date | null; visitScore: number | null; status: string; visitorName: string | null; notes: string | null; resultNotes: string | null }[] }) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[340px_1fr]">
+      <form action={createBranchVisit} className="space-y-3 rounded-lg border bg-[#f8faf6] p-4">
+        <h3 className="font-semibold">Yeni Operasyon Ziyareti</h3>
+        <input type="hidden" name="branchId" value={branchId} />
+        <label className="grid gap-2 text-sm font-medium">
+          <span>Başlık</span>
+          <input name="title" placeholder="Örn. Aylık operasyon ziyareti" className="h-10 rounded-lg border bg-white px-3" />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span>Planlanan tarih</span>
+          <input required type="datetime-local" name="plannedAt" className="h-10 rounded-lg border bg-white px-3" />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span>Sorumlu</span>
+          <input name="visitorName" placeholder="Ziyaret sorumlusu" className="h-10 rounded-lg border bg-white px-3" />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span>Not</span>
+          <textarea name="notes" rows={4} placeholder="Plan notu" className="rounded-lg border bg-white p-3" />
+        </label>
+        <Button className="w-full">Ziyareti Planla</Button>
+      </form>
+
+      <div className="space-y-3">
+        {visits.map((visit) => (
+          <article key={visit.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge>{visit.status === "COMPLETED" ? "Gerçekleşti" : visit.status === "CANCELLED" ? "İptal Edildi" : "Planlandı"}</Badge>
+              <Badge variant="secondary">{visit.visitType}</Badge>
+            </div>
+            <h3 className="mt-3 font-semibold">{visit.title}</h3>
+            <p className="mt-1 text-sm text-[#65705f]">
+              Plan: {formatDate(visit.plannedAt)}{visit.completedAt ? ` · Gerçekleşme: ${formatDate(visit.completedAt)}` : ""}
+            </p>
+            {visit.visitScore == null ? null : <p className="mt-1 text-sm font-medium text-[#2f5f20]">Ziyaret puanı: %{visit.visitScore}</p>}
+            {visit.visitorName ? <p className="mt-1 text-sm text-[#65705f]">Sorumlu: {visit.visitorName}</p> : null}
+            {visit.notes ? <p className="mt-2 text-sm">{visit.notes}</p> : null}
+            {visit.resultNotes ? <p className="mt-2 rounded-lg bg-white p-3 text-sm">{visit.resultNotes}</p> : null}
+            {visit.status === "PLANNED" ? (
+              <>
+              <form action={completeBranchVisit.bind(null, visit.id)} className="mt-4 grid gap-2 md:grid-cols-[1fr_1fr_2fr_auto]">
+                <input type="datetime-local" name="completedAt" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <input required type="number" min="0" max="100" name="visitScore" placeholder="Puan %" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <input name="resultNotes" placeholder="Gerçekleşme notu" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <Button variant="outline"><Check className="size-4" />Gerçekleşti</Button>
+              </form>
+              <form action={cancelBranchVisit.bind(null, visit.id)} className="mt-3 grid gap-2 rounded-lg border border-rose-200 bg-white p-2 md:grid-cols-[1fr_auto]">
+                <input name="cancellationReason" required placeholder="İptal nedeni" className="h-10 rounded-lg border bg-white px-3 text-sm" />
+                <Button variant="destructive">İptal Et</Button>
+              </form>
+              </>
+            ) : null}
+          </article>
+        ))}
+        {!visits.length ? <Empty title="Operasyon Ziyaretleri" text="Bu şube için planlanan veya gerçekleşen ziyaret yok." /> : null}
+      </div>
+    </div>
+  );
+}
+
+function CalendarPanel({ items }: { items: { id: string; title: string; description: string | null; eventType: string; startAt: Date; status: string }[] }) {
   if (!items.length) return <Empty title="Operasyon Takvimi" text="Bu şube için operasyon takvimi kaydı yok." />;
 
-  return <List items={items.map((item) => `${item.title} · ${item.eventType} · ${formatDate(item.startAt)} · ${item.status}`)} />;
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <article key={item.id} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Badge>{item.status === "COMPLETED" ? "Tamamlandı" : item.status === "CANCELLED" ? "İptal Edildi" : "Planlandı"}</Badge>
+                <Badge variant="secondary">{item.eventType}</Badge>
+              </div>
+              <h3 className="mt-3 font-semibold">{item.title}</h3>
+              <p className="mt-1 text-sm text-[#65705f]">{formatDate(item.startAt)}</p>
+              {item.description ? <p className="mt-2 text-sm">{item.description}</p> : null}
+            </div>
+            {item.status === "PLANNED" ? (
+              <form action={completeOperationCalendarItem.bind(null, item.id)}>
+                <Button size="sm" variant="outline"><Check className="size-4" />Tamamlandı</Button>
+              </form>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function NotesPanel({ branchId, notes }: { branchId: string; notes: string | null }) {
+  return (
+    <form action={updateBranchNotes.bind(null, branchId)} className="grid gap-4 rounded-lg border bg-[#f8faf6] p-4">
+      <div>
+        <h3 className="font-semibold">Şube Notları</h3>
+        <p className="mt-1 text-sm text-[#65705f]">Operasyon, bayi görüşmesi ve şube özelindeki genel notları burada saklayın.</p>
+      </div>
+      <textarea name="generalNotes" defaultValue={notes ?? ""} rows={8} className="rounded-lg border bg-white p-3" placeholder="Bu şube için not yazın..." />
+      <div className="flex justify-end">
+        <Button>Notları Kaydet</Button>
+      </div>
+    </form>
+  );
 }
 
 function TimelinePanel({ events }: { events: { id: string; action: string; description: string; createdAt: Date; user: { name: string } | null }[] }) {
@@ -241,7 +668,8 @@ function RevenuePerformance({
   activePlanCount: number;
   lastAuditScore: number | null | undefined;
 }) {
-  const finalRecords = records.filter((record) => ["APPROVED", "LOCKED"].includes(record.status)).sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+  const visibleRecords = records.filter((record) => (VISIBLE_REVENUE_STATUSES as readonly string[]).includes(record.status)).sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+  const finalRecords = visibleRecords;
   const current = finalRecords.at(-1);
   const previous = finalRecords.at(-2);
   const lastYearSameMonth = current ? finalRecords.find((record) => record.year === current.year - 1 && record.month === current.month) : undefined;
@@ -271,7 +699,7 @@ function RevenuePerformance({
 
       <div className="grid gap-3 md:grid-cols-3">
         <Metric label="Sağlık Skoru" value={healthScore ?? "Hazır"} icon={TrendingUp} />
-        <Metric label="Aktif Plan" value={activePlanCount} icon={FileText} />
+        <Metric label="Açık Takvim İşi" value={activePlanCount} icon={FileText} />
         <Metric label="Son Denetim Puanı" value={lastAuditScore ?? "—"} icon={ShieldCheck} />
       </div>
 

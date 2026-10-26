@@ -5,23 +5,21 @@ import { prisma } from "@/lib/prisma";
 
 export class AcademyService {
   static async ensureDefaults(userId?: string) {
-    await prisma.$transaction(async (tx) => {
-      for (const [index, name] of trainingCategorySeed.entries()) {
-        await tx.trainingCategory.upsert({
-          where: { code: academyCode(name) },
-          update: { name, sortOrder: index, isActive: true },
-          create: { name, code: academyCode(name), sortOrder: index, isActive: true },
-        });
-      }
+    for (const [index, name] of trainingCategorySeed.entries()) {
+      await prisma.trainingCategory.upsert({
+        where: { code: academyCode(name) },
+        update: { name, sortOrder: index, isActive: true },
+        create: { name, code: academyCode(name), sortOrder: index, isActive: true },
+      });
+    }
 
-      for (const [index, name] of corporateDocumentCategorySeed.entries()) {
-        await tx.corporateDocumentCategory.upsert({
-          where: { code: academyCode(name) },
-          update: { name, sortOrder: index, isActive: true },
-          create: { name, code: academyCode(name), sortOrder: index, isActive: true },
-        });
-      }
-    });
+    for (const [index, name] of corporateDocumentCategorySeed.entries()) {
+      await prisma.corporateDocumentCategory.upsert({
+        where: { code: academyCode(name) },
+        update: { name, sortOrder: index, isActive: true },
+        create: { name, code: academyCode(name), sortOrder: index, isActive: true },
+      });
+    }
 
     await this.ensureOrientationProgram(userId);
   }
@@ -110,7 +108,7 @@ export class AcademyService {
         description: "Şube personeli için zorunlu başlangıç eğitim yolu.",
         version: 1,
         status: "PUBLISHED",
-        targetRoleCode: "BRANCH_STAFF",
+        targetRoleCode: "BRANCH_MANAGER",
         estimatedDurationMinutes: 240,
         publishedAt: new Date(),
         programs: { create: { programId: program.id, sortOrder: 1, isRequired: true, dueOffsetDays: 7 } },

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FinanceForms } from "@/components/finance/finance-forms";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { financeBranchWhere, requireFinanceUser, canManageFinance } from "@/lib/finance/access";
 import { ROYALTY_STATUS_LABELS } from "@/lib/finance/constants";
 import { money } from "@/lib/finance/money";
@@ -30,7 +31,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const startOfMonth = new Date(year, month - 1, 1);
   const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
   const branchWhere = await financeBranchWhere();
-  const scopedBranchWhere = { archivedAt: null, ...branchWhere };
+  const scopedBranchWhere = withNonHotelMainBranchWhere({ archivedAt: null, ...branchWhere });
 
   const [
     branches,

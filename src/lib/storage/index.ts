@@ -1,5 +1,25 @@
 import { LocalStorageService } from "./local-storage";
 import type { StorageService } from "./types";
+import { VercelBlobStorageService } from "./vercel-blob-storage";
 
-// Bulut depolama adaptörleri ileride bu arayüzün arkasına eklenebilir.
-export const storage:StorageService=new LocalStorageService();
+function createStorage(): StorageService {
+  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID) return new VercelBlobStorageService();
+
+  if (process.env.VERCEL_ENV === "production") {
+    return {
+      async save() {
+        throw new Error("Kalıcı dosya depolama yapılandırılmamış. Production dosya yükleme için Vercel Blob BLOB_STORE_ID veya BLOB_READ_WRITE_TOKEN tanımlanmalıdır.");
+      },
+      async read(filePath: string) {
+        return new LocalStorageService().read(filePath);
+      },
+      async remove(filePath: string) {
+        return new LocalStorageService().remove(filePath);
+      },
+    };
+  }
+
+  return new LocalStorageService();
+}
+
+export const storage: StorageService = createStorage();

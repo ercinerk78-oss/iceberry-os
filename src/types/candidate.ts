@@ -39,6 +39,44 @@ export type CandidateDocumentView = {
   updatedAt: string;
 };
 
+export type CandidateConceptView = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type CandidateTagView = {
+  id: string;
+  name: string;
+};
+
+export type CandidateTimelineEventView = {
+  id: string;
+  eventType: string;
+  title: string;
+  description: string;
+  actorName: string;
+  eventDate: string;
+};
+
+export type CandidateLocationMatchView = {
+  id: string;
+  matchStatus: string;
+  nextFollowUpAt: string;
+  notes: string;
+  location: {
+    id: string;
+    name: string;
+    city: string;
+    district: string;
+    areaM2: number | null;
+    monthlyRent: string;
+    transferFee: string;
+    status: string;
+    documents: { id: string; fileName: string; documentType: string; archivedAt: string }[];
+  };
+};
+
 export type Candidate = {
   id: string;
   fullName: string;
@@ -54,13 +92,20 @@ export type Candidate = {
   source: string;
   status: string;
   temperature: string;
+  qualificationScore: number | null;
   generalNotes: string;
   nextFollowUpAt: string;
   lastContactAt: string;
   lostReason: string;
+  archivedAt: string;
   createdAt: string;
+  updatedAt: string;
   assignedUserId: string;
   interactions: CandidateInteractionView[];
   tasks: CandidateTaskView[];
   documents: CandidateDocumentView[];
+  concepts: CandidateConceptView[];
+  tags: CandidateTagView[];
+  locationMatches: CandidateLocationMatchView[];
+  timelineEvents: CandidateTimelineEventView[];
 };

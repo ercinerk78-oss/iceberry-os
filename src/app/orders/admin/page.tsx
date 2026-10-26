@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { OrderTable } from "@/components/orders/order-table";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 import { ORDER_STATUSES, warehouseLabel } from "@/lib/warehouse";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export default async function AdminOrders({
     where: {
       status: params.status || undefined,
       OR: params.q
-        ? [{ orderNumber: { contains: params.q } }, { franchisee: { companyName: { contains: params.q } } }]
+        ? [{ orderNumber: containsInsensitive(params.q) }, { franchisee: { companyName: containsInsensitive(params.q) } }]
         : undefined,
     },
     select: {

@@ -1,7 +1,41 @@
-import type { FranchiseCandidate, Document, CandidateInteraction, CandidateTask } from "@prisma/client";
+import type {
+  CandidateConcept,
+  CandidateInteraction,
+  CandidateTag,
+  CandidateTagLink,
+  CandidateTimelineEvent,
+  CandidateTask,
+  Concept,
+  Document,
+  FranchiseCandidate,
+} from "@prisma/client";
 import type { Candidate } from "@/types/candidate";
 
-type CandidateWithRelations = FranchiseCandidate & { interactions: CandidateInteraction[]; tasks: CandidateTask[]; documents: Document[] };
+type CandidateWithRelations = FranchiseCandidate & {
+  interactions?: CandidateInteraction[];
+  tasks?: CandidateTask[];
+  documents?: Document[];
+  concepts?: (CandidateConcept & { concept: Concept })[];
+  tags?: (CandidateTagLink & { tag: CandidateTag })[];
+  locationMatches?: {
+    id: string;
+    matchStatus: string;
+    nextFollowUpAt: Date | null;
+    notes: string | null;
+    location: {
+      id: string;
+      name: string;
+      city: string;
+      district: string | null;
+      areaM2: number | null;
+      monthlyRent: unknown;
+      transferFee: unknown;
+      status: string;
+      documents: { id: string; fileName: string; documentType: string; archivedAt: Date | null }[];
+    };
+  }[];
+  timelineEvents?: CandidateTimelineEvent[];
+};
 
 const date = (value: Date | null) => value?.toISOString() ?? "";
 
@@ -11,27 +45,30 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
     whatsapp: candidate.whatsapp ?? "",
     email: candidate.email ?? "",
     district: candidate.district ?? "",
+    qualificationScore: candidate.qualificationScore,
     generalNotes: candidate.generalNotes ?? "",
     lostReason: candidate.lostReason ?? "",
+    archivedAt: date(candidate.archivedAt),
     nextFollowUpAt: date(candidate.nextFollowUpAt),
     lastContactAt: date(candidate.lastContactAt),
     createdAt: candidate.createdAt.toISOString(),
+    updatedAt: candidate.updatedAt.toISOString(),
     assignedUserId: candidate.assignedUserId ?? "",
-    interactions: candidate.interactions.map((item) => ({
+    interactions: candidate.interactions?.map((item) => ({
       ...item,
       nextAction: item.nextAction ?? "",
       reminderAt: date(item.reminderAt),
       interactionDate: item.interactionDate.toISOString(),
-    })),
-    tasks: candidate.tasks.map((task) => ({
+    })) ?? [],
+    tasks: candidate.tasks?.map((task) => ({
       ...task,
       description: task.description ?? "",
       assignedUserId: task.assignedUserId ?? "",
       dueDate: task.dueDate.toISOString(),
       completedAt: date(task.completedAt),
       createdAt: task.createdAt.toISOString(),
-    })),
-    documents: candidate.documents.map((document) => ({
+    })) ?? [],
+    documents: candidate.documents?.map((document) => ({
       ...document,
       description: document.description ?? "",
       uploadedBy: document.uploadedBy ?? "",
@@ -40,11 +77,43 @@ export function toCandidate(candidate: CandidateWithRelations): Candidate {
       archivedAt: date(document.archivedAt),
       createdAt: document.createdAt.toISOString(),
       updatedAt: document.updatedAt.toISOString(),
-    })),
+    })) ?? [],
+    concepts: candidate.concepts?.map((item) => ({
+      id: item.concept.id,
+      name: item.concept.name,
+      code: item.concept.code,
+    })) ?? [{ id: "", name: candidate.interestedConcept, code: candidate.interestedConcept }].filter((item) => item.name),
+    tags: candidate.tags?.map((item) => ({
+      id: item.tag.id,
+      name: item.tag.name,
+    })) ?? [],
+    locationMatches: candidate.locationMatches?.map((match) => ({
+      ...match,
+      nextFollowUpAt: date(match.nextFollowUpAt),
+      notes: match.notes ?? "",
+      location: {
+        ...match.location,
+        district: match.location.district ?? "",
+        monthlyRent: match.location.monthlyRent?.toString?.() ?? "",
+        transferFee: match.location.transferFee?.toString?.() ?? "",
+        documents: match.location.documents.map((document) => ({
+          ...document,
+          archivedAt: date(document.archivedAt),
+        })),
+      },
+    })) ?? [],
+    timelineEvents: candidate.timelineEvents?.map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      title: event.title,
+      description: event.description ?? "",
+      actorName: event.actorName ?? "",
+      eventDate: event.eventDate.toISOString(),
+    })) ?? [],
   };
 }
 
 export function formatDate(value: string) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(new Date(value));
 }

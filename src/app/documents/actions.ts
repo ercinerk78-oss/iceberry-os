@@ -17,6 +17,24 @@ const schema = z.object({
   description: z.string().trim().max(500, "Açıklama en fazla 500 karakter olabilir.").optional().or(z.literal("")),
 });
 
+function uploadErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("BLOB_READ_WRITE_TOKEN") || message.includes("BLOB_STORE_ID") || message.includes("Kalıcı dosya depolama") || message.includes("No blob credentials found")) {
+    return "Dosya yükleme için kalıcı depolama yapılandırılmamış. Vercel Production ortamında Blob store bağlantısı kontrol edilmelidir.";
+  }
+
+  return fallback;
+}
+
+function refreshDocumentPaths(document?: { candidateId?: string | null; branchId?: string | null; franchiseeId?: string | null; openingId?: string | null; openingProjectId?: string | null }) {
+  if (document?.candidateId) revalidatePath(`/candidates/${document.candidateId}`);
+  if (document?.branchId) revalidatePath(`/branches/${document.branchId}`);
+  if (document?.franchiseeId) revalidatePath(`/franchisees/${document.franchiseeId}`);
+  if (document?.openingId) revalidatePath(`/openings/${document.openingId}`);
+  if (document?.openingProjectId) revalidatePath(`/openings/${document.openingProjectId}`);
+  revalidatePath("/documents");
+}
+
 function refresh(candidateId?: string | null) {
   if (candidateId) revalidatePath(`/candidates/${candidateId}`);
   revalidatePath("/documents");
@@ -49,9 +67,9 @@ export async function uploadCandidateDocuments(candidateId: string, requestedTyp
         uploadedBy: "Sistem Kullanıcısı",
       },
     })));
-  } catch {
+  } catch (error) {
     await Promise.all(stored.map((file) => storage.remove(file.filePath)));
-    return { success: false, message: "Dosyalar yüklenemedi. Lütfen tekrar deneyin." };
+    return { success: false, message: uploadErrorMessage(error, "Dosyalar yüklenemedi. Lütfen tekrar deneyin.") };
   }
   refresh(candidateId);
   return { success: true, message: `${files.length} dosya başarıyla yüklendi.` };
@@ -76,7 +94,7 @@ export async function uploadRelatedDocuments(relation: "franchisee" | "branch" |
   const files = formData.getAll("files").filter((value): value is File => value instanceof File && value.size > 0);
   const fileError = validateDocumentFiles(files, requestedType);
   if (fileError) return { success: false, message: fileError };
-  if (requestedType === "BRANCH_DEVELOPMENT_STRATEGY" && files.some((file) => file.type !== "application/pdf")) return { success: false, message: "Bayi geliştirme stratejisi yalnızca PDF olabilir." };
+  if (requestedType === "BRANCH_DEVELOPMENT_STRATEGY" && files.some((file) => file.type !== "application/pdf")) return { success: false, message: "Bu eski doküman tipi yalnızca PDF olabilir." };
 
   const stored: { file: File; fileName: string; filePath: string }[] = [];
   try {
@@ -98,9 +116,9 @@ export async function uploadRelatedDocuments(relation: "franchisee" | "branch" |
         uploadedBy: "Sistem Kullanıcısı",
       },
     })));
-  } catch {
+  } catch (error) {
     await Promise.all(stored.map((file) => storage.remove(file.filePath)));
-    return { success: false, message: "Dosya yüklenemedi." };
+    return { success: false, message: uploadErrorMessage(error, "Dosya yüklenemedi.") };
   }
   revalidatePath(`/${relation === "franchisee" ? "franchisees" : relation === "branch" ? "branches" : "openings"}/${relationId}`);
   revalidatePath("/documents");
@@ -112,7 +130,7 @@ export async function archiveDocument(documentId: string, formData: FormData) {
   const document = await prisma.document.findUnique({ where: { id: documentId } });
   if (!document) return;
   await prisma.document.update({ where: { id: documentId }, data: { archivedAt: new Date() } });
-  refresh(document.candidateId);
+  refreshDocumentPaths(document);
 }
 
 export async function restoreDocument(documentId: string, formData: FormData) {
@@ -120,7 +138,7 @@ export async function restoreDocument(documentId: string, formData: FormData) {
   const document = await prisma.document.findUnique({ where: { id: documentId } });
   if (!document) return;
   await prisma.document.update({ where: { id: documentId }, data: { archivedAt: null } });
-  refresh(document.candidateId);
+  refreshDocumentPaths(document);
 }
 
 export async function toggleDocumentShared(documentId: string, formData: FormData) {
@@ -131,5 +149,5 @@ export async function toggleDocumentShared(documentId: string, formData: FormDat
     where: { id: documentId },
     data: { customerShared: !document.customerShared, customerSharedAt: document.customerShared ? null : new Date() },
   });
-  refresh(document.candidateId);
+  refreshDocumentPaths(document);
 }

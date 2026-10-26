@@ -7,8 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { branchScopeWhere } from "@/lib/branch-access";
-import { BRANCH_CONCEPTS, BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
+import { branchConceptColor, branchConceptLabel } from "@/lib/branch-concepts";
+import { appendBranchWhereAnd, visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
+import { BRANCH_STATUSES, formatDate, label } from "@/lib/franchise";
 import { prisma } from "@/lib/prisma";
+import { containsInsensitive } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +28,18 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
   const overdue = value(params, "overdue");
   const critical = value(params, "critical");
   const scope = await branchScopeWhere();
-  const where: Prisma.BranchWhereInput = { archivedAt: null, ...scope };
+  const where: Prisma.BranchWhereInput = withNonHotelMainBranchWhere({ archivedAt: null, ...scope });
+  const andFilters: Prisma.BranchWhereInput[] = [];
 
-  if (q) where.OR = [{ branchName: { contains: q } }, { city: { contains: q } }, { district: { contains: q } }];
+  if (q) andFilters.push({ OR: [{ branchName: containsInsensitive(q) }, { city: containsInsensitive(q) }, { district: containsInsensitive(q) }] });
   if (city) where.city = city;
-  if (concept) where.concept = concept;
+  if (concept) andFilters.push({ OR: [{ conceptId: concept }, { concept }] });
   if (status) where.status = status;
   if (overdue === "yes") where.tasks = { some: { dueDate: { lt: new Date() }, status: { in: ["OPEN", "IN_PROGRESS", "REJECTED"] } } };
   if (critical === "yes") where.audits = { some: { criticalCount: { gt: 0 } } };
+  if (andFilters.length) Object.assign(where, appendBranchWhereAnd(where, andFilters));
 
-  const [items, cities] = await Promise.all([
+  const [items, cities, concepts] = await Promise.all([
     prisma.branch.findMany({
       where,
       select: {
@@ -42,18 +47,22 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
         branchName: true,
         city: true,
         district: true,
+        conceptId: true,
         concept: true,
+        conceptRelation: true,
         status: true,
         operationsManager: true,
         openingDate: true,
         plannedOpeningDate: true,
         tasks: { select: { id: true, status: true, dueDate: true } },
         audits: { select: { score: true, criticalCount: true, auditDate: true }, orderBy: { auditDate: "desc" }, take: 1 },
+        visits: { where: { status: "COMPLETED" }, select: { completedAt: true, plannedAt: true }, orderBy: { completedAt: "desc" }, take: 1 },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
-    prisma.branch.findMany({ where: { archivedAt: null }, select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null }), select: { city: true }, distinct: ["city"], orderBy: { city: "asc" } }),
+    prisma.branchConcept.findMany({ where: visibleMainBranchConceptWhere, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   return (
@@ -62,12 +71,17 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
       eyebrow="Ana işletme varlığı"
       title="Şubeler"
       action={
-        <Button asChild className="bg-[#17201b] text-white">
-          <Link href="/branches/new">
-            <Plus />
-            Yeni Şube Ekle
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/branch-visits">Şube Ziyaretleri</Link>
+          </Button>
+          <Button asChild className="bg-[#17201b] text-white">
+            <Link href="/branches/new">
+              <Plus />
+              Yeni Şube Ekle
+            </Link>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-4">
@@ -78,7 +92,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
               <input name="q" defaultValue={q} placeholder="Şube veya şehir ara" className="h-10 w-full rounded-lg border pl-9 pr-3" />
             </label>
             <Select name="city" current={city} first="Tüm şehirler" options={cities.map((item) => [item.city, item.city])} />
-            <Select name="concept" current={concept} first="Tüm konseptler" options={Object.entries(BRANCH_CONCEPTS)} />
+            <Select name="concept" current={concept} first="Tüm konseptler" options={concepts.map((item) => [item.id, item.name])} />
             <Select name="status" current={status} first="Tüm durumlar" options={Object.entries(BRANCH_STATUSES)} />
             <Select name="overdue" current={overdue} first="Geciken görev" options={[["yes", "Var"]]} />
             <Select name="critical" current={critical} first="Kritik bulgu" options={[["yes", "Var"]]} />
@@ -93,10 +107,10 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
 
         <Card className="overflow-hidden shadow-none">
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
                 <tr>
-                  {["Şube", "Konsept", "Şehir", "Durum", "Sorumlu", "Açılış", "Denetim", "Açık Görev", "Geciken", "İşlem"].map((header) => (
+                  {["Şube", "Konsept", "Şehir", "Durum", "Sorumlu", "Açılış", "Denetim", "Son Ziyaret", "Açık Görev", "Geciken", "İşlem"].map((header) => (
                     <th key={header} className="px-4 py-3">{header}</th>
                   ))}
                 </tr>
@@ -106,16 +120,22 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                   const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status)).length;
                   const lateTasks = branch.tasks.filter((task) => task.dueDate && task.dueDate < new Date() && ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status)).length;
                   const lastAudit = branch.audits[0];
+                  const lastVisit = branch.visits[0];
 
                   return (
                     <tr key={branch.id}>
                       <td className="px-4 py-4 font-semibold">{branch.branchName}</td>
-                      <td className="px-4 py-4">{label(BRANCH_CONCEPTS, branch.concept)}</td>
+                      <td className="px-4 py-4">
+                        <Badge variant="secondary" style={{ borderColor: branchConceptColor(branch.conceptRelation, branch.concept), color: branchConceptColor(branch.conceptRelation, branch.concept) }}>
+                          {branchConceptLabel(branch.conceptRelation, branch.concept)}
+                        </Badge>
+                      </td>
                       <td className="px-4 py-4">{branch.city}</td>
                       <td className="px-4 py-4"><Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge></td>
                       <td className="px-4 py-4">{branch.operationsManager ?? "-"}</td>
                       <td className="px-4 py-4">{formatDate(branch.openingDate ?? branch.plannedOpeningDate)}</td>
                       <td className="px-4 py-4">{lastAudit?.score ?? "-"}</td>
+                      <td className="px-4 py-4">{formatDate(lastVisit?.completedAt ?? lastVisit?.plannedAt)}</td>
                       <td className="px-4 py-4">{openTasks}</td>
                       <td className="px-4 py-4">{lateTasks}</td>
                       <td className="px-4 py-4">
@@ -126,7 +146,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                     </tr>
                   );
                 })}
-                {!items.length ? <tr><td colSpan={10} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
+                {!items.length ? <tr><td colSpan={11} className="p-12 text-center text-[#65705f]">Filtrelere uygun şube bulunamadı.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -135,6 +155,7 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
             {items.map((branch) => {
               const openTasks = branch.tasks.filter((task) => ["OPEN", "IN_PROGRESS", "REJECTED", "SUBMITTED", "UNDER_REVIEW"].includes(task.status)).length;
               const lateTasks = branch.tasks.filter((task) => task.dueDate && task.dueDate < new Date() && ["OPEN", "IN_PROGRESS", "REJECTED"].includes(task.status)).length;
+              const lastVisit = branch.visits[0];
 
               return (
                 <Link key={branch.id} href={`/branches/${branch.id}`} className="rounded-lg border border-[#edf0e9] bg-[#f8faf6] p-4">
@@ -146,7 +167,8 @@ export default async function BranchesPage({ searchParams }: { searchParams: Pro
                     <Badge variant="outline">{label(BRANCH_STATUSES, branch.status)}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#65705f]">
-                    <span>{label(BRANCH_CONCEPTS, branch.concept)}</span>
+                    <span>{branchConceptLabel(branch.conceptRelation, branch.concept)}</span>
+                    <span>Son ziyaret: {formatDate(lastVisit?.completedAt ?? lastVisit?.plannedAt)}</span>
                     <span>Açık görev: {openTasks}</span>
                     <span>Geciken: {lateTasks}</span>
                   </div>

@@ -1,60 +1,20 @@
-import { AppShell } from "@/components/app-shell";
-import { LeadInbox } from "@/components/leads/lead-inbox";
-import { statusValuesForFilter, toLead } from "@/lib/leads";
-import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-type Params = { status?: string; leadCategory?: string; followUp?: string };
+type Params = Record<string, string | string[] | undefined>;
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  let records;
+  const query = new URLSearchParams();
 
-  try {
-    records = await prisma.lead.findMany({
-      where: {
-        OR: params.status
-          ? [
-              { processStatus: { in: statusValuesForFilter(params.status) } },
-              { status: { in: statusValuesForFilter(params.status) } },
-            ]
-          : undefined,
-        leadCategory: params.leadCategory || undefined,
-        nextFollowUpAt: params.followUp === "overdue" ? { lt: new Date() } : undefined,
-      },
-      include: { activities: { orderBy: { createdAt: "desc" } } },
-      orderBy: { leadDate: "desc" },
-    });
-  } catch (error) {
-    console.error("Lead advanced filters fallback", error);
-    records = await prisma.lead.findMany({
-      where: { status: params.status ? { in: statusValuesForFilter(params.status) } : undefined },
-      select: {
-        id: true,
-        fullName: true,
-        phone: true,
-        email: true,
-        city: true,
-        source: true,
-        requestedConcept: true,
-        status: true,
-        leadDate: true,
-        convertedCandidateId: true,
-        activities: { orderBy: { createdAt: "desc" } },
-      },
-      orderBy: { leadDate: "desc" },
-    });
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => query.append(key, item));
+    } else if (value) {
+      query.set(key, value);
+    }
   }
 
-  return (
-    <AppShell activeHref="/leads" eyebrow="Dönüşüm öncesi inceleme" title="Lead Havuzu">
-      <LeadInbox
-        leads={records.map(toLead)}
-        initialStatus={params.status}
-        initialCategory={params.leadCategory}
-        initialFollowUp={params.followUp}
-      />
-    </AppShell>
-  );
+  redirect(`/candidates${query.size ? `?${query.toString()}` : ""}`);
 }

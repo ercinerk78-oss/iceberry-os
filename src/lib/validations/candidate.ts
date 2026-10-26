@@ -17,6 +17,10 @@ export const candidateSchema = z.object({
   source: z.string().trim().min(1, "Kaynak seçin."),
   status: z.string().trim().min(1, "Durum seçin."),
   temperature: z.string().trim().min(1, "Sıcaklık seçin."),
+  qualificationScore: z.preprocess(
+    (value) => value === "" || value === undefined ? undefined : Number(value),
+    z.number().int("Puan tam sayı olmalıdır.").min(1, "Puan en az 1 olmalıdır.").max(10, "Puan en fazla 10 olmalıdır.").optional(),
+  ),
   generalNotes: optionalText,
   nextFollowUpAt: optionalDate,
   lastContactAt: optionalDate,
