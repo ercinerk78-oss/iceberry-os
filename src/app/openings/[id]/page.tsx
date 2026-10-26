@@ -5,7 +5,7 @@ import { Clock3, FileText } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
-import { ReadinessCheckForm, RiskForm } from "@/components/openings/opening-project-controls";
+import { ActivateOpeningBranchForm, ReadinessCheckForm, RiskForm } from "@/components/openings/opening-project-controls";
 import { OpeningSupplyPanel } from "@/components/openings/opening-supply-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
       <div className="space-y-5">
         <div className="flex flex-wrap justify-between gap-3">
           <Button asChild variant="outline"><Link href="/openings">Açılış Yönetimine Dön</Link></Button>
+          {project.status !== "OPENED" && project.status !== "CANCELLED" ? <ActivateOpeningBranchForm projectId={project.id} /> : null}
           <div className="flex flex-wrap gap-2">
             <Badge>{openingProjectStatusLabels[project.status]}</Badge>
             <Badge className={project.riskLevel === "CRITICAL" || project.riskLevel === "HIGH" ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}>{openingRiskLevelLabels[project.riskLevel]}</Badge>

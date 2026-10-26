@@ -15,6 +15,7 @@ const d = (value: string | undefined | null) => (value ? new Date(value) : null)
 
 const refresh = (id?: string, branchId?: string) => {
   revalidatePath("/openings");
+  revalidatePath("/branches");
   if (id) revalidatePath(`/openings/${id}`);
   if (branchId) revalidatePath(`/branches/${branchId}`);
   revalidatePath("/");
@@ -340,9 +341,20 @@ export async function markProjectOpened(projectId: string, formData: FormData) {
   const user = await requireUser();
   await requirePermission("openings");
   const project = await prisma.openingProject.findUnique({ where: { id: projectId }, select: { branchId: true } });
-  if (!project) return;
+  if (!project) throw new Error("Açılış projesi bulunamadı.");
   await OpeningProjectService.markOpened(projectId, user.id);
   refresh(projectId, project.branchId);
+}
+
+export async function activateOpeningBranch(projectId: string, _: OpeningState, formData: FormData): Promise<OpeningState> {
+  await requirePermission("openings");
+  try {
+    await markProjectOpened(projectId, formData);
+    return { success: true, message: "Açılış tamamlandı ve şube aktifleştirildi." };
+  } catch (error) {
+    console.error("[openings] Branch activation failed", error);
+    return { success: false, message: error instanceof Error ? error.message : "Şube aktifleştirilemedi. Lütfen tekrar deneyin." };
+  }
 }
 
 export async function ensureOpeningChecklist(projectId: string, formData: FormData) {

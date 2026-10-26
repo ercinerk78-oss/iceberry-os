@@ -2,13 +2,27 @@
 
 import { useActionState } from "react";
 
-import { addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, updateReadinessCheck } from "@/app/openings/actions";
+import { activateOpeningBranch, addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, updateReadinessCheck } from "@/app/openings/actions";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openingRiskLevelLabels } from "@/lib/openings";
 import type { OpeningState } from "@/lib/validations/opening";
 
 const initial: OpeningState = { success: false, message: "" };
 const input = "h-10 rounded-lg border bg-white px-3 text-sm";
+
+export function ActivateOpeningBranchForm({ projectId }: { projectId: string }) {
+  const [state, action, pending] = useActionState(activateOpeningBranch.bind(null, projectId), initial);
+  return (
+    <form action={action} className="grid w-full gap-2 sm:w-auto">
+      <Button type="submit" disabled={pending || state.success} className="h-auto min-h-10 whitespace-normal text-left">
+        <CheckCircle2 className="size-4 shrink-0" />
+        {pending ? "Şube aktifleştiriliyor..." : state.success ? "Şube Aktifleştirildi" : "Açılışı Tamamla ve Şubeyi Aktifleştir"}
+      </Button>
+      {state.message ? <p role={state.success ? "status" : "alert"} className={`max-w-lg text-sm ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
+    </form>
+  );
+}
 
 export function BudgetForm({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState(addOpeningBudgetItem.bind(null, projectId), initial);

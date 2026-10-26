@@ -363,6 +363,8 @@ export class OpeningProjectService {
     return prisma.$transaction(async (tx) => {
       const project = await tx.openingProject.findUnique({ where: { id: projectId } });
       if (!project) throw new Error("Açılış projesi bulunamadı.");
+      if (project.status === "OPENED") return;
+      if (project.status === "CANCELLED") throw new Error("İptal edilen açılış projesi tamamlanamaz.");
       const approval = await OpeningProjectService.canApproveOpening(projectId, tx);
       if (!approval.ok) throw new Error(approval.reason);
       const openedAt = new Date();
