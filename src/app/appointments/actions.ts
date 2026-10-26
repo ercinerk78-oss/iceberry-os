@@ -24,6 +24,8 @@ const createAppointmentSchema = z.object({
   title: z.string().trim().optional(),
   notes: z.string().trim().optional(),
   location: z.string().trim().optional(),
+  city: z.string().trim().max(100).optional(),
+  district: z.string().trim().max(100).optional(),
   meetingLink: z.string().trim().optional(),
 });
 
@@ -91,11 +93,12 @@ export async function createLeadAppointment(
     if (!lead) return { success: false, message: "Lead bulunamadı." };
 
     const title = data.title || `${lead.fullName} ile franchise görüşmesi`;
+    const location = [data.city, data.district, data.location].filter(Boolean).join(" / ");
     const assignedUserId = data.assignedUserId || user.name;
     const detailParts = [
       `Randevu tarihi: ${formattedDate(startDateTime)}`,
       `Görüşme tipi: ${appointmentTypeLabel(data.appointmentType)}`,
-      data.location ? `Lokasyon: ${data.location}` : "",
+      location ? `Lokasyon: ${location}` : "",
       data.meetingLink ? `Toplantı linki: ${data.meetingLink}` : "",
     ].filter(Boolean);
 
@@ -115,7 +118,7 @@ export async function createLeadAppointment(
           status: "SCHEDULED",
           title,
           description: data.notes || null,
-          location: data.location || null,
+          location: location || null,
           meetingLink: data.meetingLink || null,
           notes: data.notes || null,
         },

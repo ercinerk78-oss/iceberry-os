@@ -161,6 +161,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <Select name="appointmentType" options={Object.entries(APPOINTMENT_TYPE_LABELS)} required />
               <Select name="assignedUserId" first="Sorumlu seç" options={users.map((user) => [user.name, user.name])} />
               <input name="title" placeholder="Başlık" className="h-10 rounded-lg border px-3 text-sm" />
+              <label className="grid gap-1 text-sm"><span>İl</span><input name="city" autoComplete="address-level1" className="h-10 min-w-0 rounded-lg border px-3 text-sm" /></label>
+              <label className="grid gap-1 text-sm"><span>İlçe</span><input name="district" autoComplete="address-level2" className="h-10 min-w-0 rounded-lg border px-3 text-sm" /></label>
               <input name="location" placeholder="Lokasyon" className="h-10 rounded-lg border px-3 text-sm" />
               <input name="meetingLink" placeholder="Online görüşme linki" className="h-10 rounded-lg border px-3 text-sm" />
               <textarea name="notes" placeholder="Randevu notu" className="min-h-20 rounded-lg border p-3 text-sm md:col-span-2 xl:col-span-5" />

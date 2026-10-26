@@ -20,13 +20,13 @@ export function CandidateForm({ action, candidate, onSuccess, onCancel }: { acti
     <form ref={formRef} action={formAction} className="grid gap-4 p-5 md:grid-cols-2">
       <Field name="fullName" label="Ad Soyad" required value={candidate?.fullName} error={state.errors?.fullName} />
       <Field name="phone" label="Telefon" required value={candidate?.phone} error={state.errors?.phone} />
-      <Field name="whatsapp" label="WhatsApp" value={candidate?.whatsapp} />
-      <Field name="email" label="E-posta" type="email" value={candidate?.email} error={state.errors?.email} />
+      <input type="hidden" name="whatsapp" value={candidate?.whatsapp ?? ""} />
+      <input type="hidden" name="email" value={candidate?.email ?? ""} />
       <Field name="city" label="Şehir" required value={candidate?.city} error={state.errors?.city} />
       <Field name="district" label="İlçe" value={candidate?.district} />
       <Field name="country" label="Ülke" required value={candidate?.country ?? "Türkiye"} />
       <Field name="investmentBudget" label="Yatırım Bütçesi" required value={candidate?.investmentBudget} error={state.errors?.investmentBudget} />
-      <Select name="currency" label="Para Birimi" items={["TRY", "EUR", "USD"]} value={candidate?.currency ?? "TRY"} />
+      <input type="hidden" name="currency" value={candidate?.currency ?? "TRY"} />
       <Select name="interestedConcept" label="Konsept" items={concepts} value={candidate?.interestedConcept} />
       <Select name="source" label="Kaynak" items={sources} value={candidate?.source} />
       <Select name="status" label="Durum" items={[...PIPELINE_STAGES]} value={candidate?.status} />
