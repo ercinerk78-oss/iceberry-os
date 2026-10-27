@@ -267,6 +267,37 @@ export async function completeProjectMilestone(milestoneId: string, formData: Fo
   refresh(milestone.projectId, milestone.project.branchId);
 }
 
+export async function saveOpeningMilestone(milestoneId: string, _: OpeningState, formData: FormData): Promise<OpeningState> {
+  const user = await requirePermission("openings");
+  const note = String(formData.get("note") || "").trim();
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const item = await tx.openingMilestone.findUnique({ where: { id: milestoneId }, include: { project: { select: { branchId: true, status: true } } } });
+      if (!item) throw new Error("Aşama bulunamadı.");
+      if (["OPENED", "CANCELLED"].includes(item.project.status)) throw new Error("Kapatılmış açılış projesi değiştirilemez.");
+      const approving = item.requiresApproval && item.status === "WAITING_APPROVAL";
+      if (approving && !["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR"].includes(user.role)) {
+        throw new Error("Bu aşamayı genel müdür, operasyon müdürü veya açılış koordinatörü onaylayabilir.");
+      }
+      if (item.status === "COMPLETED") return { projectId: item.projectId, branchId: item.project.branchId, waiting: false };
+      const waiting = item.requiresApproval && !approving;
+      const now = new Date();
+      await tx.openingMilestone.update({
+        where: { id: milestoneId },
+        data: { status: waiting ? "WAITING_APPROVAL" : "COMPLETED", progressPercentage: waiting ? 90 : 100, completedAt: waiting ? null : now, completionNote: note || item.completionNote, ...(!waiting ? { approvedById: user.id, approvedAt: now } : {}) },
+      });
+      if (!waiting && item.relatedTaskId) await tx.branchTask.update({ where: { id: item.relatedTaskId }, data: { status: "COMPLETED", completedAt: now, progress: 100, completionNote: note || item.completionNote } });
+      await tx.branchTimelineEvent.create({ data: { branchId: item.project.branchId, userId: user.id, action: waiting ? "OPENING_MILESTONE_SUBMITTED" : "OPENING_MILESTONE_COMPLETED", entityType: "OpeningMilestone", entityId: item.id, description: `${item.nameSnapshot}: ${waiting ? "onaya gönderildi" : "tamamlandı"}.` } });
+      return { projectId: item.projectId, branchId: item.project.branchId, waiting };
+    });
+    refresh(result.projectId, result.branchId);
+    return { success: true, message: result.waiting ? "Aşama onaya gönderildi." : "Aşama tamamlandı." };
+  } catch (error) {
+    console.error("[openings] Milestone save failed", error);
+    return { success: false, message: error instanceof Error ? error.message : "Aşama kaydedilemedi." };
+  }
+}
+
 export async function addOpeningBudgetItem(projectId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
   const user = await requireUser();
   await requirePermission("openings");

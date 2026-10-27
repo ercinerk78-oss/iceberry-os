@@ -5,7 +5,8 @@ import { Clock3, FileText } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RelatedDocumentsPanel } from "@/components/documents/related-documents-panel";
 import { OpeningChecklistPanel } from "@/components/openings/opening-checklist-panel";
-import { ActivateOpeningBranchForm, ReadinessCheckForm, RiskForm } from "@/components/openings/opening-project-controls";
+import { ActivateOpeningBranchForm, OpeningMilestoneForm, ReadinessCheckForm, RiskForm } from "@/components/openings/opening-project-controls";
+import { requirePermission } from "@/lib/auth";
 import { OpeningSupplyPanel } from "@/components/openings/opening-supply-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
 const tabs = ["Kurulum Planı", "Ekipman", "Züccaciye", "Açılış Malı", "Görevler", "Belgeler", "Riskler", "Hazırlık Puanı", "Timeline"];
 
 export default async function OpeningDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+  const user = await requirePermission("openings");
   const { id } = await params;
   const { tab = "Kurulum Planı" } = await searchParams;
   const activeTab = tabs.includes(tab) ? tab : "Kurulum Planı";
@@ -127,7 +129,7 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
             {project.milestones.some((item) => item.isCritical && item.status !== "COMPLETED") ? (
               <Card className="border-amber-200 bg-amber-50 p-5 shadow-none">
                 <h3 className="font-semibold">Açılışı engelleyen kritik aşamalar</h3>
-                <ul className="mt-3 space-y-2 text-sm">{project.milestones.filter((item) => item.isCritical && item.status !== "COMPLETED").map((item) => <li key={item.id}>{item.nameSnapshot} · {item.status === "WAITING_APPROVAL" ? "Onay bekliyor" : "Tamamlanmadı"}</li>)}</ul>
+                <ul className="mt-3 space-y-4 text-sm">{project.milestones.filter((item) => item.isCritical && item.status !== "COMPLETED").map((item) => <li key={item.id} className="border-t border-amber-200 pt-3"><strong>{item.nameSnapshot}</strong><p className="mt-1">{item.status === "WAITING_APPROVAL" ? "Onay bekliyor" : "Tamamlanmadı"}</p>{!["OPENED", "CANCELLED"].includes(project.status) ? <OpeningMilestoneForm item={item} canApprove={["GENERAL_MANAGER", "OPERATIONS_MANAGER", "OPENING_COORDINATOR"].includes(user.role)} /> : null}</li>)}</ul>
               </Card>
             ) : null}
             <Card className="p-5 shadow-none"><p className="text-3xl font-semibold">%{project.openingReadinessScore}</p><p className="mt-1 text-sm text-[#65705f]">Kritik engel: {blockers.length}</p></Card>

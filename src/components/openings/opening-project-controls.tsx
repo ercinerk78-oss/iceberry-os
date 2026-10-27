@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { activateOpeningBranch, addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, saveReadinessCheck } from "@/app/openings/actions";
+import { activateOpeningBranch, addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, saveReadinessCheck, saveOpeningMilestone } from "@/app/openings/actions";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openingRiskLevelLabels } from "@/lib/openings";
@@ -10,6 +10,21 @@ import type { OpeningState } from "@/lib/validations/opening";
 
 const initial: OpeningState = { success: false, message: "" };
 const input = "h-10 rounded-lg border bg-white px-3 text-sm";
+
+export function OpeningMilestoneForm({ item, canApprove }: { item: { id: string; status: string; requiresApproval: boolean; completionNote: string | null }; canApprove: boolean }) {
+  const [state, action, pending] = useActionState(saveOpeningMilestone.bind(null, item.id), initial);
+  const awaitingApproval = item.requiresApproval && item.status === "WAITING_APPROVAL";
+  return (
+    <form action={action} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+      <input aria-label="Tamamlama notu" name="note" defaultValue={item.completionNote ?? ""} placeholder="Tamamlama notu" className={`${input} min-w-0`} />
+      <Button type="submit" disabled={pending || (awaitingApproval && !canApprove)}>
+        <CheckCircle2 className="size-4" />{pending ? "Kaydediliyor..." : awaitingApproval ? "Onayla ve Tamamla" : item.requiresApproval ? "Tamamla ve Onaya Gönder" : "Tamamla"}
+      </Button>
+      {awaitingApproval && !canApprove ? <p className="text-sm text-amber-800 sm:col-span-2">Yönetici onayı bekleniyor.</p> : null}
+      {state.message ? <p role={state.success ? "status" : "alert"} className={`text-sm sm:col-span-2 ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
+    </form>
+  );
+}
 
 export function ActivateOpeningBranchForm({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState(activateOpeningBranch.bind(null, projectId), initial);
