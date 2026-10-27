@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BACKORDER_REASONS, backorderReasonLabel, backorderStatusLabel } from "@/lib/backorders";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth";
+import { hasPermissionWithOverrides } from "@/lib/permissions";
+import { ManualBackorderForm, CompleteBackorderButton } from "@/components/warehouse/manual-backorder-form";
 import { containsInsensitive } from "@/lib/search";
 import { dateTime } from "@/lib/warehouse";
 
@@ -16,6 +19,12 @@ export const dynamic = "force-dynamic";
 type Params = { view?: string; q?: string };
 
 export default async function Shipments({ searchParams }: { searchParams: Promise<Params> }) {
+  const user = await requirePermission("warehouse");
+  const canManage = hasPermissionWithOverrides(user.role, "shipment_manage", user.permissions);
+  const [branches, products] = canManage ? await Promise.all([
+    prisma.branch.findMany({ where: { archivedAt: null }, select: { id: true, branchName: true }, orderBy: { branchName: "asc" } }),
+    prisma.product.findMany({ where: { archivedAt: null }, select: { id: true, name: true, sku: true, unit: true }, orderBy: { name: "asc" } }),
+  ]) : [[], []];
   const params = await searchParams;
   const view = params.view || "all";
   const q = params.q?.trim();
@@ -90,6 +99,7 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
   return (
     <AppShell activeHref="/warehouse/shipments" eyebrow="Merkez depo" title="Sevkiyat ve Eksik Ürünler">
       <div className="space-y-5">
+        {canManage ? <section className="rounded-lg border bg-white p-4"><h2 className="mb-4 font-semibold">Manuel Eksik Sevk Ekle</h2><ManualBackorderForm branches={branches} products={products} /></section> : null}
         <form className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-[1fr_auto]">
           <input name="q" defaultValue={q} placeholder="Sevkiyat, sipariş, bayi, şube veya ürün ara" className="h-10 rounded-lg border px-3" />
           <div className="flex flex-wrap gap-2">
@@ -139,14 +149,16 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
                       </div>
                       <h3 className="mt-3 font-semibold">{item.product.name}</h3>
                       <p className="text-sm text-[#65705f]">
-                        {item.order.franchisee.companyName} / {item.branch?.branchName ?? "Genel"} · Sipariş {item.order.orderNumber} · Sevkiyat {item.shipment?.shipmentNumber ?? "-"}
+                        {item.branch?.branchName ?? item.order?.franchisee.companyName ?? "Şube belirtilmedi"} · {item.order ? `Sipariş ${item.order.orderNumber}` : "Manuel kayıt"} · Sevkiyat {item.shipment?.shipmentNumber ?? "-"}
                       </p>
                       <p className="mt-2 text-sm">
                         Sipariş: <b>{item.orderedQuantity} {item.unit}</b> · Sevk: <b>{item.shippedQuantity} {item.unit}</b> · Kalan: <b>{item.outstandingQuantity} {item.unit}</b> · Açık gün: <b>{daysOpen}</b>
                       </p>
                       {item.note ? <p className="mt-2 text-sm text-[#65705f]">{item.note}</p> : null}
+                      {item.fulfilledAt ? <p className="mt-2 text-sm text-emerald-700">Tamamlanma: {dateTime(item.fulfilledAt)}</p> : null}
+                      {canManage && ["OPEN", "PARTIALLY_FULFILLED"].includes(item.status) ? <CompleteBackorderButton id={item.id} /> : null}
                     </div>
-                    <form action={updateBackorderPlan.bind(null, item.id)} className="grid min-w-72 gap-2">
+                    {canManage && ["OPEN", "PARTIALLY_FULFILLED"].includes(item.status) ? <form action={updateBackorderPlan.bind(null, item.id)} className="grid w-full min-w-0 gap-2 lg:w-72">
                       <select name="reason" defaultValue={item.reason} className="h-9 rounded-lg border px-2 text-sm">
                         {Object.entries(BACKORDER_REASONS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
@@ -158,7 +170,7 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
                           <Button formAction={cancelBackorder.bind(null, item.id)} size="sm" variant="outline">İptal</Button>
                         ) : null}
                       </div>
-                    </form>
+                    </form> : null}
                   </div>
                 </article>
               );

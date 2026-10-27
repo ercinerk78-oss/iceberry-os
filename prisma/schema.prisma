@@ -3312,8 +3312,8 @@ model ShipmentItem {
 
 model ShipmentBackorder {
   id                      String             @id @default(cuid())
-  franchiseOrderId        String
-  franchiseOrderItemId    String             @unique
+  franchiseOrderId        String?
+  franchiseOrderItemId    String?            @unique
   shipmentId              String?
   branchId                String?
   productId               String
@@ -3331,8 +3331,8 @@ model ShipmentBackorder {
   completedById           String?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
-  order                   FranchiseOrder     @relation(fields: [franchiseOrderId], references: [id], onDelete: Restrict)
-  orderItem               FranchiseOrderItem @relation(fields: [franchiseOrderItemId], references: [id], onDelete: Restrict)
+  order                   FranchiseOrder?    @relation(fields: [franchiseOrderId], references: [id], onDelete: Restrict)
+  orderItem               FranchiseOrderItem? @relation(fields: [franchiseOrderItemId], references: [id], onDelete: Restrict)
   shipment                Shipment?          @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
   branch                  Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
   product                 Product            @relation(fields: [productId], references: [id], onDelete: Restrict)

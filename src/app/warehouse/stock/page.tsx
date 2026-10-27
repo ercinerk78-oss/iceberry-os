@@ -61,7 +61,7 @@ export default async function StockPage() {
   ]);
 
   return (
-    <AppShell activeHref="/warehouse/stock" eyebrow="Merkez depo" title="Stoklar">
+    <AppShell activeHref="/warehouse/stock" eyebrow="Merkez depo" title="Stoklar" action={<Button asChild variant="outline"><Link href="/warehouse/shipments?view=open">Eksik Sevk Takibi</Link></Button>}>
       <div className="space-y-5">
         <div className="grid gap-4 xl:grid-cols-2">
           <Card className="shadow-none">
