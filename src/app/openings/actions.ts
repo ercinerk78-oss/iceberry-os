@@ -317,11 +317,22 @@ export async function updateReadinessCheck(checkId: string, formData: FormData) 
   const status = String(formData.get("status") || "PENDING");
   const score = Number(formData.get("score") || 0);
   const notes = String(formData.get("notes") || "");
-  const check = await prisma.openingReadinessCheck.update({
-    where: { id: checkId },
-    data: { status, score: Math.max(0, Math.min(100, score)), notes: notes || null, checkedById: user.id, checkedAt: new Date() },
+  const check = await prisma.$transaction(async (tx) => {
+    const updated = await tx.openingReadinessCheck.update({
+      where: { id: checkId },
+      data: { status, score: Math.max(0, Math.min(100, score)), notes: notes || null, checkedById: user.id, checkedAt: new Date() },
+      select: { projectId: true },
+    });
+    const checks = await tx.openingReadinessCheck.aggregate({
+      where: { projectId: updated.projectId },
+      _avg: { score: true },
+    });
+    await tx.openingProject.update({
+      where: { id: updated.projectId },
+      data: { openingReadinessScore: Math.round(checks._avg.score ?? 0) },
+    });
+    return updated;
   });
-  await OpeningProjectService.recalculateProject(check.projectId);
   refresh(check.projectId);
 }
 
