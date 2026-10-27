@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { activateOpeningBranch, addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, updateReadinessCheck } from "@/app/openings/actions";
+import { activateOpeningBranch, addOpeningBudgetItem, addOpeningRisk, changeOpeningTargetDate, saveReadinessCheck } from "@/app/openings/actions";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openingRiskLevelLabels } from "@/lib/openings";
@@ -69,16 +69,18 @@ export function TargetDateForm({ projectId }: { projectId: string }) {
 }
 
 export function ReadinessCheckForm({ check }: { check: { id: string; status: string; score: number; notes: string | null } }) {
+  const [state, action, pending] = useActionState(saveReadinessCheck.bind(null, check.id), initial);
   return (
-    <form action={updateReadinessCheck.bind(null, check.id)} className="grid gap-2 md:grid-cols-[160px_100px_1fr_auto]">
-      <select name="status" defaultValue={check.status} className={input}>
+    <form action={action} className="grid gap-2 md:grid-cols-[160px_100px_1fr_auto]">
+      <select key={check.status} aria-label="Kontrol durumu" name="status" defaultValue={check.status} className={input}>
         <option value="PENDING">Bekliyor</option>
         <option value="PASSED">Tamamlandı</option>
         <option value="FAILED">Eksik</option>
       </select>
       <input name="score" type="number" min="0" max="100" defaultValue={check.score} className={input} />
       <input name="notes" defaultValue={check.notes || ""} placeholder="Not" className={input} />
-      <Button size="sm" variant="outline">Güncelle</Button>
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>{pending ? "Kaydediliyor..." : "Güncelle"}</Button>
+      {state.message ? <p role={state.success ? "status" : "alert"} className={`text-sm md:col-span-4 ${state.success ? "text-emerald-700" : "text-rose-700"}`}>{state.message}</p> : null}
     </form>
   );
 }

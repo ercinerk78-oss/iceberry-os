@@ -325,6 +325,22 @@ export async function updateReadinessCheck(checkId: string, formData: FormData) 
   refresh(check.projectId);
 }
 
+export async function saveReadinessCheck(checkId: string, _: OpeningState, formData: FormData): Promise<OpeningState> {
+  await requirePermission("openings");
+  const parsed = z.object({
+    status: z.enum(["PENDING", "PASSED", "FAILED"]),
+    score: z.coerce.number().min(0).max(100),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { success: false, message: "Durum ve 0–100 arası puanı kontrol edin." };
+  try {
+    await updateReadinessCheck(checkId, formData);
+    return { success: true, message: "Hazırlık kontrolü kaydedildi." };
+  } catch (error) {
+    console.error("[openings] Readiness update failed", error);
+    return { success: false, message: "Hazırlık kontrolü kaydedilemedi. Lütfen tekrar deneyin." };
+  }
+}
+
 export async function changeOpeningTargetDate(projectId: string, _state: OpeningState, formData: FormData): Promise<OpeningState> {
   const user = await requireUser();
   await requirePermission("openings");

@@ -124,6 +124,12 @@ export default async function OpeningDetail({ params, searchParams }: { params: 
 
         {activeTab === "Hazırlık Puanı" ? (
           <div className="space-y-4">
+            {project.milestones.some((item) => item.isCritical && item.status !== "COMPLETED") ? (
+              <Card className="border-amber-200 bg-amber-50 p-5 shadow-none">
+                <h3 className="font-semibold">Açılışı engelleyen kritik aşamalar</h3>
+                <ul className="mt-3 space-y-2 text-sm">{project.milestones.filter((item) => item.isCritical && item.status !== "COMPLETED").map((item) => <li key={item.id}>{item.nameSnapshot} · {item.status === "WAITING_APPROVAL" ? "Onay bekliyor" : "Tamamlanmadı"}</li>)}</ul>
+              </Card>
+            ) : null}
             <Card className="p-5 shadow-none"><p className="text-3xl font-semibold">%{project.openingReadinessScore}</p><p className="mt-1 text-sm text-[#65705f]">Kritik engel: {blockers.length}</p></Card>
             {project.readinessChecks.map((check) => <Card key={check.id} className="p-4 shadow-none"><div className="mb-3 flex flex-wrap justify-between gap-2"><strong>{check.title}</strong>{check.blocker ? <Badge className="bg-rose-100 text-rose-800">Engelleyici</Badge> : <Badge variant="secondary">Kontrol</Badge>}</div><ReadinessCheckForm check={check} /></Card>)}
           </div>
