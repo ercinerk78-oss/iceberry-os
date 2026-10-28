@@ -55,3 +55,26 @@ export function interviewToBranchConversion(
   const convertedCount = [...interviewed.values()].filter((lead) => branchLeadIds.has(lead.id) || (lead.convertedCandidateId && branchCandidateIds.has(lead.convertedCandidateId))).length;
   return { convertedCount, interviewedCount: interviewed.size, rate: interviewed.size ? convertedCount / interviewed.size * 100 : null };
 }
+
+export function resolveReportCandidateIds(
+  leads: { id: string; phone: string; convertedCandidateId: string | null }[],
+  candidates: { id: string; phone: string }[],
+) {
+  const normalize = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.length === 11 && digits.startsWith("0")) digits = `9${digits}`;
+    if (digits.length === 10 && digits.startsWith("5")) digits = `90${digits}`;
+    return digits.length >= 10 && digits.length <= 15 ? digits : null;
+  };
+  const byPhone = new Map<string, string[]>();
+  for (const candidate of candidates) {
+    const phone = normalize(candidate.phone);
+    if (phone) byPhone.set(phone, [...(byPhone.get(phone) ?? []), candidate.id]);
+  }
+  return new Map(leads.map((lead) => {
+    const phone = normalize(lead.phone);
+    const matches = phone ? byPhone.get(phone) ?? [] : [];
+    return [lead.id, lead.convertedCandidateId || (matches.length === 1 ? matches[0] : null)];
+  }));
+}

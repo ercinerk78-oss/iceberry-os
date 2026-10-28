@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth";
 import { formatPercent, percentChange } from "@/lib/branch-revenue";
-import { interviewToBranchConversion, isReportableLead } from "@/lib/lead-reporting";
+import { interviewToBranchConversion, isReportableLead, resolveReportCandidateIds } from "@/lib/lead-reporting";
+import { CLOSED_CANDIDATE_STATUSES } from "@/lib/active-records";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +49,8 @@ export default async function ReportsPage() {
       where: { leadDate: { gte: reportStart, lt: reportEnd } },
       select: {
         id: true,
+        phone: true,
+        fullName: true,
         leadDate: true,
         leadCategory: true,
         convertedCandidateId: true,
@@ -56,21 +60,17 @@ export default async function ReportsPage() {
     }),
     [],
   );
-  const reportableLeads = leads.filter(isReportableLead);
+  const candidates = await prisma.franchiseCandidate.findMany({
+    select: { id: true, phone: true, status: true, qualificationScore: true, branch: { select: { id: true, archivedAt: true } } },
+  });
+  const resolvedIds = resolveReportCandidateIds(leads, candidates);
+  const reportableLeads = leads.filter(isReportableLead).map((lead) => ({ ...lead, convertedCandidateId: resolvedIds.get(lead.id) ?? lead.convertedCandidateId }));
   const convertedCandidateIds = [
     ...new Set(reportableLeads.map((lead) => lead.convertedCandidateId).filter((id): id is string => Boolean(id))),
   ];
-  const candidateScores = convertedCandidateIds.length
-    ? await safe(
-        prisma.franchiseCandidate.findMany({
-          where: { id: { in: convertedCandidateIds } },
-          select: { id: true, qualificationScore: true, branch: { select: { id: true, archivedAt: true } } },
-        }),
-        [],
-      )
-    : [];
+  const candidateScores = candidates.filter((candidate) => convertedCandidateIds.includes(candidate.id));
   const scoreByCandidate = new Map(candidateScores.map((candidate) => [candidate.id, candidate.qualificationScore]));
-  const branchCandidateIds = new Set(candidateScores.filter((candidate) => candidate.branch && !candidate.branch.archivedAt).map((candidate) => candidate.id));
+  const branchCandidateIds = new Set(candidateScores.filter((candidate) => (candidate.branch && !candidate.branch.archivedAt) || (CLOSED_CANDIDATE_STATUSES as readonly string[]).includes(candidate.status)).map((candidate) => candidate.id));
   const linkedBranches = await prisma.branch.findMany({
     where: { archivedAt: null, OR: [{ sourceLeadId: { in: reportableLeads.map((lead) => lead.id) } }, { candidateId: { in: convertedCandidateIds } }] },
     select: { sourceLeadId: true, candidateId: true },
@@ -79,6 +79,7 @@ export default async function ReportsPage() {
   for (const branch of linkedBranches) if (branch.candidateId) branchCandidateIds.add(branch.candidateId);
   const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate, branchCandidateIds, branchLeadIds);
   const conversion = interviewToBranchConversion(reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1)), branchCandidateIds, branchLeadIds);
+  const convertedLeads = reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1) && lead.appointments.some((item) => item.status === "COMPLETED") && (branchLeadIds.has(lead.id) || (lead.convertedCandidateId && branchCandidateIds.has(lead.convertedCandidateId))));
   const latestRow = rows.at(-1);
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
   const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
@@ -101,6 +102,11 @@ export default async function ReportsPage() {
         <MetricCard title="Ortalama Görüşme Puanı" value={averageMonthlyScore == null ? "—" : averageMonthlyScore.toFixed(1)} note="Ayların ortalama puanı" icon={Star} />
       </div>
 
+      <details className="mt-5 rounded-lg border bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Şubeye dönüşen görüşmeler ({convertedLeads.length})</summary>
+        <ul className="mt-3 grid gap-2 text-sm md:grid-cols-2">{convertedLeads.map((lead) => <li key={lead.id}><Link href={`/leads/${lead.id}`} className="underline">{lead.fullName}</Link></li>)}</ul>
+        {!convertedLeads.length ? <p className="mt-3 text-sm text-[#65705f]">Seçili dönemde tamamlanmış görüşmesi ve şube dönüşüm kaydı birlikte bulunan lead yok.</p> : null}
+      </details>
       <Card className="mt-5 shadow-none">
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-3 text-base">

@@ -8,7 +8,16 @@ import {
   isInvalidLead,
   isReportableAppointment,
   interviewToBranchConversion,
+  resolveReportCandidateIds,
 } from "./lead-reporting";
+
+test("legacy candidate matching normalizes Turkish phones and rejects ambiguous matches", () => {
+  const candidates = [{ id: "one", phone: "+90 532 111 22 33" }, { id: "two", phone: "0533 111 22 33" }, { id: "three", phone: "905331112233" }];
+  const matches = resolveReportCandidateIds([{ id: "a", phone: "0532 111 22 33", convertedCandidateId: null }, { id: "b", phone: "5331112233", convertedCandidateId: null }, { id: "c", phone: "5331112233", convertedCandidateId: "explicit" }], candidates);
+  assert.equal(matches.get("a"), "one");
+  assert.equal(matches.get("b"), null);
+  assert.equal(matches.get("c"), "explicit");
+});
 
 test("interview to branch conversion counts each interviewed lead once and requires a branch", () => {
   const converted = { id: "one", convertedCandidateId: "candidate", appointments: [{ status: "COMPLETED" }, { status: "COMPLETED" }] };
