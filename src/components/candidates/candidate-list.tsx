@@ -36,11 +36,10 @@ type CandidateListProps = {
 };
 
 type CandidateScoreDistribution = {
-  score9To10: number;
-  score7To8: number;
-  score5To6: number;
-  score3To4: number;
-  score1To2: number;
+  score1To3: number;
+  score4To5: number;
+  score6To7: number;
+  score8To10: number;
 };
 
 type UnifiedRow =
@@ -61,7 +60,7 @@ export function CandidateList({
   view = "active",
   activeCount = candidates.length,
   passiveCount = 0,
-  scoreDistribution = { score9To10: 0, score7To8: 0, score5To6: 0, score3To4: 0, score1To2: 0 },
+  scoreDistribution = { score1To3: 0, score4To5: 0, score6To7: 0, score8To10: 0 },
 }: CandidateListProps) {
   const [query, setQuery] = useState(initialQuery);
   const [city, setCity] = useState(ALL);
@@ -332,11 +331,10 @@ function UnifiedTableRow({ row, onOpenLead }: { row: UnifiedRow; onOpenLead: (le
 
 function CandidateScoreDistributionBox({ distribution }: { distribution: CandidateScoreDistribution }) {
   const items = [
-    ["9-10 puan", distribution.score9To10],
-    ["7-8 puan", distribution.score7To8],
-    ["5-6 puan", distribution.score5To6],
-    ["3-4 puan", distribution.score3To4],
-    ["1-2 puan", distribution.score1To2],
+    ["1-3 puan", distribution.score1To3],
+    ["4-5 puan", distribution.score4To5],
+    ["6-7 puan", distribution.score6To7],
+    ["8-10 puan", distribution.score8To10],
   ] as const;
 
   return (
