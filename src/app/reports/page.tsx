@@ -36,8 +36,10 @@ type MonthReportRow = {
   interviewToBranchRate: number | null;
 };
 
-export default async function ReportsPage() {
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ audit?: string }> }) {
   await requirePermission("reports");
+  const auditRequested = (await searchParams).audit === "conversion";
+  let conversionAudit: string | null = null;
 
   const now = new Date();
   const year = now.getFullYear();
@@ -61,7 +63,7 @@ export default async function ReportsPage() {
     [],
   );
   const candidates = await prisma.franchiseCandidate.findMany({
-    select: { id: true, phone: true, status: true, qualificationScore: true, branch: { select: { id: true, archivedAt: true } } },
+    select: { id: true, fullName: true, phone: true, status: true, qualificationScore: true, branch: { select: { id: true, archivedAt: true } } },
   });
   const resolvedIds = resolveReportCandidateIds(leads, candidates);
   const reportableLeads = leads.filter(isReportableLead).map((lead) => ({ ...lead, convertedCandidateId: resolvedIds.get(lead.id) ?? lead.convertedCandidateId }));
@@ -79,6 +81,20 @@ export default async function ReportsPage() {
   for (const branch of linkedBranches) if (branch.candidateId) branchCandidateIds.add(branch.candidateId);
   const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate, branchCandidateIds, branchLeadIds);
   const conversion = interviewToBranchConversion(reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1)), branchCandidateIds, branchLeadIds);
+  if (auditRequested) {
+    const fold = (value: string) => value.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replaceAll("ı", "i");
+    const hints = ["abdulkadir", "burak", "nihat", "bunyamin", "serkan"];
+    const matches = (name: string) => hints.some((hint) => fold(name).includes(hint));
+    const allLeads = await prisma.lead.findMany({ select: { id: true, fullName: true, phone: true, leadDate: true, convertedCandidateId: true, status: true, leadCategory: true, appointments: { select: { status: true } } } });
+    const allBranches = await prisma.branch.findMany({ select: { id: true, branchName: true, authorizedPersonName: true, sourceLeadId: true, candidateId: true, status: true, archivedAt: true } });
+    const allResolved = resolveReportCandidateIds(allLeads, candidates);
+    conversionAudit = JSON.stringify({
+      conversion,
+      leads: allLeads.filter((lead) => matches(lead.fullName)).map(({ phone, ...lead }) => { void phone; return { ...lead, inPeriod: lead.leadDate >= reportStart && lead.leadDate < reportEnd, resolvedCandidateId: allResolved.get(lead.id), counted: lead.appointments.some((item) => item.status === "COMPLETED") && (branchLeadIds.has(lead.id) || branchCandidateIds.has(allResolved.get(lead.id) ?? "")) }; }),
+      candidates: candidates.filter((candidate) => matches(candidate.fullName)).map(({ phone, ...candidate }) => { void phone; return candidate; }),
+      branches: allBranches.filter((branch) => matches(branch.authorizedPersonName ?? "") || candidates.some((candidate) => matches(candidate.fullName) && candidate.id === branch.candidateId)),
+    }, null, 2);
+  }
   const convertedLeads = reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1) && lead.appointments.some((item) => item.status === "COMPLETED") && (branchLeadIds.has(lead.id) || (lead.convertedCandidateId && branchCandidateIds.has(lead.convertedCandidateId))));
   const latestRow = rows.at(-1);
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
@@ -92,6 +108,7 @@ export default async function ReportsPage() {
 
   return (
     <AppShell activeHref="/reports" eyebrow="Lead ve randevu analitiği" title="Raporlar">
+      {conversionAudit ? <section className="mb-5 rounded-lg border bg-white p-4"><h2 className="font-semibold">Dönüşüm Kayıt Kontrolü</h2><pre className="mt-3 max-h-[70vh] overflow-auto whitespace-pre-wrap break-all text-xs">{conversionAudit}</pre></section> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Bu Yıl Toplam Başvuru" value={formatValue(totalLeads)} note="Hatalı form hariç" icon={MessageSquareText} />
         <MetricCard title="Aylık Ortalama Talep" value={averageMonthlyLeadCount.toFixed(1)} note="Ay bazlı ortalama başvuru" icon={LineChart} />
