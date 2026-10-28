@@ -63,9 +63,8 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
     view === "passive"
       ? { AND: [{ archivedAt: { not: null } }, ...(searchWhere ? [searchWhere] : [])] }
       : activeCandidateWhere(searchWhere);
-  const tagCandidateWhere: Prisma.FranchiseCandidateWhereInput = view === "passive" ? { archivedAt: { not: null } } : activeCandidateWhere();
 
-  const [records, concepts, tags, availableLocations, activeCount, passiveCount, scoreCounts] = await Promise.all([
+  const [records, concepts, availableLocations, activeCount, passiveCount, scoreCounts] = await Promise.all([
     prisma.franchiseCandidate.findMany({
       where: candidateWhere,
       include: {
@@ -78,17 +77,6 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
       take: CANDIDATE_LIST_LIMIT,
     }),
     prisma.concept.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.candidateTag.findMany({
-      where: {
-        candidates: {
-          some: {
-            candidate: tagCandidateWhere,
-          },
-        },
-      },
-      orderBy: { name: "asc" },
-      take: 100,
-    }),
     prisma.candidateLocation.findMany({
       where: { archivedAt: null },
       select: { id: true, name: true, city: true, district: true },
@@ -117,7 +105,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
       <CandidateList
         candidates={records.map(toCandidate)}
         conceptOptions={concepts.map((concept) => concept.name)}
-        tagOptions={tags.map((tag) => tag.name)}
+        tagOptions={Array.from(new Set(records.flatMap((record) => record.tags.map(({ tag }) => tag.name)))).sort((a, b) => a.localeCompare(b, "tr"))}
         availableLocations={availableLocations}
         initialQuery={q ?? ""}
         initialStatus={params.status}
