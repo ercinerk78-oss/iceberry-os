@@ -1,11 +1,11 @@
-import { CalendarCheck2, LineChart, MessageSquareText, Star, UsersRound } from "lucide-react";
+import { CalendarCheck2, LineChart, MessageSquareText, Star, Store, UsersRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth";
 import { formatPercent, percentChange } from "@/lib/branch-revenue";
-import { isReportableLead } from "@/lib/lead-reporting";
+import { interviewToBranchConversion, isReportableLead } from "@/lib/lead-reporting";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ type MonthReportRow = {
   interviewRate: number | null;
   leadToInterviewRate: number | null;
   averageScore: number | null;
+  interviewToBranchRate: number | null;
 };
 
 export default async function ReportsPage() {
@@ -63,13 +64,15 @@ export default async function ReportsPage() {
     ? await safe(
         prisma.franchiseCandidate.findMany({
           where: { id: { in: convertedCandidateIds } },
-          select: { id: true, qualificationScore: true },
+          select: { id: true, qualificationScore: true, branch: { select: { id: true, archivedAt: true } } },
         }),
         [],
       )
     : [];
   const scoreByCandidate = new Map(candidateScores.map((candidate) => [candidate.id, candidate.qualificationScore]));
-  const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate);
+  const branchCandidateIds = new Set(candidateScores.filter((candidate) => candidate.branch && !candidate.branch.archivedAt).map((candidate) => candidate.id));
+  const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate, branchCandidateIds);
+  const conversion = interviewToBranchConversion(reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1)), branchCandidateIds);
   const latestRow = rows.at(-1);
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
   const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
@@ -82,12 +85,13 @@ export default async function ReportsPage() {
 
   return (
     <AppShell activeHref="/reports" eyebrow="Lead ve randevu analitiği" title="Raporlar">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Bu Yıl Toplam Başvuru" value={formatValue(totalLeads)} note="Hatalı form hariç" icon={MessageSquareText} />
         <MetricCard title="Aylık Ortalama Talep" value={averageMonthlyLeadCount.toFixed(1)} note="Ay bazlı ortalama başvuru" icon={LineChart} />
         <MetricCard title="Randevuya Dönüşüm" value={formatPercent(ratio(totalAppointmentLeads, totalLeads))} note="Başvurudan randevuya" icon={CalendarCheck2} />
         <MetricCard title="Görüşme Gerçekleşme" value={formatPercent(ratio(totalCompletedLeads, totalAppointmentLeads))} note="Randevudan görüşmeye" icon={UsersRound} />
         <MetricCard title="Başvurudan Görüşmeye" value={formatPercent(ratio(totalCompletedLeads, totalLeads))} note="Toplam başvuru içinden" icon={UsersRound} />
+        <MetricCard title="Görüşmeden Şubeye Dönüşüm Oranı" value={formatPercent(conversion.rate)} note="Görüşülen leadler içinden" icon={Store} />
         <MetricCard title="Ortalama Görüşme Puanı" value={averageMonthlyScore == null ? "—" : averageMonthlyScore.toFixed(1)} note="Ayların ortalama puanı" icon={Star} />
       </div>
 
@@ -109,6 +113,7 @@ export default async function ReportsPage() {
                   <th className="px-3 py-3 font-medium">Randevuya Dönüşüm</th>
                   <th className="px-3 py-3 font-medium">Görüşme Oranı</th>
                   <th className="px-3 py-3 font-medium">Başvurudan Görüşmeye</th>
+                  <th className="px-3 py-3 font-medium">Görüşmeden Şubeye Dönüşüm</th>
                   <th className="px-3 py-3 font-medium">Görüşme Ortalama Puanı</th>
                 </tr>
               </thead>
@@ -139,6 +144,7 @@ export default async function ReportsPage() {
                     <td className="px-3 py-4">
                       <RateWithCount rate={row.leadToInterviewRate} count={row.completedLeadCount} suffix="görüşme" />
                     </td>
+                    <td className="px-3 py-4 font-semibold">{formatPercent(row.interviewToBranchRate)}</td>
                     <td className="px-3 py-4">{row.averageScore == null ? "—" : `${row.averageScore.toFixed(1)} / 10`}</td>
                   </tr>
                 ))}
@@ -161,7 +167,7 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
-function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>): MonthReportRow[] {
+function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>, branchCandidateIds: ReadonlySet<string>): MonthReportRow[] {
   const leadCountsByMonth = new Map<string, number>();
   for (const lead of leads) {
     const key = monthKey(lead.leadDate);
@@ -194,6 +200,7 @@ function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex
       interviewRate: ratio(completedLeads.length, appointmentLeads.length),
       leadToInterviewRate: ratio(completedLeads.length, leadCount),
       averageScore: average(scoreValues),
+      interviewToBranchRate: interviewToBranchConversion(monthLeads, branchCandidateIds).rate,
     };
   });
 }

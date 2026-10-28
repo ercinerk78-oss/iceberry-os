@@ -45,3 +45,12 @@ export function isReportableAppointment(appointment: LeadReportAppointment) {
 export function isCountableAppointment(appointment: LeadReportAppointment) {
   return isReportableAppointment(appointment) && appointment.status !== "CANCELLED";
 }
+
+export function interviewToBranchConversion(
+  leads: { id: string; convertedCandidateId: string | null; appointments: { status: string }[] }[],
+  branchCandidateIds: ReadonlySet<string>,
+) {
+  const interviewed = new Map(leads.filter((lead) => lead.appointments.some((item) => item.status === "COMPLETED")).map((lead) => [lead.id, lead]));
+  const convertedCount = [...interviewed.values()].filter((lead) => lead.convertedCandidateId && branchCandidateIds.has(lead.convertedCandidateId)).length;
+  return { convertedCount, interviewedCount: interviewed.size, rate: interviewed.size ? convertedCount / interviewed.size * 100 : null };
+}

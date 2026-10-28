@@ -7,7 +7,15 @@ import {
   isConvertedLead,
   isInvalidLead,
   isReportableAppointment,
+  interviewToBranchConversion,
 } from "./lead-reporting";
+
+test("interview to branch conversion counts each interviewed lead once and requires a branch", () => {
+  const converted = { id: "one", convertedCandidateId: "candidate", appointments: [{ status: "COMPLETED" }, { status: "COMPLETED" }] };
+  const result = interviewToBranchConversion([converted, converted, { id: "two", convertedCandidateId: "no-branch", appointments: [{ status: "COMPLETED" }] }, { id: "three", convertedCandidateId: "candidate", appointments: [{ status: "CANCELLED" }] }], new Set(["candidate"]));
+  assert.deepEqual(result, { convertedCount: 1, interviewedCount: 2, rate: 50 });
+  assert.equal(interviewToBranchConversion([], new Set()).rate, null);
+});
 
 test("lead reporting excludes invalid forms from active report metrics", () => {
   const lead = {
