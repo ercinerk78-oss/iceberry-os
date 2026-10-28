@@ -71,8 +71,14 @@ export default async function ReportsPage() {
     : [];
   const scoreByCandidate = new Map(candidateScores.map((candidate) => [candidate.id, candidate.qualificationScore]));
   const branchCandidateIds = new Set(candidateScores.filter((candidate) => candidate.branch && !candidate.branch.archivedAt).map((candidate) => candidate.id));
-  const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate, branchCandidateIds);
-  const conversion = interviewToBranchConversion(reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1)), branchCandidateIds);
+  const linkedBranches = await prisma.branch.findMany({
+    where: { archivedAt: null, OR: [{ sourceLeadId: { in: reportableLeads.map((lead) => lead.id) } }, { candidateId: { in: convertedCandidateIds } }] },
+    select: { sourceLeadId: true, candidateId: true },
+  });
+  const branchLeadIds = new Set(linkedBranches.flatMap((branch) => branch.sourceLeadId ? [branch.sourceLeadId] : []));
+  for (const branch of linkedBranches) if (branch.candidateId) branchCandidateIds.add(branch.candidateId);
+  const rows = buildMonthRows(year, REPORT_START_MONTH_INDEX, now.getMonth(), reportableLeads, scoreByCandidate, branchCandidateIds, branchLeadIds);
+  const conversion = interviewToBranchConversion(reportableLeads.filter((lead) => lead.leadDate < new Date(year, now.getMonth() + 1, 1)), branchCandidateIds, branchLeadIds);
   const latestRow = rows.at(-1);
   const totalLeads = rows.reduce((sum, row) => sum + row.leadCount, 0);
   const totalAppointmentLeads = rows.reduce((sum, row) => sum + row.appointmentLeadCount, 0);
@@ -91,7 +97,7 @@ export default async function ReportsPage() {
         <MetricCard title="Randevuya Dönüşüm" value={formatPercent(ratio(totalAppointmentLeads, totalLeads))} note="Başvurudan randevuya" icon={CalendarCheck2} />
         <MetricCard title="Görüşme Gerçekleşme" value={formatPercent(ratio(totalCompletedLeads, totalAppointmentLeads))} note="Randevudan görüşmeye" icon={UsersRound} />
         <MetricCard title="Başvurudan Görüşmeye" value={formatPercent(ratio(totalCompletedLeads, totalLeads))} note="Toplam başvuru içinden" icon={UsersRound} />
-        <MetricCard title="Görüşmeden Şubeye Dönüşüm Oranı" value={formatPercent(conversion.rate)} note="Görüşülen leadler içinden" icon={Store} />
+        <MetricCard title="Görüşmeden Şubeye Dönüşüm Oranı" value={formatPercent(conversion.rate)} note={`${conversion.convertedCount} şubeye dönüşen / ${conversion.interviewedCount} görüşülen lead`} icon={Store} />
         <MetricCard title="Ortalama Görüşme Puanı" value={averageMonthlyScore == null ? "—" : averageMonthlyScore.toFixed(1)} note="Ayların ortalama puanı" icon={Star} />
       </div>
 
@@ -167,7 +173,7 @@ async function safe<T>(promise: Promise<T>, fallback: T) {
   }
 }
 
-function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>, branchCandidateIds: ReadonlySet<string>): MonthReportRow[] {
+function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex: number, leads: ReportLead[], scoreByCandidate: Map<string, number | null>, branchCandidateIds: ReadonlySet<string>, branchLeadIds: ReadonlySet<string>): MonthReportRow[] {
   const leadCountsByMonth = new Map<string, number>();
   for (const lead of leads) {
     const key = monthKey(lead.leadDate);
@@ -200,7 +206,7 @@ function buildMonthRows(year: number, startMonthIndex: number, currentMonthIndex
       interviewRate: ratio(completedLeads.length, appointmentLeads.length),
       leadToInterviewRate: ratio(completedLeads.length, leadCount),
       averageScore: average(scoreValues),
-      interviewToBranchRate: interviewToBranchConversion(monthLeads, branchCandidateIds).rate,
+      interviewToBranchRate: interviewToBranchConversion(monthLeads, branchCandidateIds, branchLeadIds).rate,
     };
   });
 }

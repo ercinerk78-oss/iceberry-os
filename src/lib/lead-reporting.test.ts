@@ -17,6 +17,11 @@ test("interview to branch conversion counts each interviewed lead once and requi
   assert.equal(interviewToBranchConversion([], new Set()).rate, null);
 });
 
+test("interview conversion supports direct source lead links without candidate links", () => {
+  const leads = [{ id: "direct", convertedCandidateId: null, appointments: [{ status: "COMPLETED" }] }, { id: "both", convertedCandidateId: "candidate", appointments: [{ status: "COMPLETED" }] }];
+  assert.deepEqual(interviewToBranchConversion(leads, new Set(["candidate"]), new Set(["direct", "both"])), { convertedCount: 2, interviewedCount: 2, rate: 100 });
+});
+
 test("lead reporting excludes invalid forms from active report metrics", () => {
   const lead = {
     id: "lead_1",
