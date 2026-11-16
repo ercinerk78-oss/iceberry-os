@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 
 import { audit, requirePermission } from "@/lib/auth";
 import { createGoodsReceipt } from "@/lib/procurement-service";
@@ -18,7 +19,9 @@ export async function createGoodsReceiptAction(_: GoodsReceiptActionState, formD
       items: receiptItemsFromForm(formData),
     }, user.id);
 
-    await audit("GOODS_RECEIPT_COMPLETED", "GoodsReceipt", receipt.id, "Mal kabul sayımı tamamlandı ve stoklara işlendi.", user.id);
+    await audit("GOODS_RECEIPT_COMPLETED", "GoodsReceipt", receipt.id, "Mal kabul sayımı tamamlandı ve stoklara işlendi.", user.id).catch((error: unknown) => {
+      console.error("Goods receipt audit failed", receipt.id, error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined);
+    });
     revalidatePath("/warehouse/goods-receipts");
     revalidatePath("/warehouse/stock");
     revalidatePath("/warehouse/movements");
@@ -27,6 +30,10 @@ export async function createGoodsReceiptAction(_: GoodsReceiptActionState, formD
     revalidatePath(`/procurement/orders/${String(formData.get("purchaseOrderId") || "")}`);
     return { ok: true, message: "Mal kabul kaydedildi, kabul edilen miktarlar stoğa işlendi." };
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2028", "P2034"].includes(error.code)) {
+      console.error("Goods receipt transaction failed", error.code);
+      return { ok: false, message: "Stok kaydı tamamlanamadı. Sayfayı yenileyip kalan miktarları kontrol ederek tekrar deneyin." };
+    }
     return { ok: false, message: error instanceof Error ? error.message : "Mal kabul kaydedilemedi." };
   }
 }

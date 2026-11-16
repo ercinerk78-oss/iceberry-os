@@ -308,7 +308,7 @@ export async function createGoodsReceipt(input: GoodsReceiptInput, userId?: stri
 
     await syncPurchaseOrderReceiptProgressInTx(tx, order.id);
     return receipt;
-  });
+  }, { maxWait: 5_000, timeout: 30_000 });
 }
 
 export async function approvePurchaseOrder(id: string, userId?: string) {
