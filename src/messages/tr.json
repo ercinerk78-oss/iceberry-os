@@ -38,6 +38,8 @@
     "orderAdmin": "Merkez Sipariş Onayı",
     "warehouse": "Depo",
     "stock": "Stok",
+    "barcodes": "Barkod ve Birimler",
+    "profitability": "Stok ve Kârlılık Analizi",
     "warehousePurchaseRequests": "Satın Alma Talepleri",
     "goodsReceipts": "Mal Kabuller",
     "lots": "Lot ve SKT",

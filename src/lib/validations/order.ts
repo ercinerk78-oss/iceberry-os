@@ -6,7 +6,7 @@ const optionalMoney = z.preprocess((value) => {
 }, z.coerce.number().min(0, "Tutar negatif olamaz.").default(0));
 
 export const orderSchema = z.object({
-  franchiseeId: z.string().min(1, "Şube grubu seçmelisiniz."),
+  franchiseeId: z.string().min(1).optional(),
   branchId: z.string().optional(),
   warehouseId: z.string().min(1, "Depo seçmelisiniz."),
   requestedDeliveryDate: z.string().optional(),
@@ -16,7 +16,7 @@ export const orderSchema = z.object({
     productId: z.string().min(1),
     quantity: z.number().positive("Miktar sıfırdan büyük olmalıdır."),
   })).min(1, "Sepetiniz boş."),
-});
+}).refine((data) => Boolean(data.branchId || data.franchiseeId), "Şube veya şube grubu seçmelisiniz.");
 
 export const productSchema = z.object({
   name: z.string().min(2, "Ürün adı zorunludur."),

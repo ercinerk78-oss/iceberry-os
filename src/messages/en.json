@@ -38,6 +38,8 @@
     "orderAdmin": "Order Management",
     "warehouse": "Warehouse",
     "stock": "Stock",
+    "barcodes": "Barcodes and Units",
+    "profitability": "Stock and Profitability",
     "warehousePurchaseRequests": "Purchase Requests",
     "goodsReceipts": "Goods Receipts",
     "lots": "Lots and Expiry",

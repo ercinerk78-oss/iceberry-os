@@ -16,7 +16,7 @@ export default async function AdminOrders({
     where: {
       status: params.status || undefined,
       OR: params.q
-        ? [{ orderNumber: containsInsensitive(params.q) }, { franchisee: { companyName: containsInsensitive(params.q) } }]
+        ? [{ orderNumber: containsInsensitive(params.q) }, { franchisee: { companyName: containsInsensitive(params.q) } }, { branch: { branchName: containsInsensitive(params.q) } }]
         : undefined,
     },
     select: {

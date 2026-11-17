@@ -59,7 +59,7 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
               <div>
                 <Badge>{warehouseLabel(ORDER_STATUSES, order.status)}</Badge>
                 <p className="mt-2 font-semibold">
-                  {order.franchisee.companyName} · {order.branch?.branchName ?? "Genel sipariş"}
+                  {order.franchisee ? `${order.franchisee.companyName} · ` : ""}{order.branch?.branchName ?? "Genel sipariş"}
                 </p>
                 <p className="text-sm text-[#65705f]">
                   {order.warehouse.name} · Teslim {dateTime(order.requestedDeliveryDate)}

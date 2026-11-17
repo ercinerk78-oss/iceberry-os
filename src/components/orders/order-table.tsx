@@ -13,7 +13,7 @@ type Row = {
   grandTotal: number;
   currency: string;
   createdAt: Date;
-  franchisee: { companyName: string };
+  franchisee: { companyName: string } | null;
   branch: { branchName: string } | null;
   items: { quantity: number }[];
 };
@@ -36,7 +36,7 @@ export function OrderTable({ orders, admin = false }: { orders: Row[]; admin?: b
             <tr key={order.id} className="border-t">
               <td className="p-3 font-semibold">{order.orderNumber}</td>
               <td className="p-3">
-                {order.franchisee.companyName}
+                {order.franchisee?.companyName ?? order.branch?.branchName ?? "Şube belirtilmedi"}
                 <div className="text-xs text-[#65705f]">{order.branch?.branchName ?? "Genel"}</div>
               </td>
               <td className="p-3">

@@ -126,7 +126,7 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
             <div key={shipment.id} className="rounded-xl border bg-white p-4">
               <b>{shipment.shipmentNumber}</b> · <Badge variant="outline">{shipment.order.status}</Badge>
               <p className="mt-1 text-sm text-[#65705f]">
-                {shipment.order.franchisee.companyName} / {shipment.order.branch?.branchName ?? "Genel"} · {shipment.carrierName ?? "Taşıyıcı yok"} · {shipment.trackingNumber ?? "Takip no yok"} · {dateTime(shipment.shippedAt)}
+                {shipment.order.franchisee ? `${shipment.order.franchisee.companyName} / ` : ""}{shipment.order.branch?.branchName ?? "Genel"} · {shipment.carrierName ?? "Taşıyıcı yok"} · {shipment.trackingNumber ?? "Takip no yok"} · {dateTime(shipment.shippedAt)}
               </p>
               <Button asChild size="sm" variant="outline" className="mt-3"><Link href={`/orders/admin/${shipment.order.id}`}>Sipariş Detayı</Link></Button>
             </div>
@@ -149,7 +149,7 @@ export default async function Shipments({ searchParams }: { searchParams: Promis
                       </div>
                       <h3 className="mt-3 font-semibold">{item.product.name}</h3>
                       <p className="text-sm text-[#65705f]">
-                        {item.branch?.branchName ?? item.order?.franchisee.companyName ?? "Şube belirtilmedi"} · {item.order ? `Sipariş ${item.order.orderNumber}` : "Manuel kayıt"} · Sevkiyat {item.shipment?.shipmentNumber ?? "-"}
+                        {item.branch?.branchName ?? item.order?.franchisee?.companyName ?? "Şube belirtilmedi"} · {item.order ? `Sipariş ${item.order.orderNumber}` : "Manuel kayıt"} · Sevkiyat {item.shipment?.shipmentNumber ?? "-"}
                       </p>
                       <p className="mt-2 text-sm">
                         Sipariş: <b>{item.orderedQuantity} {item.unit}</b> · Sevk: <b>{item.shippedQuantity} {item.unit}</b> · Kalan: <b>{item.outstandingQuantity} {item.unit}</b> · Açık gün: <b>{daysOpen}</b>

@@ -13,6 +13,7 @@ type Product = {
   sku: string;
   unit: string;
   salePrice: number;
+  currency: string;
   vatRate: number;
   available: number;
 };
@@ -27,22 +28,26 @@ export function OrderForm({
   products,
   owners,
   warehouseId,
+  standaloneBranches,
 }: {
   products: Product[];
   owners: Owner[];
   warehouseId: string;
+  standaloneBranches: Owner["branches"];
 }) {
   const [state, action, pending] = useActionState(submitOrder, {
     ok: false,
     message: "",
   } as ActionResult);
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [selected, setSelected] = useState(owners[0]?.id ?? "");
+  const [selected, setSelected] = useState(standaloneBranches.length ? "" : owners[0]?.id ?? "");
+  const branches = selected ? owners.find((owner) => owner.id === selected)?.branches ?? [] : standaloneBranches;
   const items = useMemo(
     () => products.filter((product) => cart[product.id] > 0).map((product) => ({ ...product, quantity: cart[product.id] })),
     [cart, products],
   );
   const total = items.reduce((amount, item) => amount + item.salePrice * item.quantity * (1 + item.vatRate / 100), 0);
+  const mixedCurrency = items.some((item) => item.currency !== items[0].currency);
 
   return (
     <form action={action} className="grid gap-5 xl:grid-cols-[1fr_360px]">
@@ -59,7 +64,7 @@ export function OrderForm({
               </p>
             </CardHeader>
             <CardContent>
-              <p className="mb-3 text-lg font-semibold">{money(product.salePrice)}</p>
+              <p className="mb-3 text-lg font-semibold">{money(product.salePrice, product.currency)}</p>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -94,8 +99,8 @@ export function OrderForm({
               value={selected}
               onChange={(event) => setSelected(event.target.value)}
               className="mt-1 h-10 w-full rounded-lg border px-3"
-              required
             >
+              <option value="">Grupsuz şubeler</option>
               {owners.map((owner) => (
                 <option key={owner.id} value={owner.id}>
                   {owner.companyName}
@@ -105,11 +110,9 @@ export function OrderForm({
           </label>
           <label className="block text-sm">
             Şube
-            <select name="branchId" className="mt-1 h-10 w-full rounded-lg border px-3">
-              <option value="">Genel merkez siparişi</option>
-              {owners
-                .find((owner) => owner.id === selected)
-                ?.branches.map((branch) => (
+            <select key={selected} name="branchId" required={!selected} className="mt-1 h-10 w-full rounded-lg border px-3">
+              <option value="">{selected ? "Genel merkez siparişi" : branches.length ? "Şube seçin" : "Grupsuz şube bulunamadı"}</option>
+              {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.branchName}
                   </option>
@@ -132,7 +135,7 @@ export function OrderForm({
           <div className="border-t pt-3">
             <div className="flex justify-between font-semibold">
               <span>Genel toplam</span>
-              <span>{money(total)}</span>
+              <span>{mixedCurrency ? "Farklı para birimleri" : money(total, items[0]?.currency)}</span>
             </div>
             <p className="mt-1 text-xs text-[#65705f]">KDV dahildir · {items.length} kalem</p>
           </div>
@@ -141,7 +144,7 @@ export function OrderForm({
               {state.message}
             </p>
           ) : null}
-          <Button className="w-full" disabled={pending || !items.length}>
+          <Button className="w-full" disabled={pending || !items.length || mixedCurrency || (!selected && !branches.length)}>
             {pending ? "Gönderiliyor..." : "Siparişi Gönder"}
           </Button>
         </CardContent>

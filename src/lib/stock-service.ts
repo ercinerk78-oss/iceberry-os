@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { nextAverageCost } from "@/lib/stock-profitability";
 
 type Tx = Prisma.TransactionClient;
 
@@ -12,6 +13,7 @@ type StockContext = {
 };
 
 async function getStock(tx: Tx, warehouseId: string, productId: string) {
+  await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${`stock:${warehouseId}:${productId}`}))`;
   return tx.warehouseStock.findUnique({
     where: { warehouseId_productId: { warehouseId, productId } },
   });
@@ -30,6 +32,8 @@ async function createMovement(
     beforeQuantity: number;
     afterQuantity: number;
     unitCost?: number | null;
+    valuationCurrency?: string;
+    netSalesAmount?: number;
     reasonCode?: string;
   },
 ) {
@@ -42,6 +46,8 @@ async function createMovement(
       quantity: context.quantity,
       unitCost: context.unitCost ?? null,
       totalCost: context.unitCost != null ? context.unitCost * context.quantity : null,
+      valuationCurrency: context.valuationCurrency,
+      netSalesAmount: context.netSalesAmount,
       beforeQuantity: context.beforeQuantity,
       afterQuantity: context.afterQuantity,
       previousQuantity: context.beforeQuantity,
@@ -83,6 +89,7 @@ export async function setPhysicalStock(
     },
     update: {
       quantity: afterQuantity,
+      averageCost: afterQuantity === 0 || afterQuantity > beforeQuantity ? null : undefined,
       availableQuantity: available(afterQuantity, reservedQuantity),
       lastMovementAt: new Date(),
       version: { increment: 1 },
@@ -103,13 +110,16 @@ export async function setPhysicalStock(
 
 export async function increaseStock(
   tx: Tx,
-  context: StockContext & { quantity: number; movementType: string; unitCost?: number | null },
+  context: StockContext & { quantity: number; movementType: string; unitCost?: number | null; valuationCurrency?: string },
 ) {
   if (context.quantity <= 0) throw new Error("Stok giriş miktarı sıfırdan büyük olmalıdır.");
   const current = await getStock(tx, context.warehouseId, context.productId);
   const beforeQuantity = current?.quantity ?? 0;
   const reservedQuantity = current?.reservedQuantity ?? 0;
   const afterQuantity = beforeQuantity + context.quantity;
+  const product = await tx.product.findUniqueOrThrow({ where: { id: context.productId }, select: { currency: true } });
+  const averageCost = nextAverageCost(beforeQuantity, current?.averageCost ?? null, context.quantity,
+    product.currency === context.valuationCurrency ? context.unitCost ?? null : null);
   const stock = await tx.warehouseStock.upsert({
     where: { warehouseId_productId: { warehouseId: context.warehouseId, productId: context.productId } },
     create: {
@@ -119,6 +129,7 @@ export async function increaseStock(
       reservedQuantity,
       availableQuantity: available(afterQuantity, reservedQuantity),
       lastPurchasePrice: context.unitCost ?? undefined,
+      averageCost,
       lastMovementAt: new Date(),
       version: 1,
     },
@@ -126,6 +137,7 @@ export async function increaseStock(
       quantity: { increment: context.quantity },
       availableQuantity: { increment: context.quantity },
       lastPurchasePrice: context.unitCost ?? undefined,
+      averageCost,
       lastMovementAt: new Date(),
       version: { increment: 1 },
     },
@@ -195,7 +207,7 @@ export async function releaseReservation(tx: Tx, context: StockContext & { quant
   return updated;
 }
 
-export async function shipReservedStock(tx: Tx, context: StockContext & { quantity: number }) {
+export async function shipReservedStock(tx: Tx, context: StockContext & { quantity: number; netSalesAmount?: number; valuationCurrency?: string }) {
   if (context.quantity <= 0) throw new Error("Sevkiyat miktarı sıfırdan büyük olmalıdır.");
   const current = await getStock(tx, context.warehouseId, context.productId);
   if (!current || current.quantity < context.quantity || current.reservedQuantity < context.quantity) {
@@ -203,10 +215,14 @@ export async function shipReservedStock(tx: Tx, context: StockContext & { quanti
   }
   const beforeQuantity = current.quantity;
   const afterQuantity = current.quantity - context.quantity;
+  const product = context.valuationCurrency ? await tx.product.findUniqueOrThrow({
+    where: { id: context.productId }, select: { currency: true },
+  }) : null;
   const updated = await tx.warehouseStock.update({
     where: { id: current.id },
     data: {
       quantity: { decrement: context.quantity },
+      averageCost: afterQuantity === 0 ? null : undefined,
       reservedQuantity: { decrement: context.quantity },
       lastMovementAt: new Date(),
       version: { increment: 1 },
@@ -215,6 +231,7 @@ export async function shipReservedStock(tx: Tx, context: StockContext & { quanti
   await createMovement(tx, {
     ...context,
     movementType: "SHIPMENT_OUT",
+    unitCost: product && product.currency === context.valuationCurrency ? current.averageCost : null,
     direction: "OUT",
     beforeQuantity,
     afterQuantity,

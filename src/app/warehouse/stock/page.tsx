@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { adjustStock, archiveProduct, saveProductBarcode, saveProductUnit } from "@/app/orders/actions";
+import { adjustStock, archiveProduct, saveMinimumStockLevel } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,19 +32,11 @@ export default async function StockPage() {
         sku: true,
         barcode: true,
         salePrice: true,
+        purchasePrice: true,
         currency: true,
         minimumStockLevel: true,
         unit: true,
         category: { select: { name: true } },
-        units: {
-          select: { id: true, code: true, name: true, conversionFactor: true, isBase: true, isPurchaseDefault: true, isShipmentDefault: true },
-          orderBy: [{ isBase: "desc" }, { conversionFactor: "asc" }],
-        },
-        barcodes: {
-          where: { isActive: true },
-          select: { id: true, barcode: true, unitName: true, conversionFactor: true, barcodeType: true },
-          orderBy: { createdAt: "desc" },
-        },
         stocks: {
           select: {
             id: true,
@@ -59,6 +51,15 @@ export default async function StockPage() {
       orderBy: { name: "asc" },
     }),
   ]);
+
+  const totals = new Map<string, { purchase: number; sale: number }>();
+  for (const product of products) {
+    const quantity = product.stocks.reduce((sum, stock) => sum + stock.quantity, 0);
+    const total = totals.get(product.currency) ?? { purchase: 0, sale: 0 };
+    total.purchase += quantity * product.purchasePrice;
+    total.sale += quantity * product.salePrice;
+    totals.set(product.currency, total);
+  }
 
   return (
     <AppShell activeHref="/warehouse/stock" eyebrow="Merkez depo" title="Stoklar" action={<Button asChild variant="outline"><Link href="/warehouse/shipments?view=open">Eksik Sevk Takibi</Link></Button>}>
@@ -115,7 +116,7 @@ export default async function StockPage() {
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
-                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Satış Fiyatı", "Etiket", "İşlem"].map((header) => (
+                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Alış Fiyatı", "Alıştan Stok Değeri", "Satış Fiyatı", "Satıştan Stok Değeri", "Etiket", "İşlem"].map((header) => (
                   <th key={header} className="p-3 text-left">
                     {header}
                   </th>
@@ -128,7 +129,7 @@ export default async function StockPage() {
                   ? product.stocks.map((stock) => (
                       <tr
                         key={stock.id}
-                        className={`border-t ${stock.availableQuantity <= product.minimumStockLevel ? "bg-rose-50" : ""}`}
+                        className={`border-t ${product.minimumStockLevel > 0 && stock.availableQuantity <= product.minimumStockLevel ? "bg-rose-50" : ""}`}
                       >
                         <td className="p-3 font-semibold">
                           {product.name}
@@ -140,8 +141,14 @@ export default async function StockPage() {
                         <td className="p-3">{stock.quantity}</td>
                         <td className="p-3">{stock.reservedQuantity}</td>
                         <td className="p-3 font-semibold">{stock.availableQuantity}</td>
-                        <td className="p-3">{product.minimumStockLevel}</td>
+                        <td className="p-3">
+                          <MinimumStockForm product={product} />
+                          {product.minimumStockLevel > 0 && stock.availableQuantity <= product.minimumStockLevel ? <p className="mt-1 text-xs font-semibold text-rose-700">Minimum stok uyarısı</p> : null}
+                        </td>
+                        <td className="p-3">{money(product.purchasePrice, product.currency)}</td>
+                        <td className="p-3">{money(stock.quantity * product.purchasePrice, product.currency)}</td>
                         <td className="p-3">{money(product.salePrice, product.currency)}</td>
+                        <td className="p-3">{money(stock.quantity * product.salePrice, product.currency)}</td>
                         <td className="p-3">
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/warehouse/stock/labels/${product.id}`}>Etiket</Link>
@@ -159,9 +166,13 @@ export default async function StockPage() {
                         <td className="p-3 font-semibold">{product.name}</td>
                         <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
                         <td className="p-3">{product.category.name}</td>
-                        <td colSpan={7} className="p-3 text-amber-700">
-                          Henüz stok kaydı yok.
-                        </td>
+                        <td colSpan={4} className="p-3 text-amber-700">Henüz stok kaydı yok.</td>
+                        <td className="p-3"><MinimumStockForm product={product} /></td>
+                        <td className="p-3">{money(product.purchasePrice, product.currency)}</td>
+                        <td className="p-3">{money(0, product.currency)}</td>
+                        <td className="p-3">{money(product.salePrice, product.currency)}</td>
+                        <td className="p-3">{money(0, product.currency)}</td>
+                        <td />
                         <td className="p-3">
                           <form action={archiveProduct.bind(null, product.id)}>
                             <Button size="sm" variant="destructive">Pasife Al</Button>
@@ -171,89 +182,31 @@ export default async function StockPage() {
                     ],
               )}
             </tbody>
+            <tfoot className="border-t bg-[#f1f4ef] font-semibold">
+              {Array.from(totals, ([currency, total]) => (
+                <tr key={currency}>
+                  <th colSpan={9} scope="row" className="p-3 text-left">Toplam stok değeri ({currency})</th>
+                  <td className="p-3">{money(total.purchase, currency)}</td>
+                  <td />
+                  <td className="p-3">{money(total.sale, currency)}</td>
+                  <td colSpan={2} />
+                </tr>
+              ))}
+            </tfoot>
           </table>
           </div>
+          <p className="px-4 py-3 text-sm text-[#65705f]">Değerler fiziksel stok ve ürün kartındaki birim fiyatlarla hesaplanır. Minimum değer 0 ise uyarı kapalıdır.</p>
         </div>
-
-        <section className="grid gap-4 xl:grid-cols-2">
-          {products.map((product) => (
-            <Card key={product.id} className="shadow-none">
-              <CardHeader>
-                <CardTitle>{product.name}</CardTitle>
-                <p className="text-sm text-[#65705f]">
-                  Ana birim: {product.unit} · Ana barkod: {product.barcode ?? "Yok"}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-lg border bg-[#f8faf6] p-3">
-                  <h3 className="font-semibold">Tanımlı Birimler</h3>
-                  <div className="mt-2 space-y-2 text-sm">
-                    {product.units.map((unit) => (
-                      <div key={unit.id} className="flex flex-wrap justify-between gap-2 rounded border bg-white p-2">
-                        <span><b>{unit.name}</b> ({unit.code})</span>
-                        <span>{unit.conversionFactor} {product.unit}</span>
-                      </div>
-                    ))}
-                    {!product.units.length ? <p className="text-[#65705f]">Henüz ek birim tanımlı değil.</p> : null}
-                  </div>
-                </div>
-
-                <form action={saveProductUnit} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
-                  <input type="hidden" name="productId" value={product.id} />
-                  <input name="name" placeholder="Birim adı: Koli" className={input} required />
-                  <input name="code" placeholder="Kod: KOLI" className={input} required />
-                  <input name="conversionFactor" type="number" min="0.01" step="0.01" placeholder={`Kaç ${product.unit}?`} className={input} required />
-                  <input name="notes" placeholder="Not" className={input} />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input name="isPurchaseDefault" type="checkbox" />
-                    Satın alma varsayılanı
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input name="isShipmentDefault" type="checkbox" />
-                    Sevkiyat varsayılanı
-                  </label>
-                  <Button className="sm:col-span-2">Birim Kaydet</Button>
-                </form>
-
-                <div className="rounded-lg border bg-[#f8faf6] p-3">
-                  <h3 className="font-semibold">Tanımlı Barkodlar</h3>
-                  <div className="mt-2 space-y-2 text-sm">
-                    {product.barcodes.map((barcode) => (
-                      <div key={barcode.id} className="flex flex-wrap justify-between gap-2 rounded border bg-white p-2">
-                        <span><b>{barcode.barcode}</b> · {barcode.unitName}</span>
-                        <span>{barcode.conversionFactor} {product.unit}</span>
-                      </div>
-                    ))}
-                    {!product.barcodes.length ? <p className="text-[#65705f]">Ek barkod tanımlı değil.</p> : null}
-                  </div>
-                </div>
-
-                <form action={saveProductBarcode} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
-                  <input type="hidden" name="productId" value={product.id} />
-                  <input name="barcode" placeholder="Barkod" className={input} required />
-                  <select name="productUnitId" className={input} defaultValue="">
-                    <option value="">Birim seçmeden kaydet</option>
-                    {product.units.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.name} - {unit.conversionFactor} {product.unit}
-                      </option>
-                    ))}
-                  </select>
-                  <input name="unitName" placeholder="Birim adı: Koli" className={input} />
-                  <input name="conversionFactor" type="number" min="0.01" step="0.01" placeholder={`Kaç ${product.unit}?`} className={input} required />
-                  <select name="barcodeType" className={input} defaultValue="UNIT">
-                    <option value="UNIT">Birim barkodu</option>
-                    <option value="SUPPLIER">Tedarikçi barkodu</option>
-                    <option value="INTERNAL">Depo iç etiketi</option>
-                  </select>
-                  <input name="notes" placeholder="Not" className={input} />
-                  <Button className="sm:col-span-2">Barkod Kaydet</Button>
-                </form>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
       </div>
     </AppShell>
+  );
+}
+
+function MinimumStockForm({ product }: { product: { id: string; name: string; minimumStockLevel: number } }) {
+  return (
+    <form action={saveMinimumStockLevel.bind(null, product.id)} className="flex items-center gap-2">
+      <input name="minimumStockLevel" aria-label={`${product.name} minimum stok`} type="number" min="0" step="any" required defaultValue={product.minimumStockLevel} className="h-8 w-20 rounded border px-2" />
+      <Button size="sm" variant="outline">Kaydet</Button>
+    </form>
   );
 }

@@ -2705,6 +2705,8 @@ model StockMovement {
   quantity         Float
   unitCost         Float?
   totalCost        Float?
+  valuationCurrency String?
+  netSalesAmount   Float?
   beforeQuantity   Float
   afterQuantity    Float
   previousQuantity Float?
@@ -2734,7 +2736,7 @@ model StockMovement {
 model FranchiseOrder {
   id                    String                  @id @default(cuid())
   orderNumber           String                  @unique
-  franchiseeId          String
+  franchiseeId          String?
   branchId              String?
   customerName          String?
   source                String                  @default("MANUAL_OTHER")
@@ -2769,7 +2771,7 @@ model FranchiseOrder {
   approvedBy            String?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
-  franchisee            Franchisee              @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
+  franchisee            Franchisee?             @relation(fields: [franchiseeId], references: [id], onDelete: Restrict)
   branch                Branch?                 @relation(fields: [branchId], references: [id], onDelete: Restrict)
   warehouse             Warehouse               @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   items                 FranchiseOrderItem[]

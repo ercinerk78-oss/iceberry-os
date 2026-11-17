@@ -102,7 +102,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <CardTitle>{order.franchisee.companyName} / {order.branch?.branchName ?? "Genel"}</CardTitle>
+                <CardTitle>{order.franchisee ? `${order.franchisee.companyName} / ` : ""}{order.branch?.branchName ?? "Genel"}</CardTitle>
                 <p className="mt-1 text-sm text-[#65705f]">
                   Teslim {dateTime(order.requestedDeliveryDate)} · Fatura: {order.invoiceStatus}
                 </p>

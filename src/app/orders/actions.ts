@@ -23,7 +23,17 @@ import { productSchema } from "@/lib/validations/order";
 
 export type ActionResult = { ok: boolean; message: string };
 
-const paths = ["/", "/orders", "/orders/admin", "/warehouse/orders", "/warehouse/stock", "/warehouse/shipments", "/warehouse/movements"];
+const paths = ["/", "/orders", "/orders/admin", "/warehouse/orders", "/warehouse/stock", "/warehouse/barcodes", "/warehouse/shipments", "/warehouse/movements"];
+
+export async function saveMinimumStockLevel(productId: string, formData: FormData) {
+  const user = await requirePermission("stock_manage");
+  const input = String(formData.get("minimumStockLevel") ?? "").trim().replace(",", ".");
+  const minimumStockLevel = Number(input);
+  if (!input || !Number.isFinite(minimumStockLevel) || minimumStockLevel < 0) throw new Error("Geçerli bir minimum stok miktarı girin.");
+  await prisma.product.update({ where: { id: productId, archivedAt: null }, data: { minimumStockLevel } });
+  await audit("PRODUCT_MINIMUM_STOCK_UPDATED", "Product", productId, `Minimum stok: ${minimumStockLevel}`, user.id);
+  revalidatePath("/warehouse/stock");
+}
 
 function refresh() {
   for (const path of paths) revalidatePath(path);
@@ -34,7 +44,7 @@ export async function submitOrder(_: ActionResult, formData: FormData): Promise<
     await requirePermission("orders");
     const items = JSON.parse(String(formData.get("items") || "[]"));
     const order = await createOrder({
-      franchiseeId: formData.get("franchiseeId"),
+      franchiseeId: formData.get("franchiseeId") || undefined,
       branchId: formData.get("branchId") || undefined,
       warehouseId: formData.get("warehouseId"),
       requestedDeliveryDate: formData.get("requestedDeliveryDate") || undefined,

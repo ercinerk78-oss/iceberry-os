@@ -283,6 +283,7 @@ export async function createGoodsReceipt(input: GoodsReceiptInput, userId?: stri
         description: `${order.orderNumber} satın alma siparişi mal kabulü`,
         performedById: userId,
         unitCost: item.unitCost,
+        valuationCurrency: order.currency,
       });
 
       if (item.lotNumber) {

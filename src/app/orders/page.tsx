@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {
-  const [warehouse, owners, products] = await Promise.all([
+  const [warehouse, owners, standaloneBranches, products] = await Promise.all([
     prisma.warehouse.findFirst({
       where: { isActive: true },
       select: { id: true },
@@ -23,6 +23,11 @@ export default async function OrdersPage() {
       },
       orderBy: { companyName: "asc" },
     }),
+    prisma.branch.findMany({
+      where: { archivedAt: null, OR: [{ franchiseeId: null }, { franchisee: { archivedAt: { not: null } } }] },
+      select: { id: true, branchName: true },
+      orderBy: { branchName: "asc" },
+    }),
     prisma.product.findMany({
       where: { isActive: true, archivedAt: null },
       select: {
@@ -31,6 +36,7 @@ export default async function OrdersPage() {
         sku: true,
         unit: true,
         salePrice: true,
+        currency: true,
         vatRate: true,
         stocks: { select: { warehouseId: true, availableQuantity: true } },
       },
@@ -45,6 +51,7 @@ export default async function OrdersPage() {
       ) : (
         <OrderForm
           warehouseId={warehouse.id}
+          standaloneBranches={standaloneBranches}
           owners={owners.map((owner) => ({
             id: owner.id,
             companyName: owner.companyName,
@@ -56,6 +63,7 @@ export default async function OrdersPage() {
             sku: product.sku,
             unit: product.unit,
             salePrice: product.salePrice,
+            currency: product.currency,
             vatRate: product.vatRate,
             available: product.stocks.find((stock) => stock.warehouseId === warehouse.id)?.availableQuantity ?? 0,
           }))}

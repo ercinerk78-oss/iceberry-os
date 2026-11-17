@@ -114,6 +114,8 @@ export const navigationGroups: NavigationGroup[] = [
       item("shipments", "navigation.shipments", "/warehouse/shipments", "Truck"),
       item("warehouse", "navigation.warehouse", "/warehouse", "Warehouse"),
       item("stock", "navigation.stock", "/warehouse/stock", "Warehouse"),
+      item("barcodes", "navigation.barcodes", "/warehouse/barcodes", "Package"),
+      item("profitability", "navigation.profitability", "/warehouse/profitability", "LineChart"),
       item("warehousePurchaseRequests", "navigation.warehousePurchaseRequests", "/warehouse/purchase-requests", "CheckSquare"),
       item("goodsReceipts", "navigation.goodsReceipts", "/warehouse/goods-receipts", "CheckSquare"),
       item("lots", "navigation.lots", "/warehouse/lots", "CalendarRange"),

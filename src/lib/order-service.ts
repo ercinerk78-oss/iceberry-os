@@ -23,12 +23,27 @@ export async function createOrder(input: Input) {
   const data = orderSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
+    const branch = data.branchId ? await tx.branch.findFirst({
+      where: { id: data.branchId, archivedAt: null },
+      select: { franchisee: { select: { id: true, archivedAt: true } } },
+    }) : null;
+    if (data.branchId && !branch) throw new Error("Seçilen şube bulunamadı.");
+    const franchiseeId = branch
+      ? (branch.franchisee?.archivedAt === null ? branch.franchisee.id : null)
+      : data.franchiseeId ?? null;
+    if (!branch && (!franchiseeId || !await tx.franchisee.findFirst({ where: { id: franchiseeId, archivedAt: null }, select: { id: true } }))) {
+      throw new Error("Seçilen şube grubu bulunamadı.");
+    }
     const products = await tx.product.findMany({
       where: { id: { in: data.items.map((item) => item.productId) }, isActive: true, archivedAt: null },
     });
 
     if (products.length !== data.items.length) {
       throw new Error("Sepette artık satışta olmayan ürün var.");
+    }
+    const currency = products[0].currency;
+    if (products.some((product) => product.currency !== currency)) {
+      throw new Error("Farklı para birimindeki ürünler ayrı sipariş verilmelidir.");
     }
 
     const stocks = await tx.warehouseStock.findMany({
@@ -74,7 +89,7 @@ export async function createOrder(input: Input) {
     return tx.franchiseOrder.create({
       data: {
         orderNumber: orderNumber(),
-        franchiseeId: data.franchiseeId,
+        franchiseeId,
         branchId: data.branchId || null,
         warehouseId: data.warehouseId,
         source: "MANUAL_OTHER",
@@ -87,6 +102,7 @@ export async function createOrder(input: Input) {
         subtotal,
         vatTotal,
         grandTotal: subtotal + vatTotal,
+        currency,
         requestedDeliveryDate: data.requestedDeliveryDate ? new Date(data.requestedDeliveryDate) : null,
         notes: data.notes,
         createdBy: "Iceberry OS",
@@ -443,6 +459,7 @@ export async function shipOrder(
 
     if (!order) {
       throw new Error("Sipariş bulunamadı.");
+    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
     }
     if (order.status === "SHIPPED") return order;
     if (!order.readyToShipAt) {
@@ -470,6 +487,8 @@ export async function shipOrder(
         quantity: shipQuantity,
         referenceType: "SHIPMENT",
         referenceId: id,
+        netSalesAmount: order.orderType === "FRANCHISE_SALE" ? item.lineSubtotal / item.quantity * shipQuantity : undefined,
+        valuationCurrency: order.currency,
         description: `${order.orderNumber} sevkiyatı.`,
       });
       await tx.franchiseOrderItem.update({
