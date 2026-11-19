@@ -4,8 +4,10 @@ import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { procurementDate, procurementMoney } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
+import { purchaseOrderExcel } from "@/lib/purchase-order-excel";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await requirePermission("procurement");
@@ -16,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     where: { id },
     include: {
       supplier: true,
-      warehouse: { select: { name: true } },
+      warehouse: { select: { name: true, address: true } },
       items: { orderBy: { createdAt: "asc" } },
       approvals: {
         where: { comment: { not: null } },
@@ -38,11 +40,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   }
 
-  const csv = purchaseOrderCsv(order);
-  return new Response(`\uFEFF${csv}`, {
+  const workbook = await purchaseOrderExcel(order);
+  const filename = order.orderNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return new Response(new Uint8Array(workbook), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${order.orderNumber}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
+      "Cache-Control": "private, no-store",
     },
   });
 }
@@ -55,37 +59,6 @@ type ExportOrder = Prisma.PurchaseOrderGetPayload<{
     approvals: true;
   };
 }>;
-
-function purchaseOrderCsv(order: ExportOrder) {
-  const rows = [
-    ["Sipariş No", order.orderNumber],
-    ["Tedarikçi", order.supplier.name],
-    ["Depo", order.warehouse.name],
-    ["Sipariş Tarihi", procurementDate(order.orderDate)],
-    ["Beklenen Teslim", procurementDate(order.expectedDeliveryDate)],
-    ["Not", order.notes ?? ""],
-    [],
-    ["Ürün", "SKU", "Miktar", "Birim", "Birim Fiyat", "KDV", "İskonto", "Toplam", "Not"],
-    ...order.items.map((item) => [
-      item.productName,
-      item.sku,
-      item.orderedQuantity,
-      item.unit,
-      item.unitPrice.toString(),
-      item.vatRate.toString(),
-      item.discountRate.toString(),
-      item.lineTotal.toString(),
-      item.notes ?? "",
-    ]),
-    [],
-    ["Genel Toplam", procurementMoney(order.grandTotal, order.currency)],
-    [],
-    ["Son Notlar"],
-    ...order.approvals.map((approval) => [procurementDate(approval.actedAt), approval.comment ?? ""]),
-  ];
-
-  return rows.map((row) => row.map(csvCell).join(";")).join("\n");
-}
 
 function purchaseOrderHtml(order: ExportOrder) {
   const notes = order.approvals.map((approval) => `
@@ -139,10 +112,6 @@ function purchaseOrderHtml(order: ExportOrder) {
   ${notes || "<p>Not yok.</p>"}
 </body>
 </html>`;
-}
-
-function csvCell(value: unknown) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
 function escapeHtml(value: string) {
