@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Plus, Minus, Trash2 } from "lucide-react";
+import { Plus, Minus, Trash2, FileDown } from "lucide-react";
 
 import { submitOrder, type ActionResult } from "@/app/orders/actions";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ export function OrderForm({
   } as ActionResult);
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(false);
+  const [pdfPending, setPdfPending] = useState(false);
+  const [pdfError, setPdfError] = useState("");
   const [shortages, setShortages] = useState<Record<string, boolean>>({});
   const [cart, setCart] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState(standaloneBranches.length ? "" : owners[0]?.id ?? "");
@@ -60,6 +62,31 @@ export function OrderForm({
     (product.name + " " + product.sku).toLocaleLowerCase("tr-TR").includes(query.trim().toLocaleLowerCase("tr-TR")),
   ) : [];
 
+  async function downloadPdf(form: HTMLFormElement) {
+    if(pdfPending)return;
+    setPdfPending(true);setPdfError("");
+    const data=new FormData(form);
+    try {
+      const response=await fetch("/orders/preview-pdf",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          warehouseId,franchiseeId:data.get("franchiseeId")||undefined,branchId:data.get("branchId")||undefined,
+          requestedDeliveryDate:data.get("requestedDeliveryDate")||undefined,notes:data.get("notes")||undefined,
+          items:items.map(item=>({productId:item.id,quantity:item.quantity,manualShortShipment:shortages[item.id]??false})),
+        }),
+      });
+      if(!response.ok || !response.headers.get("content-type")?.includes("application/pdf")) {
+        const error=await response.json().catch(()=>null);
+        throw new Error(error?.error||"PDF oluşturulamadı. Oturumunuzu ve sipariş bilgilerini kontrol edin.");
+      }
+      const url=URL.createObjectURL(await response.blob());
+      const link=document.createElement("a");
+      link.href=url;link.download="Iceberry-Siparis-Onizleme.pdf";document.body.appendChild(link);link.click();link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+    } catch(error) {setPdfError(error instanceof Error?error.message:"PDF indirilemedi.");}
+    finally {setPdfPending(false);}
+  }
+
   if (state.ok) return <div className="space-y-4 rounded-lg border bg-white p-5">
     <p role="status" className="font-semibold text-emerald-700">{state.message}</p>
     <Button asChild><a href="/orders">Yeni Sipariş</a></Button>
@@ -67,7 +94,7 @@ export function OrderForm({
 
   return (
     <form action={action} onSubmit={(event) => {
-      if (!preview) { event.preventDefault(); setPreview(true); }
+      if (!preview) { event.preventDefault(); setPreview(true); void downloadPdf(event.currentTarget); }
     }} className="grid gap-5 xl:grid-cols-[1fr_360px]">
       <input type="hidden" name="warehouseId" value={warehouseId} />
       <input type="hidden" name="items" value={JSON.stringify(items.map((item) => ({ productId: item.id, quantity: item.quantity, manualShortShipment: shortages[item.id] ?? false })))} />
@@ -162,12 +189,17 @@ export function OrderForm({
             <p className="mt-1 text-xs text-[#65705f]">KDV dahildir · {items.length} kalem</p>
           </div>
           {preview ? <Button type="button" variant="outline" className="w-full" onClick={() => setPreview(false)}>Düzenlemeye Dön</Button> : null}
+          {preview ? <Button type="button" variant="outline" className="w-full" disabled={pdfPending||pending} onClick={(event) => {
+            const form=event.currentTarget.form;
+            if(form?.reportValidity())void downloadPdf(form);
+          }}><FileDown className="mr-2 size-4" />{pdfPending?"PDF hazırlanıyor...":"Güncel PDF’yi İndir"}</Button> : null}
+          {pdfError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{pdfError}</p> : null}
           {state.message ? (
             <p className={`rounded-lg p-3 text-sm ${state.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
               {state.message}
             </p>
           ) : null}
-          <Button className="w-full" disabled={pending || !items.length || mixedCurrency || (!selected && !branches.length)}>
+          <Button className="w-full" disabled={pending || pdfPending || !items.length || mixedCurrency || (!selected && !branches.length)}>
             {pending ? "Gönderiliyor..." : preview ? "Onayla ve Siparişi Gönder" : "Önizleme"}
           </Button>
         </CardContent>
