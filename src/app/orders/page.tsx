@@ -1,10 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { OrderForm } from "@/components/orders/order-form";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {
+  await requirePermission("orders");
   const [warehouse, owners, standaloneBranches, products] = await Promise.all([
     prisma.warehouse.findFirst({
       where: { isActive: true },

@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
+import { assertPurchaseOrderEditable, assertPurchaseQuantity } from "@/lib/purchase-order-editing";
 
 import { calculatePurchaseLine, calculatePurchaseTotals, purchaseOrderNumber, purchaseRequestNumber } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
 import { increaseStock } from "@/lib/stock-service";
-import { goodsReceiptSchema, purchaseOrderSchema, purchaseRequestSchema, supplierProductSchema } from "@/lib/validations/procurement";
+import { goodsReceiptSchema, purchaseOrderLineSchema, purchaseOrderSchema, purchaseRequestSchema, supplierProductSchema } from "@/lib/validations/procurement";
 
 type PurchaseOrderInput = Parameters<typeof purchaseOrderSchema.parse>[0];
 type PurchaseRequestInput = Parameters<typeof purchaseRequestSchema.parse>[0];
@@ -214,6 +215,7 @@ export async function createGoodsReceipt(input: GoodsReceiptInput, userId?: stri
   const data = goodsReceiptSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PurchaseOrder" WHERE id = ${data.purchaseOrderId} FOR UPDATE`;
     const order = await tx.purchaseOrder.findUnique({
       where: { id: data.purchaseOrderId },
       include: { items: true, supplier: true, warehouse: true },
@@ -408,13 +410,18 @@ export async function updatePurchaseOrderItem(
   userId?: string,
 ) {
   return prisma.$transaction(async (tx) => {
+    const parent = await tx.purchaseOrderItem.findUniqueOrThrow({ where: { id }, select: { purchaseOrderId: true } });
+    await tx.$queryRaw`SELECT id FROM "PurchaseOrder" WHERE id = ${parent.purchaseOrderId} FOR UPDATE`;
     const item = await tx.purchaseOrderItem.findUnique({
       where: { id },
       include: { purchaseOrder: { select: { id: true, status: true, currency: true } } },
     });
     if (!item) throw new Error("Satın alma kalemi bulunamadı.");
-    if (["CANCELLED", "CLOSED", "RECEIVED"].includes(item.purchaseOrder.status)) throw new Error("Kapalı veya teslim alınmış sipariş kalemi düzenlenemez.");
-    if (input.quantity < item.receivedQuantity) throw new Error("Sipariş miktarı teslim alınan miktardan düşük olamaz.");
+    assertPurchaseOrderEditable(item.purchaseOrder.status, Boolean(await tx.externalInvoice.count({ where: { purchaseOrderId: parent.purchaseOrderId } })));
+    assertPurchaseQuantity(input.quantity, item.receivedQuantity);
+    if (item.receivedQuantity > 0 && (item.unitPrice.toNumber() !== input.unitPrice || item.vatRate.toNumber() !== input.vatRate || item.discountRate.toNumber() !== input.discountRate)) {
+      throw new Error("Teslim alınan kalemin fiyat ve vergi bilgisi değiştirilemez; yalnızca miktar ve not düzenlenebilir.");
+    }
 
     const amounts = calculatePurchaseLine({
       quantity: input.quantity,
@@ -457,6 +464,7 @@ export async function updatePurchaseOrderItem(
       },
     });
 
+    await syncPurchaseOrderReceiptProgressInTx(tx, item.purchaseOrder.id);
     return tx.purchaseOrder.update({
       where: { id: item.purchaseOrder.id },
       data: {
@@ -466,7 +474,60 @@ export async function updatePurchaseOrderItem(
         grandTotal: new Prisma.Decimal(totals.grandTotal),
       },
     });
-  });
+  }, { timeout: 30_000, maxWait: 5_000 });
+}
+
+export async function changePurchaseOrderLine(
+  orderId: string,
+  change: { kind: "ADD"; input: unknown } | { kind: "REMOVE"; itemId: string },
+  userId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PurchaseOrder" WHERE id = ${orderId} FOR UPDATE`;
+    const order = await tx.purchaseOrder.findUniqueOrThrow({
+      where: { id: orderId }, include: { items: true, externalInvoices: { select: { id: true } } },
+    });
+    assertPurchaseOrderEditable(order.status, order.externalInvoices.length > 0);
+    let description: string;
+    if (change.kind === "ADD") {
+      const data = purchaseOrderLineSchema.parse(change.input);
+      if (order.items.some((item) => item.productId === data.productId)) throw new Error("Ürün zaten siparişte var. Mevcut kalemin miktarını düzenleyin.");
+      const product = await tx.product.findFirstOrThrow({ where: { id: data.productId, isActive: true, archivedAt: null } });
+      const amounts = calculatePurchaseLine(data);
+      await tx.purchaseOrderItem.create({ data: {
+        purchaseOrderId: order.id, productId: product.id, productName: product.name, sku: product.sku, unit: product.unit,
+        orderedQuantity: data.quantity, remainingQuantity: data.quantity,
+        unitPrice: new Prisma.Decimal(data.unitPrice), vatRate: new Prisma.Decimal(data.vatRate),
+        discountRate: new Prisma.Decimal(data.discountRate),
+        lineSubtotal: new Prisma.Decimal(amounts.lineSubtotal), lineDiscount: new Prisma.Decimal(amounts.lineDiscount),
+        lineVat: new Prisma.Decimal(amounts.lineVat), lineTotal: new Prisma.Decimal(amounts.lineTotal),
+        notes: data.notes || null,
+      } });
+      description = `${product.name} siparişe eklendi: ${data.quantity} ${product.unit}.`;
+    } else {
+      const item = order.items.find((line) => line.id === change.itemId);
+      if (!item) throw new Error("Sipariş kalemi bulunamadı.");
+      if (order.items.length <= 1) throw new Error("Siparişin son ürünü çıkarılamaz. Gerekirse siparişi iptal edin.");
+      const receiptHistory = await tx.goodsReceiptItem.count({ where: { productId: item.productId, goodsReceipt: { purchaseOrderId: order.id } } });
+      if (item.receivedQuantity > 0 || receiptHistory > 0) throw new Error("Mal kabul geçmişi olan ürün çıkarılamaz.");
+      await tx.purchaseOrderItem.delete({ where: { id: item.id } });
+      description = `${item.productName} siparişten çıkarıldı.`;
+    }
+    const items = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId: order.id } });
+    const totals = calculatePurchaseTotals(items.map((item) => ({
+      lineSubtotal: item.lineSubtotal.toNumber(), lineDiscount: item.lineDiscount.toNumber(),
+      lineVat: item.lineVat.toNumber(), lineTotal: item.lineTotal.toNumber(),
+    })));
+    await tx.purchaseOrder.update({ where: { id: order.id }, data: {
+      subtotal: new Prisma.Decimal(totals.subtotal), discountTotal: new Prisma.Decimal(totals.discountTotal),
+      vatTotal: new Prisma.Decimal(totals.vatTotal), grandTotal: new Prisma.Decimal(totals.grandTotal),
+    } });
+    await tx.purchaseApproval.create({ data: {
+      purchaseOrderId: order.id, action: change.kind === "ADD" ? "ITEM_ADDED" : "ITEM_REMOVED",
+      status: order.status, comment: description, actedById: userId,
+    } });
+    return syncPurchaseOrderReceiptProgressInTx(tx, order.id);
+  }, { timeout: 30_000, maxWait: 5_000 });
 }
 
 export async function closePurchaseOrder(id: string, userId?: string) {

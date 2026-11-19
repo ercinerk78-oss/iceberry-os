@@ -2812,6 +2812,7 @@ model FranchiseOrderItem {
   deliveredQuantity  Float               @default(0)
   returnedQuantity   Float               @default(0)
   preparedQuantity   Float               @default(0)
+  manualShortShipment Boolean @default(false)
   missingQuantity    Float               @default(0)
   unitPrice          Float
   vatRate            Float
@@ -3846,6 +3847,7 @@ model User {
   roleRecord                  Role?                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
   branchUsers                 BranchUser[]
   assignedBranchTasks         BranchTask[]          @relation("BranchTaskAssignedUser")
+  orderAccess                 Boolean               @default(false)
   createdBranchTasks          BranchTask[]          @relation("BranchTaskCreatedBy")
   reviewedBranchTasks         BranchTask[]          @relation("BranchTaskReviewer")
   taskEvidence                TaskEvidence[]

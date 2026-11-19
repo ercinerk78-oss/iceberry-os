@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { Plus, Minus, Trash2 } from "lucide-react";
 
 import { submitOrder, type ActionResult } from "@/app/orders/actions";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,9 @@ export function OrderForm({
     ok: false,
     message: "",
   } as ActionResult);
+  const [query, setQuery] = useState("");
+  const [preview, setPreview] = useState(false);
+  const [shortages, setShortages] = useState<Record<string, boolean>>({});
   const [cart, setCart] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState(standaloneBranches.length ? "" : owners[0]?.id ?? "");
   const branches = selected ? owners.find((owner) => owner.id === selected)?.branches ?? [] : standaloneBranches;
@@ -49,43 +53,61 @@ export function OrderForm({
   const total = items.reduce((amount, item) => amount + item.salePrice * item.quantity * (1 + item.vatRate / 100), 0);
   const mixedCurrency = items.some((item) => item.currency !== items[0].currency);
 
-  return (
-    <form action={action} className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <input type="hidden" name="warehouseId" value={warehouseId} />
-      <input type="hidden" name="items" value={JSON.stringify(items.map((item) => ({ productId: item.id, quantity: item.quantity })))} />
+  const setQuantity = (id: string, quantity: number) => {
+    setCart((current) => ({ ...current, [id]: Math.max(0, Number.isFinite(quantity) ? quantity : 0) }));
+  };
+  const found = query.trim() ? products.filter((product) =>
+    (product.name + " " + product.sku).toLocaleLowerCase("tr-TR").includes(query.trim().toLocaleLowerCase("tr-TR")),
+  ) : [];
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {products.map((product) => (
-          <Card key={product.id} className="shadow-none">
-            <CardHeader>
-              <CardTitle>{product.name}</CardTitle>
-              <p className="text-xs text-[#65705f]">
-                {product.sku} · Kullanılabilir {product.available} {product.unit}
-              </p>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-3 text-lg font-semibold">{money(product.salePrice, product.currency)}</p>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCart((current) => ({ ...current, [product.id]: Math.max(0, (current[product.id] || 0) - 1) }))}
-                >
-                  -
-                </Button>
-                <span className="w-10 text-center font-semibold">{cart[product.id] || 0}</span>
-                <Button
-                  type="button"
-                  disabled={(cart[product.id] || 0) >= product.available}
-                  onClick={() => setCart((current) => ({ ...current, [product.id]: (current[product.id] || 0) + 1 }))}
-                >
-                  +
-                </Button>
+  if (state.ok) return <div className="space-y-4 rounded-lg border bg-white p-5">
+    <p role="status" className="font-semibold text-emerald-700">{state.message}</p>
+    <Button asChild><a href="/orders">Yeni Sipariş</a></Button>
+  </div>;
+
+  return (
+    <form action={action} onSubmit={(event) => {
+      if (!preview) { event.preventDefault(); setPreview(true); }
+    }} className="grid gap-5 xl:grid-cols-[1fr_360px]">
+      <input type="hidden" name="warehouseId" value={warehouseId} />
+      <input type="hidden" name="items" value={JSON.stringify(items.map((item) => ({ productId: item.id, quantity: item.quantity, manualShortShipment: shortages[item.id] ?? false })))} />
+
+      <input type="hidden" name="previewConfirmed" value={preview ? "yes" : "no"} />
+      <section className="min-w-0 space-y-4">
+        <h2 className="text-lg font-semibold">{preview ? "Sipariş Önizlemesi" : "Ürün Seçimi"}</h2>
+        <label className="block text-sm">Ürün adı veya SKU ile ara
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" placeholder="Ürün ara" />
+        </label>
+        <div className="divide-y rounded-lg border bg-white">
+          {found.map((product) => <div key={product.id} className="flex items-center justify-between gap-3 p-3">
+            <div className="min-w-0 text-sm"><b>{product.name}</b><p>{product.sku} · {product.available} {product.unit}</p></div>
+            <label className="flex items-center gap-2 text-sm text-rose-700"><input type="checkbox" checked={shortages[product.id] ?? false} onChange={(event) => {
+              setShortages((current) => ({ ...current, [product.id]: event.target.checked }));
+              if (event.target.checked && !(cart[product.id] > 0)) setQuantity(product.id, 1);
+            }} />Eksik Sevk</label>
+            <Button type="button" variant="outline" title={`${product.name} ekle`} aria-label={`${product.name} ekle`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" /></Button>
+          </div>)}
+          {query.trim() && !found.length ? <p className="p-3 text-sm">Ürün bulunamadı.</p> : null}
+        </div>
+        <div className="space-y-3">
+          {items.map((product) => (
+            <div key={product.id} className={`rounded-lg border p-4 ${shortages[product.id] ? "border-rose-500 bg-rose-50 text-rose-800" : "bg-white"}`}>
+              <h3 className="font-semibold">{product.name}</h3>
+              <p className="text-sm">{product.sku} · {money(product.salePrice, product.currency)} · Kullanılabilir: {product.available} {product.unit}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" title="Miktarı azalt" aria-label={`${product.name} miktarını azalt`} onClick={() => setQuantity(product.id, product.quantity - 1)}><Minus className="size-4" /></Button>
+                <input aria-label={`${product.name} adet`} type="number" inputMode="decimal" min="0" step="any" value={product.quantity} onChange={(event) => { if (event.target.value !== "") setQuantity(product.id, event.target.valueAsNumber); }} className="h-10 w-28 rounded border bg-white px-2" />
+                <span className="text-sm">{product.unit}</span>
+                <Button type="button" variant="outline" title="Miktarı artır" aria-label={`${product.name} miktarını artır`} onClick={() => setQuantity(product.id, product.quantity + 1)}><Plus className="size-4" /></Button>
+                <Button type="button" variant="outline" title="Ürünü çıkar" aria-label={`${product.name} çıkar`} onClick={() => setQuantity(product.id, 0)}><Trash2 className="size-4" /></Button>
+                <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={shortages[product.id] ?? false} onChange={(event) => setShortages((current) => ({ ...current, [product.id]: event.target.checked }))} />Eksik Sevk</label>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              {shortages[product.id] ? <p className="mt-2 text-sm font-bold">Eksik sevk bildirimi — sevk ve fatura miktarı kontrol edilmeli</p> : null}
+            </div>
+          ))}
+          {!items.length ? <p className="p-4 text-sm">Siparişte ürün yok.</p> : null}
+        </div>
+      </section>
 
       <Card className="h-fit shadow-none xl:sticky xl:top-28">
         <CardHeader>
@@ -139,13 +161,14 @@ export function OrderForm({
             </div>
             <p className="mt-1 text-xs text-[#65705f]">KDV dahildir · {items.length} kalem</p>
           </div>
+          {preview ? <Button type="button" variant="outline" className="w-full" onClick={() => setPreview(false)}>Düzenlemeye Dön</Button> : null}
           {state.message ? (
             <p className={`rounded-lg p-3 text-sm ${state.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
               {state.message}
             </p>
           ) : null}
           <Button className="w-full" disabled={pending || !items.length || mixedCurrency || (!selected && !branches.length)}>
-            {pending ? "Gönderiliyor..." : "Siparişi Gönder"}
+            {pending ? "Gönderiliyor..." : preview ? "Onayla ve Siparişi Gönder" : "Önizleme"}
           </Button>
         </CardContent>
       </Card>

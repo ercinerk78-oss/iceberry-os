@@ -10,6 +10,15 @@ test("orders accept a standalone branch or an existing group, but require a dest
   assert.equal(orderSchema.safeParse(order).success, false);
 });
 
+test("manual short shipment is explicit and does not change ordered quantity", () => {
+  const input = { branchId: "branch", warehouseId: "warehouse", items: [{ productId: "product", quantity: 10, manualShortShipment: true }] };
+  const parsed = orderSchema.parse(input);
+  assert.equal(parsed.items[0].manualShortShipment, true);
+  assert.equal(parsed.items[0].quantity, 10);
+  assert.equal(orderSchema.parse({ ...input, items: [{ productId: "product", quantity: 1 }] }).items[0].manualShortShipment, false);
+  assert.equal(orderSchema.safeParse({ ...input, items: [{ productId: "product", quantity: -1 }] }).success, false);
+});
+
 test("productSchema treats empty warehouse product money fields as zero", () => {
   const product = productSchema.parse({
     name: "Magnolya Karışımı",

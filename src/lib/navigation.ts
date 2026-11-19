@@ -112,7 +112,6 @@ export const navigationGroups: NavigationGroup[] = [
       item("orderAdmin", "navigation.orderAdmin", "/orders/admin", "Package"),
       item("warehouseOrders", "navigation.warehouseOrders", "/warehouse/orders", "Package"),
       item("shipments", "navigation.shipments", "/warehouse/shipments", "Truck"),
-      item("warehouse", "navigation.warehouse", "/warehouse", "Warehouse"),
       item("stock", "navigation.stock", "/warehouse/stock", "Warehouse"),
       item("barcodes", "navigation.barcodes", "/warehouse/barcodes", "Package"),
       item("profitability", "navigation.profitability", "/warehouse/profitability", "LineChart"),

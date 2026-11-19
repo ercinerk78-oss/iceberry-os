@@ -193,6 +193,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     </select>
                   </label>
                   <input name="password" type="hidden" value="" />
+                  <label className="flex items-center gap-2 text-sm"><input name="orderAccess" type="checkbox" defaultChecked={user.orderAccess} />Bayi Siparişleri erişimi (merkez personeli)</label>
                   <Button variant="outline">Kaydet</Button>
                 </form>
 

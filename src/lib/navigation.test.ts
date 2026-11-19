@@ -29,3 +29,14 @@ test("role based navigation hides empty or unauthorized groups", () => {
   assert.equal(architecture.groups.some((group) => group.id === "branch"), true);
   assert.equal(architecture.groups.some((group) => group.id === "warehouseLogistics"), false);
 });
+
+test("individual orders access adds only the orders menu to warehouse staff", () => {
+  const before = visibleNavigationForRole("WAREHOUSE_MANAGER");
+  const after = visibleNavigationForRole("WAREHOUSE_MANAGER", ["orders"]);
+  const routes = (navigation: typeof before) => navigation.groups.flatMap((group) => group.children.map((item) => item.href));
+  const added = routes(after).filter((route) => !routes(before).includes(route));
+  assert.deepEqual(added, ["/orders"]);
+  assert.equal(routes(after).includes("/finance"), false);
+  assert.equal(routes(after).includes("/settings/users"), false);
+  assert.equal(routes(visibleNavigationForRole("BRANCH_MANAGER", ["orders"])).includes("/orders"), false);
+});

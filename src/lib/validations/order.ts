@@ -15,8 +15,10 @@ export const orderSchema = z.object({
   items: z.array(z.object({
     productId: z.string().min(1),
     quantity: z.number().positive("Miktar sıfırdan büyük olmalıdır."),
+    manualShortShipment: z.boolean().default(false),
   })).min(1, "Sepetiniz boş."),
-}).refine((data) => Boolean(data.branchId || data.franchiseeId), "Şube veya şube grubu seçmelisiniz.");
+}).refine((data) => Boolean(data.branchId || data.franchiseeId), "Şube veya şube grubu seçmelisiniz.")
+  .refine((data) => new Set(data.items.map((item) => item.productId)).size === data.items.length, "Aynı ürün tek satırda bulunmalıdır.");
 
 export const productSchema = z.object({
   name: z.string().min(2, "Ürün adı zorunludur."),

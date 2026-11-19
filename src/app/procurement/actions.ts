@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -15,6 +17,7 @@ import {
   updatePurchaseOrderDetails,
   updatePurchaseOrderItem,
   upsertSupplierProduct,
+  changePurchaseOrderLine,
 } from "@/lib/procurement-service";
 import { prisma } from "@/lib/prisma";
 
@@ -125,7 +128,7 @@ export async function updatePurchaseOrderItemAction(itemId: string, formData: Fo
   if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Birim fiyat negatif olamaz.");
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) throw new Error("KDV oranı 0 ile 100 arasında olmalıdır.");
   if (!Number.isFinite(discountRate) || discountRate < 0 || discountRate > 100) throw new Error("İskonto oranı 0 ile 100 arasında olmalıdır.");
-  await updatePurchaseOrderItem(itemId, {
+  const order = await updatePurchaseOrderItem(itemId, {
     quantity,
     unitPrice,
     vatRate,
@@ -134,6 +137,33 @@ export async function updatePurchaseOrderItemAction(itemId: string, formData: Fo
   }, user.id);
   await audit("PURCHASE_ORDER_ITEM_UPDATED", "PurchaseOrderItem", itemId, "Satın alma siparişi kalemi güncellendi.", user.id);
   refresh();
+  revalidatePath(`/procurement/orders/${order.id}`);
+}
+
+export async function changePurchaseOrderLineAction(id: string, _: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  try {
+    const user = await requirePermission("procurement");
+    const kind = formData.get("kind");
+    if (kind !== "ADD" && kind !== "REMOVE") return { ok: false, message: "Geçersiz işlem." };
+    await changePurchaseOrderLine(id, kind === "ADD"
+      ? { kind, input: Object.fromEntries(formData) }
+      : { kind, itemId: String(formData.get("itemId") || "") }, user.id);
+    await audit("PURCHASE_ORDER_ITEMS_UPDATED", "PurchaseOrder", id, "Satın alma siparişinin ürünleri düzenlendi.", user.id);
+    refresh();
+    revalidatePath(`/procurement/orders/${id}`);
+    return { ok: true, message: "Sipariş güncellendi." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error && !error.message.includes("prisma") ? error.message : "Sipariş güncellenemedi." };
+  }
+}
+
+export async function updatePurchaseOrderItemWithState(id: string, _: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  try {
+    await updatePurchaseOrderItemAction(id, formData);
+    return { ok: true, message: "Kalem güncellendi." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error && !error.message.includes("prisma") ? error.message : "Kalem güncellenemedi." };
+  }
 }
 
 export async function createSupplierDirect(formData: FormData) {
@@ -163,6 +193,34 @@ export async function createSupplierDirect(formData: FormData) {
 
   await audit("SUPPLIER_CREATED", "Supplier", supplier.id, `${supplier.name} tedarikçi kartı oluşturuldu.`, user.id);
   refresh();
+}
+
+export async function updateSupplierAction(id: string, _: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  try {
+    const user = await requirePermission("procurement");
+    const input = z.object({
+      name: z.string().trim().min(1, "Tedarikçi adı zorunludur.").max(200),
+      code: z.string().trim().max(200),
+      phone: z.string().trim().max(200),
+      email: z.union([z.literal(""), z.email()]),
+      taxNumber: z.string().trim().max(200),
+      taxOffice: z.string().trim().max(200),
+      address: z.string().max(1000),
+      notes: z.string().max(1000),
+      status: z.enum(["ACTIVE", "PASSIVE"]),
+    }).safeParse(Object.fromEntries(formData));
+    if (!input.success) return { ok: false, message: "Tedarikçi adı, e-posta ve alan uzunluklarını kontrol edin." };
+    const { name, status, ...optional } = input.data;
+    const supplier = await prisma.supplier.update({
+      where: { id, archivedAt: null },
+      data: { name, status, ...Object.fromEntries(Object.entries(optional).map(([key,value]) => [key, value || null])) },
+    });
+    await audit("SUPPLIER_UPDATED", "Supplier", id, `${supplier.name} tedarikçi bilgileri güncellendi.`, user.id);
+    refresh();
+    return { ok: true, message: "Tedarikçi bilgileri kaydedildi." };
+  } catch {
+    return { ok: false, message: "Tedarikçi güncellenemedi. Kodun başka bir kayıtta kullanılmadığını ve yetkinizi kontrol edin." };
+  }
 }
 
 export async function saveSupplierProductAction(_: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {

@@ -31,6 +31,7 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
         select: {
           id: true,
           productName: true,
+          manualShortShipment: true,
           sku: true,
           quantity: true,
           unit: true,
@@ -96,11 +97,12 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
             </CardHeader>
             <CardContent className="space-y-2">
               {order.items.map((item) => (
-                <div key={item.id} className="flex justify-between rounded-lg border p-3">
+                <div key={item.id} className={`flex flex-wrap justify-between gap-3 rounded-lg border p-3 ${item.manualShortShipment ? "border-rose-500 bg-rose-50 text-rose-800" : ""}`}>
                   <div>
                     <b>{item.productName}</b>
                     <p className="text-xs text-[#65705f]">
                       {item.sku} · {item.quantity} {item.unit}
+                    {item.manualShortShipment ? <p className="text-sm font-bold">Eksik Sevk — fatura ve sevk miktarını kontrol edin</p> : null}
                     </p>
                   </div>
                   <span>{money(item.lineTotal, order.currency)}</span>

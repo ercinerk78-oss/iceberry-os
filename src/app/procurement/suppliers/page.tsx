@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { procurementMoney } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
+import { SupplierEditForm } from "@/components/procurement/supplier-edit-form";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function PurchaseSuppliersPage() {
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
-                  <tr>{["Tedarikçi", "Kod", "Vergi", "İletişim", "Durum", "Not"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}</tr>
+                  <tr>{["Tedarikçi", "Kod", "Vergi", "İletişim", "Durum", "Not", "Düzenle"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y">
                   {suppliers.map((supplier) => (
@@ -39,9 +40,10 @@ export default async function PurchaseSuppliersPage() {
                       <td className="px-3 py-3">{supplier.phone ?? "-"}<p className="text-xs text-[#65705f]">{supplier.email ?? ""}</p></td>
                       <td className="px-3 py-3"><Badge variant="outline">{supplier.status}</Badge></td>
                       <td className="px-3 py-3">{supplier.notes ?? "-"}</td>
+                      <td className="px-3 py-3"><details><summary className="cursor-pointer font-semibold">Düzenle</summary><SupplierEditForm supplier={supplier} /></details></td>
                     </tr>
                   ))}
-                  {!suppliers.length ? <tr><td colSpan={6} className="p-10 text-center text-[#65705f]">Tedarikçi kaydı yok.</td></tr> : null}
+                  {!suppliers.length ? <tr><td colSpan={7} className="p-10 text-center text-[#65705f]">Tedarikçi kaydı yok.</td></tr> : null}
                 </tbody>
               </table>
             </CardContent>

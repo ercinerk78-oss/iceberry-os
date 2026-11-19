@@ -116,7 +116,7 @@ export default async function StockPage() {
           <table className="w-full min-w-[850px] text-sm">
             <thead className="bg-[#f1f4ef]">
               <tr>
-                {["Ürün", "Barkod", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Alış Fiyatı", "Alıştan Stok Değeri", "Satış Fiyatı", "Satıştan Stok Değeri", "Etiket", "İşlem"].map((header) => (
+                {["Ürün", "SKU (Ürün Stok Kodu)", "Kategori", "Depo", "Fiziksel", "Rezerve", "Kullanılabilir", "Minimum", "Alış Fiyatı", "Alıştan Stok Değeri", "Satış Fiyatı", "Satıştan Stok Değeri", "Etiket", "İşlem"].map((header) => (
                   <th key={header} className="p-3 text-left">
                     {header}
                   </th>
@@ -133,9 +133,8 @@ export default async function StockPage() {
                       >
                         <td className="p-3 font-semibold">
                           {product.name}
-                          <div className="text-xs text-[#65705f]">{product.sku}</div>
                         </td>
-                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
+                        <td className="p-3">{product.sku}</td>
                         <td className="p-3">{product.category.name}</td>
                         <td className="p-3">{stock.warehouse.name}</td>
                         <td className="p-3">{stock.quantity}</td>
@@ -164,7 +163,7 @@ export default async function StockPage() {
                   : [
                       <tr key={product.id} className="border-t">
                         <td className="p-3 font-semibold">{product.name}</td>
-                        <td className="p-3">{product.barcode ?? <span className="text-amber-700">Barkod yok</span>}</td>
+                        <td className="p-3">{product.sku}</td>
                         <td className="p-3">{product.category.name}</td>
                         <td colSpan={4} className="p-3 text-amber-700">Henüz stok kaydı yok.</td>
                         <td className="p-3"><MinimumStockForm product={product} /></td>

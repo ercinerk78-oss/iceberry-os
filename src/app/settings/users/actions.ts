@@ -110,6 +110,7 @@ export async function updateUser(id: string, formData: FormData) {
         phone: data.phone || null,
         role: data.role,
         roleId: role.id,
+        orderAccess: formData.get("orderAccess") === "on" && !branchScopedRoles.has(data.role),
         ...(passwordHash ? { passwordHash } : {}),
       },
     });

@@ -30,6 +30,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
         select: {
           id: true,
           productName: true,
+          manualShortShipment: true,
           sku: true,
           quantity: true,
           unit: true,
@@ -97,6 +98,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
 
   return (
     <AppShell activeHref="/warehouse/orders" eyebrow="Depo hazırlık" title={order.orderNumber}>
+      {order.items.some((item) => item.manualShortShipment) ? <div className="mb-4 rounded-lg border border-rose-500 bg-rose-50 p-4 text-rose-800"><b>Eksik Sevk Bildirimi</b>{order.items.filter((item) => item.manualShortShipment).map((item) => <p key={item.id}>{item.productName} · {item.quantity} {item.unit}</p>)}</div> : null}
       <div className="space-y-5">
         <Card className="shadow-none">
           <CardHeader>

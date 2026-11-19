@@ -26,7 +26,10 @@ export async function login(_state: LoginState, fd: FormData): Promise<LoginStat
   }
   if (!user.isActive) return { error: "Kullanıcı hesabınız pasif durumda. Yöneticinizle görüşün." };
 
-  const permissions = normalizePermissions(user.roleRecord?.permissions, user.role);
+  const permissions = normalizePermissions([
+    ...normalizePermissions(user.roleRecord?.permissions, user.role),
+    ...(user.orderAccess ? ["orders"] : []),
+  ], user.role);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   await setSession({ id: user.id, role: user.role, permissions }, fd.get("remember") === "on");
   await audit("LOGIN", "User", user.id, "Kullanıcı giriş yaptı.", user.id);

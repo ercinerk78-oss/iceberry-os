@@ -71,6 +71,7 @@ export async function createOrder(input: Input) {
 
       return {
         productId: product.id,
+        manualShortShipment: item.manualShortShipment,
         productName: product.name,
         sku: product.sku,
         unit: product.unit,
@@ -115,6 +116,7 @@ export async function createOrder(input: Input) {
 
 export async function approveOrder(id: string) {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
 
     if (!order) {
@@ -391,6 +393,7 @@ export async function confirmWarehouseControl(orderId: string, userId?: string) 
 
 export async function releaseOrder(id: string, status: "REJECTED" | "CANCELLED") {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
 
     if (!order) {
@@ -455,11 +458,11 @@ export async function shipOrder(
   options?: { reason?: string; note?: string; expectedFulfillmentDate?: Date | null; createdById?: string },
 ) {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
     const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true, shipment: true } });
 
     if (!order) {
       throw new Error("Sipariş bulunamadı.");
-    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
     }
     if (order.status === "SHIPPED") return order;
     if (!order.readyToShipAt) {

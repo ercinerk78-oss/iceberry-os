@@ -1,5 +1,7 @@
-import WarehouseStockPage from "./stock/page";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default WarehouseStockPage;
+export default function WarehousePage() {
+  redirect("/warehouse/stock");
+}

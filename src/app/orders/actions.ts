@@ -42,6 +42,7 @@ function refresh() {
 export async function submitOrder(_: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     await requirePermission("orders");
+    if (formData.get("previewConfirmed") !== "yes") return { ok: false, message: "Siparişi önizleyip onaylamalısınız." };
     const items = JSON.parse(String(formData.get("items") || "[]"));
     const order = await createOrder({
       franchiseeId: formData.get("franchiseeId") || undefined,

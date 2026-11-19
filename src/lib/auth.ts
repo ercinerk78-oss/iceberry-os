@@ -21,6 +21,7 @@ export const currentUser = cache(async () => {
       email: true,
       role: true,
       isActive: true,
+      orderAccess: true,
       roleRecord: { select: { permissions: true } },
     },
   });
@@ -33,7 +34,10 @@ export const currentUser = cache(async () => {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
-    permissions: normalizePermissions(user.roleRecord?.permissions ?? payload.permissions, user.role),
+    permissions: normalizePermissions([
+      ...normalizePermissions(user.roleRecord?.permissions, user.role),
+      ...(user.orderAccess ? ["orders"] : []),
+    ], user.role),
   };
 });
 

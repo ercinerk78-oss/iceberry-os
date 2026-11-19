@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 
-import { purchaseOrderCommand, updatePurchaseOrderDetailsAction, updatePurchaseOrderItemAction } from "@/app/procurement/actions";
+import { purchaseOrderCommand, updatePurchaseOrderDetailsAction } from "@/app/procurement/actions";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { procurementDate, procurementLabel, procurementMoney, PURCHASE_ORDER_STATUSES } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
+import { PurchaseLineEditForm } from "@/components/procurement/purchase-line-edit-form";
+import { PurchaseLineChangeForm } from "@/components/procurement/purchase-line-change-form";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,11 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
   });
 
   if (!order) notFound();
+  const products = await prisma.product.findMany({
+    where: { isActive: true, archivedAt: null, id: { notIn: order.items.map((item) => item.productId) } },
+    select: { id: true, name: true, sku: true }, orderBy: { name: "asc" },
+  });
+  const canChangeItems = !["CANCELLED", "CLOSED", "RECEIVED"].includes(order.status) && !order.externalInvoices.length;
 
   const totalOrdered = order.items.reduce((sum, item) => sum + item.orderedQuantity, 0);
   const totalReceived = order.items.reduce((sum, item) => sum + item.receivedQuantity, 0);
@@ -82,19 +89,13 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                       <td className="px-3 py-3">%{item.discountRate.toString()}</td>
                       <td className="px-3 py-3">{procurementMoney(item.lineTotal, order.currency)}</td>
                       <td className="px-3 py-3">
-                        {["CANCELLED", "CLOSED", "RECEIVED"].includes(order.status) ? (
+                        {!canChangeItems ? (
                           <span className="text-xs text-[#65705f]">Kapalı</span>
                         ) : (
                           <details>
                             <summary className="cursor-pointer text-xs font-semibold text-[#497b2f]">Düzenle</summary>
-                            <form action={updatePurchaseOrderItemAction.bind(null, item.id)} className="mt-2 grid min-w-80 gap-2 rounded-lg border bg-white p-3">
-                              <input name="quantity" type="text" inputMode="decimal" defaultValue={String(item.orderedQuantity).replace(".", ",")} className="h-9 rounded-lg border px-2" />
-                              <input name="unitPrice" type="text" inputMode="decimal" defaultValue={item.unitPrice.toString().replace(".", ",")} className="h-9 rounded-lg border px-2" />
-                              <input name="vatRate" type="text" inputMode="decimal" defaultValue={item.vatRate.toString().replace(".", ",")} className="h-9 rounded-lg border px-2" />
-                              <input name="discountRate" type="text" inputMode="decimal" defaultValue={item.discountRate.toString().replace(".", ",")} className="h-9 rounded-lg border px-2" />
-                              <input name="itemNotes" defaultValue={item.notes ?? ""} placeholder="Kalem notu" className="h-9 rounded-lg border px-2" />
-                              <Button size="sm">Kaydet</Button>
-                            </form>
+                            <PurchaseLineEditForm item={{ id: item.id, quantity: item.orderedQuantity, unitPrice: item.unitPrice.toString(), vatRate: item.vatRate.toString(), discountRate: item.discountRate.toString(), notes: item.notes ?? "", received: item.receivedQuantity }} />
+                            <div className="mt-3"><PurchaseLineChangeForm orderId={order.id} itemId={item.id} /></div>
                           </details>
                         )}
                       </td>
@@ -141,6 +142,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         </div>
 
         <div className="space-y-4">
+          {canChangeItems ? <Card className="shadow-none"><CardHeader><CardTitle>Siparişe Ürün Ekle</CardTitle></CardHeader><CardContent><PurchaseLineChangeForm orderId={order.id} products={products} /></CardContent></Card> : null}
           <Card className="shadow-none">
             <CardHeader><CardTitle>İşlemler</CardTitle></CardHeader>
             <CardContent className="space-y-2">
