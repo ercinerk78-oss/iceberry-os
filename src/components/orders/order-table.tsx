@@ -15,7 +15,7 @@ type Row = {
   createdAt: Date;
   franchisee: { companyName: string } | null;
   branch: { branchName: string } | null;
-  items: { quantity: number }[];
+  items: { quantity: number; productName?: string; manualShortShipment?: boolean }[];
 };
 
 export function OrderTable({ orders, admin = false }: { orders: Row[]; admin?: boolean }) {
@@ -33,7 +33,7 @@ export function OrderTable({ orders, admin = false }: { orders: Row[]; admin?: b
         </thead>
         <tbody>
           {orders.map((order) => (
-            <tr key={order.id} className="border-t">
+            <tr key={order.id} className={`border-t ${order.items.some((item) => item.manualShortShipment) ? "bg-rose-50" : ""}`}>
               <td className="p-3 font-semibold">{order.orderNumber}</td>
               <td className="p-3">
                 {order.franchisee?.companyName ?? order.branch?.branchName ?? "Şube belirtilmedi"}
@@ -45,6 +45,11 @@ export function OrderTable({ orders, admin = false }: { orders: Row[]; admin?: b
               </td>
               <td className="p-3">
                 {order.items.length} / {order.items.reduce((total, item) => total + item.quantity, 0)} ürün
+                {order.items.filter((item) => item.manualShortShipment).map((item,index) => (
+                  <p key={index} className="mt-1 max-w-64 text-sm font-semibold text-rose-700">
+                    Eksik Sevk / Tedarik Bekliyor: {item.productName ?? "Ürün"} · {item.quantity}
+                  </p>
+                ))}
               </td>
               <td className="p-3">{money(order.grandTotal, order.currency)}</td>
               <td className="p-3">{dateTime(order.createdAt)}</td>

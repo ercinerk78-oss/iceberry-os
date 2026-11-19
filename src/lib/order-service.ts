@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { reserveStock, releaseReservation, shipReservedStock } from "@/lib/stock-service";
 import { orderSchema } from "@/lib/validations/order";
 import { orderNumber } from "@/lib/warehouse";
+import { assertOrderLineStock } from "@/lib/order-stock-check";
 
 type Input = Parameters<typeof orderSchema.parse>[0];
 
@@ -53,10 +54,12 @@ export async function createOrder(input: Input) {
     for (const item of data.items) {
       const stock = stocks.find((row) => row.productId === item.productId);
 
-      if (!stock || stock.availableQuantity < item.quantity) {
-        const productName = products.find((product) => product.id === item.productId)?.name;
-        throw new Error(`${productName} için yeterli kullanılabilir stok yok.`);
-      }
+      assertOrderLineStock({
+        quantity: item.quantity,
+        availableQuantity: stock?.availableQuantity ?? 0,
+        manualShortShipment: item.manualShortShipment,
+        productName: products.find((product) => product.id === item.productId)?.name ?? "Ürün",
+      });
     }
 
     const lines = data.items.map((item) => {

@@ -29,7 +29,7 @@ export default async function AdminOrders({
       createdAt: true,
       franchisee: { select: { companyName: true } },
       branch: { select: { branchName: true } },
-      items: { select: { quantity: true } },
+      items: { select: { quantity: true, productName: true, manualShortShipment: true } },
     },
     orderBy: { createdAt: "desc" },
   });
