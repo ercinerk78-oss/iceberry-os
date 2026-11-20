@@ -86,12 +86,6 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    id: "academy",
-    key: "navigationGroups.academy",
-    icon: "GraduationCap",
-    children: [item("academy", "navigation.academy", "/academy", "GraduationCap")],
-  },
-  {
     id: "procurement",
     key: "navigationGroups.procurement",
     icon: "ShoppingCart",
@@ -123,6 +117,12 @@ export const navigationGroups: NavigationGroup[] = [
       item("compliance", "navigation.compliance", "/warehouse/compliance", "Bell"),
       item("movements", "navigation.movements", "/warehouse/movements", "LineChart"),
     ],
+  },
+  {
+    id: "academy",
+    key: "navigationGroups.academy",
+    icon: "GraduationCap",
+    children: [item("academy", "navigation.academy", "/academy", "GraduationCap")],
   },
   {
     id: "documents",

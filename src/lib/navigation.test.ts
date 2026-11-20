@@ -8,6 +8,13 @@ test("navigation routes are unique", () => {
   assert.equal(new Set(routes).size, routes.length);
 });
 
+test("academy follows warehouse logistics and precedes documents", () => {
+  const groups = navigationGroups.map((group) => group.id);
+  const academyIndex = groups.indexOf("academy");
+  assert.equal(groups[academyIndex - 1], "warehouseLogistics");
+  assert.equal(groups[academyIndex + 1], "documents");
+});
+
 test("warehouse and order parent routes do not shadow child routes", () => {
   assert.equal(isNavigationItemActive("/warehouse", "/warehouse/stock", "/warehouse/stock"), false);
   assert.equal(isNavigationItemActive("/orders", "/orders/admin", "/orders/admin"), false);
