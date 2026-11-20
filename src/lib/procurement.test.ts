@@ -4,6 +4,14 @@ import test from "node:test";
 import { calculatePurchaseLine, calculatePurchaseTotals, procurementLabel, PURCHASE_ORDER_STATUSES } from "@/lib/procurement";
 import { purchaseRequestSchema } from "@/lib/validations/procurement";
 
+test("purchase requests allow an unspecified supplier without a fake supplier record", () => {
+  const input = { title: "Depo ihtiyacı", warehouseId: "warehouse-1", items: [{ productId: "product-1", quantity: 12 }] };
+  for (const supplierId of [undefined, "", "__UNSPECIFIED__"]) {
+    assert.equal(purchaseRequestSchema.parse({ ...input, supplierId }).supplierId, undefined);
+  }
+  assert.equal(purchaseRequestSchema.parse({ ...input, supplierId: "supplier-1" }).supplierId, "supplier-1");
+});
+
 test("calculatePurchaseLine applies discount before VAT", () => {
   const line = calculatePurchaseLine({ quantity: 10, unitPrice: 100, discountRate: 10, vatRate: 20 });
 

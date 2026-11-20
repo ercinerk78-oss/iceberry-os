@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
 import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
+import { PurchaseRequestSupplierForm } from "@/components/procurement/purchase-request-supplier-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -102,7 +103,11 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
                       <p className="text-xs text-[#65705f]">{request.title}</p>
                     </td>
                     <td className="px-4 py-4">{request.warehouse.name}</td>
-                    <td className="px-4 py-4">{request.supplier?.name ?? "Seçilecek"}</td>
+                    <td className="px-4 py-4">
+                      {!request.purchaseOrder && !["CANCELLED", "REJECTED", "CONVERTED"].includes(request.status) ? (
+                        <PurchaseRequestSupplierForm requestId={request.id} supplierId={request.supplierId} suppliers={suppliers.some((supplier) => supplier.id === request.supplierId) || !request.supplierId ? suppliers : [{ id: request.supplierId, name: request.supplier?.name ?? "Mevcut tedarikçi" }, ...suppliers]} />
+                      ) : request.supplier?.name ?? "DİĞER / BELİRSİZ"}
+                    </td>
                     <td className="px-4 py-4"><Badge variant="secondary">{procurementLabel(PURCHASE_PRIORITIES, request.priority)}</Badge></td>
                     <td className="px-4 py-4"><Badge variant="outline">{procurementLabel(PURCHASE_REQUEST_STATUSES, request.status)}</Badge></td>
                     <td className="px-4 py-4 text-xs text-[#65705f]">

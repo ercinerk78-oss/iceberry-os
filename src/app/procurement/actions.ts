@@ -92,6 +92,32 @@ async function requireAnyPermission(permissions: Permission[]) {
   return user;
 }
 
+export async function updatePurchaseRequestSupplierAction(id: string, _: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  try {
+    const user = await requirePermission("procurement");
+    const value = String(formData.get("supplierId") || "").trim();
+    const supplierId = value && value !== "__UNSPECIFIED__" ? value : null;
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "PurchaseRequest" WHERE id = ${id} FOR UPDATE`;
+      const supplier = supplierId ? await tx.supplier.findFirst({ where: { id: supplierId, archivedAt: null, status: "ACTIVE" } }) : null;
+      if (supplierId && !supplier) throw new Error("Aktif tedarikçi bulunamadı.");
+      const result = await tx.purchaseRequest.updateMany({
+        where: { id, status: { notIn: ["CANCELLED", "REJECTED", "CONVERTED"] }, purchaseOrder: { is: null } },
+        data: { supplierId },
+      });
+      if (!result.count) throw new Error("Talep bulunamadı veya artık düzenlenemiyor.");
+      await tx.purchaseApproval.create({ data: {
+        purchaseRequestId: id, action: "SUPPLIER_UPDATED", status: "UPDATED",
+        comment: `Önerilen tedarikçi: ${supplier?.name ?? "DİĞER / BELİRSİZ"}`, actedById: user.id,
+      } });
+    });
+    refresh();
+    return { ok: true, message: "Talebin tedarikçisi güncellendi." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Tedarikçi güncellenemedi." };
+  }
+}
+
 export async function purchaseOrderCommand(id: string, command: string) {
   const user = await requirePermission("procurement");
   if (command === "approve") await approvePurchaseOrder(id, user.id);

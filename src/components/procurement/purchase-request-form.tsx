@@ -62,6 +62,7 @@ export function PurchaseRequestForm({
             Önerilen Tedarikçi
             <select name="supplierId" className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="">Satın alma ekibi seçsin</option>
+              <option value="__UNSPECIFIED__">DİĞER / BELİRSİZ</option>
               {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
             </select>
           </label>

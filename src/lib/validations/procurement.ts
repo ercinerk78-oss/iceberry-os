@@ -37,7 +37,7 @@ export const purchaseRequestLineSchema = z.object({
 export const purchaseRequestSchema = z.object({
   title: z.string().min(3, "Talep başlığı en az 3 karakter olmalıdır.").max(160),
   warehouseId: z.string().min(1, "Depo seçmelisiniz."),
-  supplierId: z.string().optional(),
+  supplierId: z.preprocess((value) => value === "__UNSPECIFIED__" || value === "" ? undefined : value, z.string().optional()),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).default("NORMAL"),
   orderDate: z.string().optional(),
   neededByDate: z.string().optional(),
