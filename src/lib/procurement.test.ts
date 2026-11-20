@@ -2,7 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { calculatePurchaseLine, calculatePurchaseTotals, procurementLabel, PURCHASE_ORDER_STATUSES } from "@/lib/procurement";
-import { purchaseRequestSchema } from "@/lib/validations/procurement";
+import { goodsReceiptSchema, purchaseRequestSchema } from "@/lib/validations/procurement";
+
+test("goods receipts accept over and under delivery without changing expected quantity", () => {
+  for (const quantity of [40, 50, 60]) {
+    const receipt = goodsReceiptSchema.parse({ purchaseOrderId: "order", items: [{ productId: "product", expectedQuantity: 50, receivedQuantity: quantity, acceptedQuantity: quantity }] });
+    assert.equal(receipt.items[0].expectedQuantity, 50);
+    assert.equal(receipt.items[0].acceptedQuantity, quantity);
+    assert.equal(receipt.closeRemaining, false);
+  }
+});
+
+test("goods receipts allow explicit final delivery and zero acceptance", () => {
+  const receipt = goodsReceiptSchema.parse({ purchaseOrderId: "order", closeRemaining: true, items: [{ productId: "product", expectedQuantity: 50, receivedQuantity: 10, acceptedQuantity: 0, damagedQuantity: 10 }] });
+  assert.equal(receipt.closeRemaining, true);
+  assert.equal(receipt.items[0].acceptedQuantity, 0);
+});
+
+test("goods receipts reject acceptance or damage above delivered quantity", () => {
+  for (const [acceptedQuantity, damagedQuantity] of [[60, 0], [45, 10]]) {
+    assert.equal(goodsReceiptSchema.safeParse({ purchaseOrderId: "order", items: [{ productId: "product", receivedQuantity: 50, acceptedQuantity, damagedQuantity }] }).success, false);
+  }
+});
 
 test("purchase requests allow an unspecified supplier without a fake supplier record", () => {
   const input = { title: "Depo ihtiyacı", warehouseId: "warehouse-1", items: [{ productId: "product-1", quantity: 12 }] };

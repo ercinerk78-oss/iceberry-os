@@ -221,7 +221,14 @@ export async function createGoodsReceipt(input: GoodsReceiptInput, userId?: stri
       include: { items: true, supplier: true, warehouse: true },
     });
     if (!order) throw new Error("Satın alma siparişi bulunamadı.");
-    if (["CANCELLED", "CLOSED"].includes(order.status)) throw new Error("Kapalı sipariş için mal kabul yapılamaz.");
+    if (!["APPROVED", "SENT", "PARTIALLY_RECEIVED"].includes(order.status)) throw new Error("Bu sipariş için mal kabul yapılamaz. Sayfayı yenileyin.");
+    if (new Set(data.items.map((item) => item.productId)).size !== data.items.length) throw new Error("Aynı ürün birden fazla satırda kabul edilemez.");
+    for (const item of data.items) {
+      const orderItem = order.items.find((line) => line.productId === item.productId);
+      if (!orderItem) throw new Error("Siparişte olmayan ürün mal kabul edilemez.");
+      if (Math.abs(orderItem.remainingQuantity - item.expectedQuantity) > 0.000001) throw new Error("Kalan sipariş miktarı değişti. Sayfayı yenileyerek tekrar kontrol edin.");
+      item.expectedQuantity = orderItem.remainingQuantity;
+    }
 
     const acceptedItems = data.items.filter((item) => item.acceptedQuantity > 0 || item.receivedQuantity > 0 || item.damagedQuantity > 0);
     if (!acceptedItems.length) throw new Error("Mal kabul için en az bir miktar girmelisiniz.");
@@ -310,6 +317,13 @@ export async function createGoodsReceipt(input: GoodsReceiptInput, userId?: stri
     }
 
     await syncPurchaseOrderReceiptProgressInTx(tx, order.id);
+    if (data.closeRemaining) {
+      await tx.purchaseOrder.update({ where: { id: order.id }, data: { status: "CLOSED", closedAt: new Date() } });
+      await tx.purchaseApproval.create({ data: {
+        purchaseOrderId: order.id, action: "CLOSED", status: "CLOSED", actedById: userId,
+        comment: "Mal kabul sonrası başka teslimat beklenmediği belirtilerek sipariş kapatıldı. Sipariş ve teslimat miktarları korundu.",
+      } });
+    }
     return receipt;
   }, { maxWait: 5_000, timeout: 30_000 });
 }
@@ -609,7 +623,7 @@ async function syncPurchaseOrderReceiptProgressInTx(tx: Prisma.TransactionClient
     const receivedQuantity = order.goodsReceipts.reduce((sum, receipt) => {
       return sum + receipt.items
         .filter((receiptItem) => receiptItem.productId === item.productId)
-        .reduce((lineSum, receiptItem) => lineSum + (receiptItem.acceptedQuantity || receiptItem.receivedQuantity || 0), 0);
+        .reduce((lineSum, receiptItem) => lineSum + receiptItem.acceptedQuantity, 0);
     }, 0);
     const remainingQuantity = Math.max(0, item.orderedQuantity - receivedQuantity);
     anyReceived = anyReceived || receivedQuantity > 0;

@@ -49,16 +49,19 @@ export const purchaseRequestSchema = z.object({
 export const goodsReceiptLineSchema = z.object({
   productId: z.string().min(1, "Ürün seçmelisiniz."),
   expectedQuantity: z.coerce.number().min(0).default(0),
-  receivedQuantity: z.coerce.number().min(0).default(0),
-  acceptedQuantity: z.coerce.number().min(0).default(0),
-  damagedQuantity: z.coerce.number().min(0).default(0),
+  receivedQuantity: z.coerce.number().finite().min(0).default(0),
+  acceptedQuantity: z.coerce.number().finite().min(0).default(0),
+  damagedQuantity: z.coerce.number().finite().min(0).default(0),
   lotNumber: z.string().max(120).optional(),
   expirationDate: z.string().optional(),
   notes: z.string().max(500).optional(),
+}).refine((item) => item.acceptedQuantity + item.damagedQuantity <= item.receivedQuantity, {
+  message: "Kabul edilen ve hasarlı miktar toplamı gelen miktarı aşamaz.", path: ["acceptedQuantity"],
 });
 
 export const goodsReceiptSchema = z.object({
   purchaseOrderId: z.string().min(1, "Satın alma siparişi seçmelisiniz."),
+  closeRemaining: z.boolean().default(false),
   invoiceNumber: z.string().max(120).optional(),
   deliveryDate: z.string().optional(),
   notes: z.string().max(1000).optional(),

@@ -13,6 +13,7 @@ export async function createGoodsReceiptAction(_: GoodsReceiptActionState, formD
     const user = await requirePermission("warehouse");
     const receipt = await createGoodsReceipt({
       purchaseOrderId: String(formData.get("purchaseOrderId") || ""),
+      closeRemaining: formData.get("closeRemaining") === "on",
       invoiceNumber: optionalString(formData.get("invoiceNumber")),
       deliveryDate: optionalString(formData.get("deliveryDate")),
       notes: optionalString(formData.get("notes")),
