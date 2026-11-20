@@ -8,6 +8,15 @@ test("navigation routes are unique", () => {
   assert.equal(new Set(routes).size, routes.length);
 });
 
+test("warehouse logistics follows the requested operational menu order", () => {
+  const group = navigationGroups.find((group) => group.id === "warehouseLogistics");
+  assert.deepEqual(group?.children.map((item) => item.id), [
+    "orders", "orderAdmin", "warehouseOrders", "shipments",
+    "warehousePurchaseRequests", "goodsReceipts", "stock", "barcodes",
+    "profitability", "lots", "counts", "productMappings", "compliance", "movements",
+  ]);
+});
+
 test("academy follows warehouse logistics and precedes documents", () => {
   const groups = navigationGroups.map((group) => group.id);
   const academyIndex = groups.indexOf("academy");
