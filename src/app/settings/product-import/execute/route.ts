@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
-import { parseProductImport } from "@/lib/product-import";
+import { parseProductImport, parseCountImport } from "@/lib/product-import";
+import { previewStockCutover, applyStockCutover } from "@/lib/stock-cutover-service";
 import { applyProductImport, previewProductImport, releaseConfirmedArchivedSku } from "@/lib/product-import-service";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -32,8 +33,18 @@ export async function POST(request: NextRequest) {
     if (request.headers.get("x-iceberry-import") !== "1" || request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: "İstek doğrulanamadı." }, { status: 403 });
     const form = await request.formData();
     if (form.get("mode") === "release-archived-sku" && form.get("confirmed") === "yes") {
-      const result = await releaseConfirmedArchivedSku(user.id);
+      const result = await releaseConfirmedArchivedSku(user.id, String(form.get("code") || "056"));
       revalidatePath("/settings/product-import");
+      return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (form.get("mode") === "count-preview") {
+      const file = form.get("file");
+      if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx") || !file.size || file.size > 1_048_576) throw new Error("En fazla 1 MB boyutunda sayım XLSX dosyası seçin.");
+      return NextResponse.json(await previewStockCutover(await parseCountImport(await file.arrayBuffer()), user.id), { headers: { "Cache-Control": "no-store" } });
+    }
+    if (form.get("mode") === "count-apply" && form.get("confirmed") === "yes") {
+      const result = await applyStockCutover(String(form.get("token") || ""), user.id);
+      for (const path of ["/orders", "/orders/admin", "/warehouse/stock", "/warehouse/counts", "/warehouse/shipments", "/warehouse/orders", "/warehouse/movements", "/warehouse/profitability"]) revalidatePath(path);
       return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     }
     if (form.get("mode") === "preview") {

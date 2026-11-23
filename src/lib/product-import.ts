@@ -56,7 +56,7 @@ export async function parseProductImport(bytes: ArrayBuffer): Promise<ProductImp
     if (!["1", "Koli", "Paket", "Adet"].includes(text(row, c.saleUnit))) throw new Error(`${row}. satırda Ticimax satış birimi geçersiz.`);
     const isTea = currentSku === "03.21.2026" && sku === "033" && text(row, c.currentName).includes("DOĞUŞ");
     const currentName = text(row, c.currentName);
-    // Confirmed by the user for the one-time catalog update; quantities remain file-controlled.
+    // The user confirmed both this name correction and a 300-piece sales package.
     const isConfirmedWaffleBox = currentSku === "1135" && sku === "058" && [
       "WAFFLE KUTUSU BASKILI KOLİ 250 AD",
       "WAFFLE KUTUSU BASKILI KOLİ 250 AD - 300 ADETLİ",
@@ -68,14 +68,32 @@ export async function parseProductImport(bytes: ArrayBuffer): Promise<ProductImp
     rows.push({ row, currentSku, currentName: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 250 AD" : isConfirmedZbarz ? zbarzOriginalName : currentName,
       name: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 300 AD" : text(row, c.name) || currentName, sku,
       supplier: text(row, c.supplier), purchasePrice: price(c.buy), salePrice: price(c.sell),
-      unit: isTea ? "kg" : text(row, c.unit), factor: Number(text(row, c.factor).replace(",", ".")),
+      unit: isTea ? "kg" : text(row, c.unit), factor: isConfirmedWaffleBox ? 300 : Number(text(row, c.factor).replace(",", ".")),
     });
   }
   validateImportRows(rows);
   return rows;
 }
 
-export function matchImportProducts<T extends { id: string; name: string; sku: string; currency: string }>(rows: ProductImportRow[], products: T[]) {
+export async function parseCountImport(bytes: ArrayBuffer) {
+  const rows = await parseProductImport(bytes);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(bytes);
+  const sheet = book.worksheets[0];
+  const header = sheet.getRow(rows[0].row - 1);
+  let countColumn = 0;
+  header.eachCell((cell, column) => { if (cell.text.trim() === "20.11.2026 sayım") countColumn = column; });
+  if (!countColumn) throw new Error("20.11.2026 sayım sütunu bulunamadı.");
+  return rows.map(row => {
+    const cell = sheet.getCell(row.row, countColumn);
+    // The user explicitly confirmed the only blank count, bitter rice 090, as zero.
+    const value = cell.value === null && row.currentSku === "090" ? 0 : cell.value;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || (row.unit === "Adet" && !Number.isInteger(value))) throw new Error(`${row.row}. satırdaki sayım miktarı geçersiz veya boş.`);
+    return { ...row, countedQuantity: value };
+  });
+}
+
+export function matchImportProducts<T extends { id: string; name: string; sku: string; currency: string }, R extends ProductImportRow>(rows: R[], products: T[]) {
   const normalizedName = (name: string) => name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR");
   const ids = new Set<string>();
   const matches = rows.map(row => {

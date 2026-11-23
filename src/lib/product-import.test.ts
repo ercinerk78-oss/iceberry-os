@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ExcelJS from "exceljs";
-import { matchImportProducts, normalizeImportName, parseProductImport, validateImportRows, type ProductImportRow } from "@/lib/product-import";
+import { matchImportProducts, normalizeImportName, parseProductImport, parseCountImport, validateImportRows, type ProductImportRow } from "@/lib/product-import";
 import { signImportPreview, verifyImportPreview } from "@/lib/product-import-token";
 
 const row: ProductImportRow = { row: 9, currentName: "Ürün", currentSku: "old", name: "Ürün", sku: "001", supplier: "Firma", purchasePrice: "0.416666666666667", salePrice: "1.69", unit: "Adet", factor: 12 };
@@ -68,8 +68,8 @@ test("Excel reader uses column names, preserves precise values and recognizes co
   assert.equal(corrected[0].name, "WAFFLE KUTUSU BASKILI KOLİ 300 AD");
   assert.equal(corrected[0].factor, 300);
   sheet.getCell("J2").value = 250;
-  const unchangedQuantity = await parseProductImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
-  assert.equal(unchangedQuantity[0].factor, 250);
+  const confirmedQuantity = await parseProductImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
+  assert.equal(confirmedQuantity[0].factor, 300);
   sheet.getRow(2).values = ["ZBARZ Yüksek Protein Bar Yer Fıstığı & Portakal Kakao 35gr*20", "01051", "ZBARZ Yüksek Protein Bar Yer Fıstığı & Portakal Kakao 35gr*20 AD", "105", "Firma", 42.82, 60, "Adet", 1, 20];
   const zbarz = await parseProductImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
   assert.equal(zbarz[0].currentName, "ZBARZ Yüksek Protein Bar Yer Fıstığı & Portakal Kakao 35gr");
@@ -77,4 +77,20 @@ test("Excel reader uses column names, preserves precise values and recognizes co
   assert.equal(zbarz[0].factor, 20);
   sheet.getCell("D2").value = 33;
   await assert.rejects(() => book.xlsx.writeBuffer().then(buffer => parseProductImport(new Uint8Array(buffer).buffer)));
+});
+
+test("count import accepts only explicit numeric counts and the confirmed blank bitter row", async () => {
+  const book = new ExcelJS.Workbook(); const sheet = book.addWorksheet("Sayım");
+  sheet.addRow(["Mevcut Ürün Adı", "20.11.2026 sayım", "Mevcut SKU", "Yeni Ürün Adı", "Yeni SKU", "Tedarikçi Adı", "Yeni Alış Fiyatı (TL/adet)", "Yeni Satış Fiyatı (TL/adet)", "OS / Paraşüt Stok Birimi", "Ticimax Satış Birimi", "Ticimax 1 Satış Birimi İçindeki OS Adedi"]);
+  sheet.addRow(["Bitter Pirinç Patlağı PKT 1KG", null, "090", "", "090", "Firma", 195, 250, "Adet", 1, 1]);
+  const parse = async () => parseCountImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
+  assert.equal((await parse())[0].countedQuantity, 0);
+  sheet.getCell("C2").value = "091";
+  await assert.rejects(parse, /sayım miktarı/);
+  sheet.getCell("B2").value = { formula: "2+3", result: 5 };
+  await assert.rejects(parse, /sayım miktarı/);
+  sheet.getCell("B2").value = -1;
+  await assert.rejects(parse, /sayım miktarı/);
+  sheet.getCell("B2").value = 42;
+  assert.equal((await parse())[0].countedQuantity, 42);
 });

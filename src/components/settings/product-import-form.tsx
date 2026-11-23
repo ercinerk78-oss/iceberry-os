@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { FileSearch, Upload, Download, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { previewProductImport } from "@/lib/product-import-service";
+import { StockCutoverForm } from "@/components/settings/stock-cutover-form";
 
 type Preview = Awaited<ReturnType<typeof previewProductImport>>;
 export function ProductImportForm() {
@@ -15,15 +16,16 @@ export function ProductImportForm() {
   const [result, setResult] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [reviewed, setReviewed] = useState(false);
-  async function releaseArchivedSku() {
+  async function releaseArchivedSku(code: string) {
     if (busy) return;
     setBusy(true); setError("");
     try {
       const form = new FormData(); form.set("mode", "release-archived-sku"); form.set("confirmed", "yes");
+      form.set("code", code);
       const response = await fetch("/settings/product-import/execute", { method: "POST", headers: { "x-iceberry-import": "1" }, body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Arşiv kodu güncellenemedi.");
-      setResult("Arşiv kartının kodu ARSIV-056 oldu. Aktif kart ve stoklar değişmedi. Yeniden önizleyin.");
+      setResult(`Arşiv kartının kodu ${data.code} oldu. Geçmiş hareketler, aktif kart ve stoklar değişmedi. Yeniden önizleyin.`);
       setPreview(null); setReviewed(false); setConfirmed(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Arşiv kodu güncellenemedi."); }
     finally { setBusy(false); }
@@ -67,8 +69,8 @@ export function ProductImportForm() {
       <Button type="button" disabled={busy} onClick={() => send("preview")}><FileSearch />{busy ? "İşleniyor..." : "Önizle ve Kontrol Et"}</Button>
     </div>
     <p className="text-sm text-muted-foreground">Stok miktarları, KDV oranları ve geçmiş işlemler korunur. Fiyatlar KDV hariçtir. Ticimax katsayıları kaydedilir; canlı sipariş entegrasyonu bu işlemle açılmaz.</p>
-    <details className="border-b pb-3 text-sm"><summary className="cursor-pointer">056 arşiv kodu çakışması</summary>
-      <div className="mt-3 flex flex-wrap items-center gap-3"><span>Arşivdeki işlem geçmişi olmayan kaşık kartı: 056 → ARSIV-056. Aktif ürün değişmez.</span><Button type="button" variant="outline" disabled={busy} onClick={releaseArchivedSku}><Wrench />Arşiv Kodunu Güncelle</Button></div>
+    <details className="border-b pb-3 text-sm"><summary className="cursor-pointer">Onaylanan arşiv kodu düzeltmeleri</summary>
+      {["056", "107"].map(code => <div key={code} className="mt-3 flex flex-wrap items-center gap-3"><span>{code} → ARSIV-{code}. Geçmiş hareketler ve stoklar korunur.</span><Button type="button" variant="outline" disabled={busy} onClick={() => releaseArchivedSku(code)}><Wrench />{code} Arşiv Kodunu Güncelle</Button></div>)}
     </details>
     {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
     {result ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{result}</p> : null}
@@ -102,5 +104,6 @@ export function ProductImportForm() {
         <Button type="button" disabled={busy || !confirmed || !reviewed || !preview.token || !!preview.errors.length} onClick={() => send("apply")}><Upload />Onayla ve Ürünleri Güncelle</Button>
       </div>
     </> : null}
+    <StockCutoverForm />
   </div>;
 }
