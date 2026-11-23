@@ -9,6 +9,30 @@ type Manifest = { userId: string; expires: number; id: string; snapshot: string;
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const productSelect = { id: true, name: true, sku: true, unit: true, currency: true, vatRate: true, purchasePrice: true, salePrice: true, archivedAt: true, isActive: true, updatedAt: true } as const;
 
+export async function releaseConfirmedArchivedSku(userId: string) {
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext('product-catalog-import'))`;
+    const id = "cmwdoht3w0037l0085kg4uw7f";
+    await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR UPDATE`;
+    const product = await tx.product.findUnique({ where: { id }, include: {
+      stocks: true,
+      _count: { select: { orderItems: true, purchaseOrderItems: true, goodsReceiptItems: true, movements: true } },
+    } });
+    if (!product || product.isActive || !product.archivedAt) throw new Error("Onaylanan arşiv kaydı bulunamadı veya durumu değişti.");
+    if (product.sku === "ARSIV-056") return { alreadyReleased: true };
+    if (product.sku !== "056" || normalizeImportName(product.name) !== normalizeImportName("KULLAN AT AHŞAP KAŞIK PAKET 100")) throw new Error("Arşiv kartının adı veya kodu değişti; işlem durduruldu.");
+    if (Object.values(product._count).some(count => count > 0) || product.stocks.some(stock => stock.quantity !== 0 || stock.reservedQuantity !== 0 || stock.availableQuantity !== 0)) throw new Error("Arşiv kartında stok veya işlem geçmişi var; kod değiştirilmedi.");
+    if (await tx.product.findUnique({ where: { sku: "ARSIV-056" }, select: { id: true } })) throw new Error("ARSIV-056 kodu kullanılıyor; işlem durduruldu.");
+    const updated = await tx.product.update({ where: { id }, data: { sku: "ARSIV-056" } });
+    await tx.auditLog.create({ data: {
+      userId, action: "ARCHIVED_PRODUCT_SKU_RELEASED", entityType: "Product", entityId: id,
+      description: "Kullanıcı onayıyla yalnız arşiv kartı 056 → ARSIV-056 olarak güncellendi. Aktif kart ve stoklar korunmuştur.",
+      oldValue: JSON.stringify(product), newValue: JSON.stringify(updated),
+    } });
+    return { alreadyReleased: false };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 });
+}
+
 async function loadPlan(db: Prisma.TransactionClient, rows: ProductImportRow[], choices: Choices) {
   validateImportRows(rows);
   const [products, suppliers, mappings, units] = await Promise.all([
