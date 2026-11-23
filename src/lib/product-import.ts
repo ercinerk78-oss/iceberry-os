@@ -61,7 +61,11 @@ export async function parseProductImport(bytes: ArrayBuffer): Promise<ProductImp
       "WAFFLE KUTUSU BASKILI KOLİ 250 AD",
       "WAFFLE KUTUSU BASKILI KOLİ 250 AD - 300 ADETLİ",
     ].includes(currentName.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR"));
-    rows.push({ row, currentSku, currentName: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 250 AD" : currentName,
+    const zbarzOriginalName = "ZBARZ Yüksek Protein Bar Yer Fıstığı & Portakal Kakao 35gr";
+    const isConfirmedZbarz = currentSku === "01051" && sku === "105" && [
+      `${zbarzOriginalName}*20`, `${zbarzOriginalName}*20 AD`,
+    ].some(name => name.normalize("NFKC").toLocaleUpperCase("tr-TR") === currentName.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR"));
+    rows.push({ row, currentSku, currentName: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 250 AD" : isConfirmedZbarz ? zbarzOriginalName : currentName,
       name: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 300 AD" : text(row, c.name) || currentName, sku,
       supplier: text(row, c.supplier), purchasePrice: price(c.buy), salePrice: price(c.sell),
       unit: isTea ? "kg" : text(row, c.unit), factor: Number(text(row, c.factor).replace(",", ".")),
