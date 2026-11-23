@@ -6,6 +6,7 @@ import { signImportPreview, verifyImportPreview } from "@/lib/product-import-tok
 import { setPhysicalStock, reserveStock, shipReservedStock } from "@/lib/stock-service";
 import { upsertShipmentBackorder } from "@/lib/backorders";
 import { CUTOVER_ID, CUTOVER_ORDERS, cutoverLine, remainingCount, type CountImportRow } from "@/lib/stock-cutover-plan";
+import { calculateOrderTaxTotals } from "@/lib/order-tax-totals";
 
 type Manifest = { userId: string; expires: number; id: string; snapshot: string; rows: CountImportRow[] };
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -38,6 +39,7 @@ async function loadPlan(tx: Prisma.TransactionClient, rows: CountImportRow[]) {
     const match = matches.find(match => match.product.id === item.productId);
     if (!match) throw new Error(`${item.productName}: Sipariş ürünü sayım dosyasında yok.`);
     const converted = cutoverLine(match.row, item.quantity, order.orderNumber);
+    calculateOrderTaxTotals([{ lineSubtotal: converted.subtotal, vatRate: item.vatRate }]);
     return { orderId: order.id, orderNumber: order.orderNumber, itemId: item.id, productId: item.productId, oldQuantity: item.quantity, oldTotal: item.lineTotal, name: match.product.name, sku: match.row.sku, unit: match.row.unit, price: Number(match.row.salePrice), vatRate: item.vatRate, ...converted };
   }));
   if (lines.filter(line => line.missing > 0).length !== 1) throw new Error("Rubby Drop eksik sevk kaydı beklenen şekilde bulunamadı.");

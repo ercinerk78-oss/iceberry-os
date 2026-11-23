@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { parseProductImport, parseCountImport } from "@/lib/product-import";
 import { previewStockCutover, applyStockCutover } from "@/lib/stock-cutover-service";
+import { correctConfirmedForkTax } from "@/lib/confirmed-tax-correction";
 import { applyProductImport, previewProductImport, releaseConfirmedArchivedSku } from "@/lib/product-import-service";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,11 @@ export async function POST(request: NextRequest) {
     if (user.role !== "GENERAL_MANAGER") return NextResponse.json({ error: "Toplu aktarım yalnız Genel Müdür tarafından yapılabilir." }, { status: 403 });
     if (request.headers.get("x-iceberry-import") !== "1" || request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: "İstek doğrulanamadı." }, { status: 403 });
     const form = await request.formData();
+    if (form.get("mode") === "correct-confirmed-fork-tax" && form.get("confirmed") === "yes") {
+      const result = await correctConfirmedForkTax(user.id);
+      for (const path of ["/orders", "/orders/admin", "/warehouse/stock", "/warehouse/shipments", "/settings/product-import"]) revalidatePath(path);
+      return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
     if (form.get("mode") === "release-archived-sku" && form.get("confirmed") === "yes") {
       const result = await releaseConfirmedArchivedSku(user.id, String(form.get("code") || "056"));
       revalidatePath("/settings/product-import");

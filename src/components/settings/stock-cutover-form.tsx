@@ -11,6 +11,18 @@ export function StockCutoverForm() {
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  async function correctTax() {
+    if (busy) return;
+    setBusy(true); setMessage("");
+    try {
+      const form = new FormData(); form.set("mode", "correct-confirmed-fork-tax"); form.set("confirmed", "yes");
+      const response = await fetch("/settings/product-import/execute", { method: "POST", headers: { "x-iceberry-import": "1" }, body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Vergi düzeltilemedi.");
+      setMessage(`Ahşap Çatal KDV oranı %20 olarak düzeltildi. İki siparişin tutarı güncellendi; stok ve sevkiyatlar değişmedi. Yedek: ${data.auditId}`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Vergi düzeltilemedi."); }
+    finally { setBusy(false); }
+  }
   async function send(apply: boolean) {
     if (busy) return;
     setBusy(true); setMessage("");
@@ -34,6 +46,7 @@ export function StockCutoverForm() {
   }
   return <section className="space-y-4 border-t pt-6">
     <h2 className="text-lg font-semibold">20 Kasım Sayımı ve Teyitli Sevkiyatlar</h2>
+    <details className="border-b pb-3 text-sm"><summary className="cursor-pointer">Onaylanan Ahşap Çatal KDV Düzeltmesi</summary><Button type="button" variant="outline" className="mt-3 h-auto max-w-full whitespace-normal py-2" disabled={busy} onClick={correctTax}>Ahşap Çatal KDV Kaydını %20 Olarak Düzelt</Button></details>
     <div className="flex flex-wrap items-end gap-3">
       <label className="grid min-w-0 gap-2 text-sm">20.11.2026 sayım dosyası<input ref={file} type="file" accept=".xlsx" disabled={busy} onChange={() => { setPreview(null); setConfirmed(false); setMessage(""); }} className="max-w-full rounded border p-2" /></label>
       <Button type="button" disabled={busy} onClick={() => send(false)}>{busy ? "İşleniyor..." : "Sayım ve Sevkiyatları Önizle"}</Button>
