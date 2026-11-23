@@ -70,9 +70,9 @@ export async function applyStockCutover(token: string, userId: string) {
     for (const number of CUTOVER_ORDERS) await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE "orderNumber" = ${number} FOR UPDATE`;
     const preliminary = await loadPlan(tx, manifest.rows);
     // Same per-product locks as all regular inventory operations prevent a concurrent stock edit.
-    for (const item of [...preliminary.inventory].sort((a, b) => a.productId.localeCompare(b.productId))) {
-      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${`stock:${preliminary.warehouse.id}:${item.productId}`}))`;
-    }
+    const keys = preliminary.inventory.map(item => `stock:${preliminary.warehouse.id}:${item.productId}`).sort();
+    await tx.$queryRaw`WITH keys AS MATERIALIZED (SELECT unnest(${keys}::text[]) AS key ORDER BY 1)
+      SELECT 1 FROM keys CROSS JOIN LATERAL pg_advisory_xact_lock(hashtext(keys.key))`;
     const plan = await loadPlan(tx, manifest.rows);
     if (plan.snapshot !== manifest.snapshot) throw new Error("Önizleme sonrası kayıtlar değişti. Yeniden kontrol edin.");
     const count = await tx.stockCount.create({ data: {
@@ -81,6 +81,7 @@ export async function applyStockCutover(token: string, userId: string) {
       items: { create: plan.inventory.map(item => ({ productId: item.productId, expectedQuantity: item.current, countedQuantity: item.counted, differenceQuantity: item.counted - item.current, reasonCode: "CONFIRMED_COUNT" })) },
     } });
     for (const item of plan.inventory) {
+      if (item.current === item.counted && plan.stocks.some(stock => stock.productId === item.productId)) continue;
       await setPhysicalStock(tx, { warehouseId: plan.warehouse.id, productId: item.productId, quantity: item.counted, referenceType: "STOCK_COUNT", referenceId: count.id, reasonCode: "CONFIRMED_COUNT", description: "20.11.2026 fiziksel sayımı; 23 Kasım sevkiyatlarından önceki miktar.", performedById: userId });
     }
     for (const order of plan.orders) {
@@ -109,11 +110,13 @@ export async function applyStockCutover(token: string, userId: string) {
         activities: { create: { type: "COUNT_CUTOVER_SHIPMENT", createdBy: userId, description: "Kullanıcı teyidiyle eski koli miktarları adet/kg karşılığına dönüştürüldü; KDV hariç Excel fiyatları uygulandı. 20 Kasım sayımı sonrası fiili sevkiyat bir kez işlendi. Otomatik fatura oluşturulmadı." } },
       } });
     }
+    const finalStocks = await tx.warehouseStock.findMany({ where: { warehouseId: plan.warehouse.id, productId: { in: plan.inventory.map(item => item.productId) } } });
     for (const item of plan.inventory) {
-      const actual = await tx.warehouseStock.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: plan.warehouse.id, productId: item.productId } } });
+      const actual = finalStocks.find(stock => stock.productId === item.productId);
+      if (!actual) throw new Error(`${item.name}: Son stok kaydı bulunamadı; tüm işlem geri alındı.`);
       if (Math.abs(actual.quantity - item.finalQuantity) > 1e-8 || Math.abs(actual.reservedQuantity - item.reserved) > 1e-8) throw new Error(`${item.name}: Son stok doğrulaması başarısız; tüm işlem geri alındı.`);
     }
     const audit = await tx.auditLog.create({ data: { userId, action: "STOCK_CUTOVER_COMPLETED", entityType: "StockCutover", entityId: CUTOVER_ID, description: "20 Kasım sayımı ve iki teyitli sevkiyat atomik olarak işlendi. Tekrar çalıştırma engellendi.", oldValue: JSON.stringify({ stocks: plan.stocks, orders: plan.orders }), newValue: JSON.stringify({ countId: count.id, inventory: plan.inventory, lines: plan.lines }) } });
     return { alreadyApplied: false, auditId: audit.id, countId: count.id };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 180_000 });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 240_000 });
 }
