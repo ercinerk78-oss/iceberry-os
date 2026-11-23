@@ -13,6 +13,13 @@ test("catalog validation rejects duplicate codes, invalid prices and fractional 
   for (const patch of [{ purchasePrice: "-1" }, { salePrice: "NaN" }, { factor: 10.5 }, { factor: 0 }, { unit: "Koli" }]) assert.throws(() => validateImportRows([{ ...row, ...patch }]));
 });
 test("kilogram conversions allow decimal values", () => validateImportRows([{ ...row, unit: "kg", factor: 10.5 }]));
+test("product matching ignores invisible whitespace but still requires an exact SKU", () => {
+  const item = { ...row, currentName: "ÇİKOLATA BEYAZ ŞİŞE 1 KG", name: "ÇİKOLATA BEYAZ ŞİŞE 1 KG", currentSku: "01.01.2021", sku: "005" };
+  const product = { id: "white", name: "\tÇİKOLATA  BEYAZ\u00a0ŞİŞE 1 KG ", sku: "01.01.2021", currency: "TRY" };
+  assert.equal(matchImportProducts([item], [product])[0].product.id, "white");
+  assert.throws(() => matchImportProducts([item], [{ ...product, sku: "5" }]));
+  assert.throws(() => matchImportProducts([item], [{ ...product, name: "ÇİKOLATA BİTTER ŞİŞE 1 KG" }]));
+});
 test("SKU swaps retain product identity and reject collisions outside the file", () => {
   const products = [{ id: "a", name: "Bir", sku: "001", currency: "TRY" }, { id: "b", name: "İki", sku: "002", currency: "TRY" }];
   const rows = [{ ...row, currentName: "Bir", name: "Bir", currentSku: "001", sku: "002" }, { ...row, currentName: "İki", name: "İki", currentSku: "002", sku: "001" }];

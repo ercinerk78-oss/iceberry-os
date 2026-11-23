@@ -65,10 +65,11 @@ export async function parseProductImport(bytes: ArrayBuffer): Promise<ProductImp
 }
 
 export function matchImportProducts<T extends { id: string; name: string; sku: string; currency: string }>(rows: ProductImportRow[], products: T[]) {
+  const normalizedName = (name: string) => name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR");
   const ids = new Set<string>();
   const matches = rows.map(row => {
     const candidates = products.filter(product =>
-      [row.currentName, row.name].includes(product.name) && [row.currentSku, row.sku].includes(product.sku));
+      [row.currentName, row.name].some(name => normalizedName(name) === normalizedName(product.name)) && [row.currentSku, row.sku].includes(product.sku));
     if (candidates.length !== 1 || ids.has(candidates[0].id)) throw new Error(`${row.row}. satırdaki ürün mevcut kayıtla güvenli eşleştirilemedi: ${row.currentName}`);
     const product = candidates[0];
     if (product.currency !== "TRY") throw new Error(`${row.currentName}: Para birimi TL değil, otomatik güncellenmedi.`);
