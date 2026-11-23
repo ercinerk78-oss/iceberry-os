@@ -10,7 +10,7 @@ const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(valu
 const productSelect = { id: true, name: true, sku: true, unit: true, currency: true, vatRate: true, purchasePrice: true, salePrice: true, archivedAt: true, isActive: true, updatedAt: true } as const;
 
 export async function releaseConfirmedArchivedSku(userId: string, code = "056") {
-  const confirmed = code === "056" ? { id: "cmwdoht3w0037l0085kg4uw7f", name: "KULLAN AT AHŞAP KAŞIK PAKET 100", movements: 0 } : code === "107" ? { id: "cmwepai1y0007le0852x8eadk", name: "ZBARZ Pover Protein Yer Fıstığı 35gr*20 Ad", movements: 1 } : null;
+  const confirmed = code === "056" ? { id: "cmwdoht3w0037l0085kg4uw7f", name: "KULLAN AT AHŞAP KAŞIK PAKET 100", movements: 0, quantity: 0 } : code === "107" ? { id: "cmwepai1y0007le0852x8eadk", name: "ZBARZ Pover Protein Yer Fıstığı 35gr*20 Ad", movements: 1, quantity: 0 } : code === "105" ? { id: "cmwep8elm0001jm082pd5pmpf", name: "ZBARZ Hind Cevizi Kakao Protein 35gr*24 Ad", movements: 1, quantity: 24 } : null;
   if (!confirmed) throw new Error("Bu arşiv kodu için onaylı işlem yok.");
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext('product-catalog-import'))`;
@@ -24,7 +24,7 @@ export async function releaseConfirmedArchivedSku(userId: string, code = "056") 
     if (!product || product.isActive || !product.archivedAt) throw new Error("Onaylanan arşiv kaydı bulunamadı veya durumu değişti.");
     if (product.sku === archiveCode) return { alreadyReleased: true, code: archiveCode };
     if (product.sku !== code || normalizeImportName(product.name) !== normalizeImportName(confirmed.name)) throw new Error("Arşiv kartının adı veya kodu değişti; işlem durduruldu.");
-    if (product._count.orderItems || product._count.purchaseOrderItems || product._count.goodsReceiptItems || product._count.movements !== confirmed.movements || product.stocks.some(stock => stock.quantity !== 0 || stock.reservedQuantity !== 0 || stock.availableQuantity !== 0)) throw new Error("Arşiv kartının stok veya işlem durumu değişti; kod değiştirilmedi.");
+    if (product._count.orderItems || product._count.purchaseOrderItems || product._count.goodsReceiptItems || product._count.movements !== confirmed.movements || (confirmed.quantity > 0 && product.stocks.length !== 1) || product.stocks.some(stock => stock.quantity !== confirmed.quantity || stock.reservedQuantity !== 0 || stock.availableQuantity !== confirmed.quantity)) throw new Error("Arşiv kartının stok veya işlem durumu değişti; kod değiştirilmedi.");
     if (await tx.product.findUnique({ where: { sku: archiveCode }, select: { id: true } })) throw new Error(`${archiveCode} kodu kullanılıyor; işlem durduruldu.`);
     const updated = await tx.product.update({ where: { id }, data: { sku: archiveCode } });
     await tx.auditLog.create({ data: {

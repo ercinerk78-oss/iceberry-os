@@ -111,9 +111,11 @@ export function matchImportProducts<T extends { id: string; name: string; sku: s
     ids.add(product.id);
     return { row, product };
   });
+  const conflicts: string[] = [];
   for (const { row, product } of matches) {
     const conflict = products.find(other => other.sku === row.sku && other.id !== product.id && !ids.has(other.id));
-    if (conflict) throw new Error(`${row.row}. satır: Yeni SKU ${row.sku}, dosya dışındaki başka bir kayıtta kullanılıyor: ${conflict.name}. Mükerrer kartları kontrol edin; hiçbir kayıt değiştirilmedi.`);
+    if (conflict) conflicts.push(`${row.row}. satır: Yeni SKU ${row.sku}, dosya dışındaki başka bir kayıtta kullanılıyor: ${conflict.name}.`);
   }
+  if (conflicts.length) throw new Error(`${conflicts.join("\n")} Mükerrer kartları kontrol edin; hiçbir kayıt değiştirilmedi.`);
   return matches;
 }

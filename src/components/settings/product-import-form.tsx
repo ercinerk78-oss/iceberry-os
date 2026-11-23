@@ -70,7 +70,7 @@ export function ProductImportForm() {
     </div>
     <p className="text-sm text-muted-foreground">Stok miktarları, KDV oranları ve geçmiş işlemler korunur. Fiyatlar KDV hariçtir. Ticimax katsayıları kaydedilir; canlı sipariş entegrasyonu bu işlemle açılmaz.</p>
     <details className="border-b pb-3 text-sm"><summary className="cursor-pointer">Onaylanan arşiv kodu düzeltmeleri</summary>
-      {["056", "107"].map(code => <div key={code} className="mt-3 flex flex-wrap items-center gap-3"><span>{code} → ARSIV-{code}. Geçmiş hareketler ve stoklar korunur.</span><Button type="button" variant="outline" disabled={busy} onClick={() => releaseArchivedSku(code)}><Wrench />{code} Arşiv Kodunu Güncelle</Button></div>)}
+      {["056", "107", "105"].map(code => <div key={code} className="mt-3 flex flex-wrap items-center gap-3"><span>{code} → ARSIV-{code}. Geçmiş hareketler ve stoklar korunur.</span><Button type="button" variant="outline" disabled={busy} onClick={() => releaseArchivedSku(code)}><Wrench />{code} Arşiv Kodunu Güncelle</Button></div>)}
     </details>
     {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
     {result ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{result}</p> : null}
