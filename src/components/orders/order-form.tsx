@@ -7,6 +7,7 @@ import { submitOrder, type ActionResult } from "@/app/orders/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
+import { changeOrderQuantity, salesUnitFactor, toBaseQuantity } from "@/lib/order-quantity";
 
 type Product = {
   id: string;
@@ -17,6 +18,7 @@ type Product = {
   currency: string;
   vatRate: number;
   available: number;
+  salesUnitFactor: number;
 };
 
 type Owner = {
@@ -46,6 +48,7 @@ export function OrderForm({
   const [pdfError, setPdfError] = useState("");
   const [shortages, setShortages] = useState<Record<string, boolean>>({});
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [baseMode, setBaseMode] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState(standaloneBranches.length ? "" : owners[0]?.id ?? "");
   const branches = selected ? owners.find((owner) => owner.id === selected)?.branches ?? [] : standaloneBranches;
   const items = useMemo(
@@ -110,9 +113,9 @@ export function OrderForm({
             <div className="min-w-0 text-sm"><b>{product.name}</b><p>{product.sku} · {product.available} {product.unit}</p></div>
             <label className="flex items-center gap-2 text-sm text-rose-700"><input type="checkbox" checked={shortages[product.id] ?? false} onChange={(event) => {
               setShortages((current) => ({ ...current, [product.id]: event.target.checked }));
-              if (event.target.checked && !(cart[product.id] > 0)) setQuantity(product.id, 1);
+              if (event.target.checked && !(cart[product.id] > 0)) setQuantity(product.id, salesUnitFactor(product.salesUnitFactor));
             }} />Eksik Sevk</label>
-            <Button type="button" variant="outline" title={`${product.name} ekle`} aria-label={`${product.name} ekle`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" /></Button>
+            <Button type="button" variant="outline" title={`${product.name}: ${salesUnitFactor(product.salesUnitFactor)} ${product.unit} ekle`} aria-label={`${product.name} ekle`} onClick={() => setQuantity(product.id, changeOrderQuantity(cart[product.id] ?? 0, salesUnitFactor(product.salesUnitFactor)))}><Plus className="size-4" /></Button>
           </div>)}
           {query.trim() && !found.length ? <p className="p-3 text-sm">Ürün bulunamadı.</p> : null}
         </div>
@@ -122,13 +125,18 @@ export function OrderForm({
               <h3 className="font-semibold">{product.name}</h3>
               <p className="text-sm">{product.sku} · {money(product.salePrice, product.currency)} · Kullanılabilir: {product.available} {product.unit}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" title="Miktarı azalt" aria-label={`${product.name} miktarını azalt`} onClick={() => setQuantity(product.id, product.quantity - 1)}><Minus className="size-4" /></Button>
-                <input aria-label={`${product.name} adet`} type="number" inputMode="decimal" min="0" step="any" value={product.quantity} onChange={(event) => { if (event.target.value !== "") setQuantity(product.id, event.target.valueAsNumber); }} className="h-10 w-28 rounded border bg-white px-2" />
-                <span className="text-sm">{product.unit}</span>
-                <Button type="button" variant="outline" title="Miktarı artır" aria-label={`${product.name} miktarını artır`} onClick={() => setQuantity(product.id, product.quantity + 1)}><Plus className="size-4" /></Button>
+                {salesUnitFactor(product.salesUnitFactor) !== 1 ? <select aria-label={`${product.name} miktar birimi`} value={baseMode[product.id] ? "base" : "sales"} onChange={(event) => setBaseMode((current) => ({ ...current, [product.id]: event.target.value === "base" }))} className="h-10 max-w-full rounded border bg-white px-2">
+                  <option value="sales">Koli / paket ({product.salesUnitFactor} {product.unit})</option>
+                  <option value="base">{product.unit}</option>
+                </select> : null}
+                <Button type="button" variant="outline" title="Miktarı azalt" aria-label={`${product.name} miktarını azalt`} onClick={() => setQuantity(product.id, changeOrderQuantity(product.quantity, -(baseMode[product.id] ? 1 : salesUnitFactor(product.salesUnitFactor))))}><Minus className="size-4" /></Button>
+                <input aria-label={`${product.name} miktar`} type="number" inputMode="decimal" min="0" step="any" value={Number((product.quantity / (baseMode[product.id] ? 1 : salesUnitFactor(product.salesUnitFactor))).toFixed(9))} onChange={(event) => { if (event.target.value !== "") setQuantity(product.id, toBaseQuantity(event.target.valueAsNumber, baseMode[product.id] ? 1 : salesUnitFactor(product.salesUnitFactor))); }} className="h-10 w-28 rounded border bg-white px-2" />
+                <span className="text-sm">{baseMode[product.id] || salesUnitFactor(product.salesUnitFactor) === 1 ? product.unit : "koli / paket"}</span>
+                <Button type="button" variant="outline" title="Miktarı artır" aria-label={`${product.name} miktarını artır`} onClick={() => setQuantity(product.id, changeOrderQuantity(product.quantity, baseMode[product.id] ? 1 : salesUnitFactor(product.salesUnitFactor)))}><Plus className="size-4" /></Button>
                 <Button type="button" variant="outline" title="Ürünü çıkar" aria-label={`${product.name} çıkar`} onClick={() => setQuantity(product.id, 0)}><Trash2 className="size-4" /></Button>
                 <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={shortages[product.id] ?? false} onChange={(event) => setShortages((current) => ({ ...current, [product.id]: event.target.checked }))} />Eksik Sevk</label>
               </div>
+              <p className="mt-2 text-sm">Toplam: {product.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 9 })} {product.unit} · {money(product.quantity * product.salePrice, product.currency)} (KDV hariç)</p>
               {shortages[product.id] ? <p className="mt-2 text-sm font-bold">Eksik sevk bildirimi — sevk ve fatura miktarı kontrol edilmeli</p> : null}
             </div>
           ))}

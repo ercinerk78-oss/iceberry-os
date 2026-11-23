@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { OrderForm } from "@/components/orders/order-form";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth";
+import { TICIMAX_IMPORT_UNIT } from "@/lib/product-import";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ export default async function OrdersPage() {
         salePrice: true,
         currency: true,
         vatRate: true,
+        units: { where: { code: TICIMAX_IMPORT_UNIT }, select: { conversionFactor: true } },
         stocks: { select: { warehouseId: true, availableQuantity: true } },
       },
       orderBy: { name: "asc" },
@@ -67,6 +69,7 @@ export default async function OrdersPage() {
             salePrice: product.salePrice,
             currency: product.currency,
             vatRate: product.vatRate,
+            salesUnitFactor: product.units[0]?.conversionFactor ?? 1,
             available: product.stocks.find((stock) => stock.warehouseId === warehouse.id)?.availableQuantity ?? 0,
           }))}
         />
