@@ -5,9 +5,26 @@ import { requirePermission } from "@/lib/auth";
 import { parseProductImport } from "@/lib/product-import";
 import { applyProductImport, previewProductImport } from "@/lib/product-import-service";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+export async function GET(request: NextRequest) {
+  const user = await requirePermission("stock_manage");
+  if (user.role !== "GENERAL_MANAGER") return NextResponse.json({ error: "Bu kontrol yalnız Genel Müdür tarafından yapılabilir." }, { status: 403 });
+  const codes = request.nextUrl.searchParams.getAll("sku");
+  if (!codes.length || codes.length > 3 || codes.some(code => !code || code.length > 120)) return NextResponse.json({ error: "En fazla üç SKU ile kontrol yapılabilir." }, { status: 400 });
+  const products = await prisma.product.findMany({
+    where: { sku: { in: codes } },
+    select: {
+      id: true, name: true, sku: true, isActive: true, archivedAt: true,
+      stocks: { select: { quantity: true, reservedQuantity: true, availableQuantity: true } },
+      _count: { select: { orderItems: true, purchaseOrderItems: true, goodsReceiptItems: true, movements: true } },
+    },
+    orderBy: { sku: "asc" },
+  });
+  return NextResponse.json({ products }, { headers: { "Cache-Control": "no-store" } });
+}
 export async function POST(request: NextRequest) {
   try {
     const user = await requirePermission("stock_manage");
