@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export async function GET(request: NextRequest) {
   const user = await requirePermission("stock_manage");
   if (user.role !== "GENERAL_MANAGER") return NextResponse.json({ error: "Bu kontrol yalnız Genel Müdür tarafından yapılabilir." }, { status: 403 });
@@ -61,6 +61,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       console.error("Product import database error", error.code);
+      if (error.code === "P2028") {
+        console.error("Product import transaction timeout", error.meta?.error);
+        return NextResponse.json({ error: "Veritabanı işlemi zaman aşımına uğradı ve geri alındı. Hiçbir toplu değişiklik uygulanmadı; yeniden önizleyin." }, { status: 409 });
+      }
       return NextResponse.json({ error: "Veritabanı değişikliği tamamlanamadı; işlem geri alındı. Yeniden önizleyin." }, { status: 409 });
     }
     if (error instanceof z.ZodError) return NextResponse.json({ error: "Dosya veya tedarikçi seçimleri geçersiz." }, { status: 400 });

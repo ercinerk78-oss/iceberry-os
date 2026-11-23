@@ -125,5 +125,5 @@ export async function applyProductImport(token: string, userId: string) {
       oldValue: JSON.stringify(before), newValue: JSON.stringify({ products: after, sourceRows: manifest.rows, createdSuppliers }),
     } });
     return { count: ids.length, alreadyApplied: false, auditId: audit.id };
-  }, { maxWait: 10_000, timeout: 45_000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }, { maxWait: 10_000, timeout: 180_000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

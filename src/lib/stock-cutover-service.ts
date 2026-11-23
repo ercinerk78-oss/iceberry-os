@@ -115,5 +115,5 @@ export async function applyStockCutover(token: string, userId: string) {
     }
     const audit = await tx.auditLog.create({ data: { userId, action: "STOCK_CUTOVER_COMPLETED", entityType: "StockCutover", entityId: CUTOVER_ID, description: "20 Kasım sayımı ve iki teyitli sevkiyat atomik olarak işlendi. Tekrar çalıştırma engellendi.", oldValue: JSON.stringify({ stocks: plan.stocks, orders: plan.orders }), newValue: JSON.stringify({ countId: count.id, inventory: plan.inventory, lines: plan.lines }) } });
     return { alreadyApplied: false, auditId: audit.id, countId: count.id };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 50_000 });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 180_000 });
 }
