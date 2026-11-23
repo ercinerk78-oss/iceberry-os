@@ -2930,7 +2930,7 @@ model SupplierProduct {
   supplierSku          String?
   supplierProductName  String?
   currency             String    @default("TRY")
-  unitPrice            Decimal?  @db.Decimal(18, 2)
+  unitPrice            Decimal?  @db.Decimal(38, 18)
   minimumOrderQuantity Float     @default(1)
   orderIncrement       Float     @default(1)
   leadTimeDays         Int?

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Palette, PlugZap, ShieldCheck, UsersRound } from "lucide-react";
+import { FileSpreadsheet, Palette, PlugZap, ShieldCheck, UsersRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,9 +8,15 @@ import { requirePermission } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  await requirePermission("settings");
+  const user = await requirePermission("settings");
 
   const sections = [
+    ...(user.role === "GENERAL_MANAGER" ? [{
+      title: "Excel Ürün Güncelleme",
+      description: "Ürün kodu, fiyat, tedarikçi ve Ticimax birim eşleştirmeleri.",
+      href: "/settings/product-import",
+      icon: FileSpreadsheet,
+    }] : []),
     {
       title: "Kullanıcılar",
       description: "Kullanıcı hesapları, roller ve erişim durumları.",

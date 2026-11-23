@@ -1,0 +1,1 @@
+ALTER TABLE "SupplierProduct" ALTER COLUMN "unitPrice" TYPE DECIMAL(38, 18);

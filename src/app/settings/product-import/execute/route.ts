@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
+import { requirePermission } from "@/lib/auth";
+import { parseProductImport } from "@/lib/product-import";
+import { applyProductImport, previewProductImport } from "@/lib/product-import-service";
+import { revalidatePath } from "next/cache";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requirePermission("stock_manage");
+    if (user.role !== "GENERAL_MANAGER") return NextResponse.json({ error: "Toplu aktarım yalnız Genel Müdür tarafından yapılabilir." }, { status: 403 });
+    if (request.headers.get("x-iceberry-import") !== "1" || request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: "İstek doğrulanamadı." }, { status: 403 });
+    const form = await request.formData();
+    if (form.get("mode") === "preview") {
+      const file = form.get("file");
+      if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx") || !file.size || file.size > 1_048_576) throw new Error("En fazla 1 MB boyutunda bir XLSX dosyası seçin.");
+      const choices = z.record(z.string().max(200), z.string().max(200)).parse(JSON.parse(String(form.get("choices") || "{}")));
+      const rows = await parseProductImport(await file.arrayBuffer());
+      return NextResponse.json(await previewProductImport(rows, choices, user.id), { headers: { "Cache-Control": "no-store" } });
+    }
+    if (form.get("mode") !== "apply" || form.get("confirmed") !== "yes") throw new Error("Önizlemeyi kontrol edip aktarımı onaylayın.");
+    const result = await applyProductImport(String(form.get("token") || ""), user.id);
+    for (const path of ["/warehouse/stock", "/warehouse/barcodes", "/orders", "/procurement/suppliers", "/procurement/orders/new", "/settings/product-import"]) revalidatePath(path);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error("Product import database error", error.code);
+      return NextResponse.json({ error: "Veritabanı değişikliği tamamlanamadı; işlem geri alındı. Yeniden önizleyin." }, { status: 409 });
+    }
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Dosya veya tedarikçi seçimleri geçersiz." }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Aktarım tamamlanamadı." }, { status: 400 });
+  }
+}
