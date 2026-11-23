@@ -55,7 +55,14 @@ export async function parseProductImport(bytes: ArrayBuffer): Promise<ProductImp
     const price = (col: number) => text(row, col).replace(",", ".");
     if (!["1", "Koli", "Paket", "Adet"].includes(text(row, c.saleUnit))) throw new Error(`${row}. satırda Ticimax satış birimi geçersiz.`);
     const isTea = currentSku === "03.21.2026" && sku === "033" && text(row, c.currentName).includes("DOĞUŞ");
-    rows.push({ row, currentSku, currentName: text(row, c.currentName), name: text(row, c.name) || text(row, c.currentName), sku,
+    const currentName = text(row, c.currentName);
+    // Confirmed by the user for the one-time catalog update; quantities remain file-controlled.
+    const isConfirmedWaffleBox = currentSku === "1135" && sku === "058" && [
+      "WAFFLE KUTUSU BASKILI KOLİ 250 AD",
+      "WAFFLE KUTUSU BASKILI KOLİ 250 AD - 300 ADETLİ",
+    ].includes(currentName.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR"));
+    rows.push({ row, currentSku, currentName: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 250 AD" : currentName,
+      name: isConfirmedWaffleBox ? "WAFFLE KUTUSU BASKILI KOLİ 300 AD" : text(row, c.name) || currentName, sku,
       supplier: text(row, c.supplier), purchasePrice: price(c.buy), salePrice: price(c.sell),
       unit: isTea ? "kg" : text(row, c.unit), factor: Number(text(row, c.factor).replace(",", ".")),
     });

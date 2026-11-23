@@ -62,6 +62,14 @@ test("Excel reader uses column names, preserves precise values and recognizes co
   const bytes = await book.xlsx.writeBuffer();
   const parsed = await parseProductImport(new Uint8Array(bytes).buffer);
   assert.equal(parsed[0].unit, "kg"); assert.equal(parsed[0].sku, "033"); assert.equal(parsed[0].factor, 10.5);
+  sheet.getRow(2).values = ["WAFFLE KUTUSU BASKILI KOLİ 250 AD - 300 ADETLİ", "1135", "", "058", "Firma", 6, 8, "Adet", 1, 300];
+  const corrected = await parseProductImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
+  assert.equal(corrected[0].currentName, "WAFFLE KUTUSU BASKILI KOLİ 250 AD");
+  assert.equal(corrected[0].name, "WAFFLE KUTUSU BASKILI KOLİ 300 AD");
+  assert.equal(corrected[0].factor, 300);
+  sheet.getCell("J2").value = 250;
+  const unchangedQuantity = await parseProductImport(new Uint8Array(await book.xlsx.writeBuffer()).buffer);
+  assert.equal(unchangedQuantity[0].factor, 250);
   sheet.getCell("D2").value = 33;
   await assert.rejects(() => book.xlsx.writeBuffer().then(buffer => parseProductImport(new Uint8Array(buffer).buffer)));
 });
