@@ -27,6 +27,18 @@ test("SKU swaps retain product identity and reject collisions outside the file",
   assert.throws(() => matchImportProducts(rows.slice(0, 1), products));
   assert.throws(() => matchImportProducts([{ ...row, currentName: "Başka" }], products));
 });
+
+test("old SKU identifies the intended record even when another record has the new code", () => {
+  const item = { ...row, currentName: "Ahşap Kaşık", name: "Ahşap Kaşık", currentSku: "1133", sku: "056" };
+  const products = [{ id: "original", name: "Ahşap Kaşık", sku: "1133", currency: "TRY" }, { id: "other", name: "Ahşap Kaşık", sku: "056", currency: "TRY" }];
+  assert.throws(() => matchImportProducts([item], products), /dosya dışındaki başka bir kayıtta/);
+  const movingOther = { ...item, currentSku: "056", sku: "057" };
+  assert.deepEqual(matchImportProducts([item, movingOther], products).map(match => match.product.id), ["original", "other"]);
+});
+
+test("mismatch reports file and existing codes rather than a generic warning", () => {
+  assert.throws(() => matchImportProducts([row], [{ id: "p", name: "Ürün", sku: "different", currency: "TRY" }]), /Dosyadaki mevcut SKU: \[old\].*yeni SKU: \[001\].*different/);
+});
 test("import name normalization matches spacing and punctuation without guessing legal names", () => {
   assert.equal(normalizeImportName(" Ek Gıda. "), normalizeImportName("EK GIDA"));
   assert.notEqual(normalizeImportName("EK GIDA"), normalizeImportName("EK GIDA LTD"));

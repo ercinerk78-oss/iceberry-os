@@ -68,16 +68,23 @@ export function matchImportProducts<T extends { id: string; name: string; sku: s
   const normalizedName = (name: string) => name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleUpperCase("tr-TR");
   const ids = new Set<string>();
   const matches = rows.map(row => {
-    const candidates = products.filter(product =>
-      [row.currentName, row.name].some(name => normalizedName(name) === normalizedName(product.name)) && [row.currentSku, row.sku].includes(product.sku));
-    if (candidates.length !== 1 || ids.has(candidates[0].id)) throw new Error(`${row.row}. satırdaki ürün mevcut kayıtla güvenli eşleştirilemedi: ${row.currentName}`);
+    const sameName = products.filter(product =>
+      [row.currentName, row.name].some(name => normalizedName(name) === normalizedName(product.name)));
+    const currentCodeMatches = sameName.filter(product => product.sku === row.currentSku);
+    // The old code identifies the record; the new code is only a fallback for an already applied file.
+    const candidates = currentCodeMatches.length ? currentCodeMatches : sameName.filter(product => product.sku === row.sku);
+    if (candidates.length !== 1 || ids.has(candidates[0].id)) {
+      const codes = sameName.map(product => product.sku).join(", ") || "aynı adlı kayıt bulunamadı";
+      throw new Error(`${row.row}. satırdaki ürün eşleştirilemedi: ${row.currentName}. Dosyadaki mevcut SKU: [${row.currentSku}], yeni SKU: [${row.sku}]. Sistemde aynı adlı kayıtların SKU'ları: ${codes}.`);
+    }
     const product = candidates[0];
     if (product.currency !== "TRY") throw new Error(`${row.currentName}: Para birimi TL değil, otomatik güncellenmedi.`);
     ids.add(product.id);
     return { row, product };
   });
   for (const { row, product } of matches) {
-    if (products.some(other => other.sku === row.sku && other.id !== product.id && !ids.has(other.id))) throw new Error(`${row.sku} kodu dosya dışındaki bir üründe kullanılıyor.`);
+    const conflict = products.find(other => other.sku === row.sku && other.id !== product.id && !ids.has(other.id));
+    if (conflict) throw new Error(`${row.row}. satır: Yeni SKU ${row.sku}, dosya dışındaki başka bir kayıtta kullanılıyor: ${conflict.name}. Mükerrer kartları kontrol edin; hiçbir kayıt değiştirilmedi.`);
   }
   return matches;
 }
