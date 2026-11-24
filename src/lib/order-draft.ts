@@ -12,7 +12,7 @@ export const draftValuesSchema = z.object({
 export type DraftValues = z.infer<typeof draftValuesSchema>;
 export const emptyDraftValues = (): DraftValues => ({ cart: {}, shortages: {}, baseMode: {}, franchiseeId: "", branchId: "", requestedDeliveryDate: "", invoicePreference: "CREATE_LATER", notes: "" });
 export const draftRequestSchema = z.object({
-  id: z.uuid(), version: z.number().int().min(0), command: z.enum(["save", "submit", "cancel"]),
+  id: z.uuid(), version: z.number().int().min(0), command: z.enum(["save", "submit", "cancel", "register", "prepare", "ready"]),
   warehouseId: z.string().min(1),
   franchiseeId: z.string().optional(), branchId: z.string().optional(),
   requestedDeliveryDate: z.string().optional(),
@@ -21,7 +21,14 @@ export const draftRequestSchema = z.object({
   items: z.array(z.object({ productId: z.string().min(1), quantity: z.number().finite().positive().max(1e9), manualShortShipment: z.boolean() })).max(200),
 }).refine(data => new Set(data.items.map(item => item.productId)).size === data.items.length, "Aynı ürün tek satırda bulunmalıdır.");
 export type DraftRequest = z.infer<typeof draftRequestSchema>;
-export type DraftRecord = { id: string; version: number; orderNumber: string; status: string; updatedAt: string };
+export const warehouseDraftStages = { DRAFT: "Taslak", REGISTERED: "Sipariş Sisteme İşlendi", PREPARING: "Sipariş Hazırlanıyor", READY: "Sipariş Sevke Hazır" } as const;
+export function nextWarehouseDraftStage(stage: string, command: DraftRequest["command"]) {
+  const transitions: Record<string, [string, string]> = { register: ["DRAFT", "REGISTERED"], prepare: ["REGISTERED", "PREPARING"], ready: ["PREPARING", "READY"], submit: ["READY", "READY"] };
+  const transition = transitions[command];
+  if (!transition || transition[0] !== stage) throw new Error("Önce sıradaki depo hazırlık aşamasını tamamlayın.");
+  return transition[1];
+}
+export type DraftRecord = { id: string; version: number; orderNumber: string; status: string; updatedAt: string; warehouseDraftStage?: string };
 
 export function draftRequest(values: DraftValues, id: string, version: number, warehouseId: string, command: DraftRequest["command"]): DraftRequest {
   return { id, version, warehouseId, command, franchiseeId: values.franchiseeId || undefined, branchId: values.branchId || undefined,

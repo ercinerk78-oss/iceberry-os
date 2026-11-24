@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const parsed = draftRequestSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) return NextResponse.json({ error: "Taslak alanlarını ve ürün miktarlarını kontrol edin." }, { status: 400 });
-    if (parsed.data.command === "submit" && !allowed("warehouse")) return NextResponse.json({ error: "Merkeze göndermek için depo onay yetkisi gerekiyor." }, { status: 403 });
+    if (!["save", "cancel"].includes(parsed.data.command) && !allowed("warehouse")) return NextResponse.json({ error: "Depo aşamalarını ilerletmek için depo onay yetkisi gerekiyor." }, { status: 403 });
     const result = await saveOrderDraft(parsed.data, user.id);
     if (parsed.data.command !== "save") for (const path of ["/orders", "/orders/admin"]) revalidatePath(path);
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });

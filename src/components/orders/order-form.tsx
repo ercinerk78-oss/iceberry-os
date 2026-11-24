@@ -7,7 +7,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog";
 
 import { useOrderDraft } from "@/components/orders/use-order-draft";
 import { BranchSearchSelect } from "@/components/orders/branch-search-select";
-import { type DraftRecord, type DraftValues } from "@/lib/order-draft";
+import { warehouseDraftStages, type DraftRecord, type DraftValues, type DraftRequest } from "@/lib/order-draft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
@@ -55,6 +55,19 @@ export function OrderForm({
   const [preview, setPreview] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const stage = draft.record?.warehouseDraftStage ?? "DRAFT";
+  const stageAction = { DRAFT: ["register", "Sipariş Sisteme İşlendi"], REGISTERED: ["prepare", "Sipariş Hazırlanıyor"], PREPARING: ["ready", "Sipariş Sevke Hazır"] }[stage];
+  async function advanceStage() {
+    if (!stageAction) return;
+    setPending(true);
+    try {
+      const saved = await draft.save();
+      const currentStage = saved.warehouseDraftStage ?? "DRAFT";
+      if (currentStage !== stage) { setNotice("Sipariş değişti; hazırlık aşamalarını yeniden tamamlayın."); return; }
+      await draft.save(stageAction[0] as DraftRequest["command"]);
+    } catch { /* Persistence errors are displayed by the draft hook. */ }
+    finally { setPending(false); }
+  }
   const { shortages, cart, baseMode, franchiseeId: selected } = values;
   const edit = (update: (previous: DraftValues) => DraftValues) => { setPreview(false); setNotice(""); draft.change(update); };
   const setShortages = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, shortages: update(previous.shortages) }));
@@ -123,6 +136,7 @@ export function OrderForm({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3"><p role="status" className="text-sm text-muted-foreground">{draft.busy ? "Taslak kaydediliyor..." : draft.unsaved ? "Kaydedilmeyi bekleyen değişiklikler var" : draft.record ? `${draft.record.orderNumber} · Kaydedildi` : "Yeni taslak"}</p><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
+      <ol aria-label="Depo sipariş aşamaları" className="grid gap-2 sm:grid-cols-4">{Object.entries(warehouseDraftStages).map(([key, label]) => <li key={key} aria-current={stage === key ? "step" : undefined} className={`border-b-2 p-2 text-sm ${stage === key ? "border-emerald-600 font-semibold text-emerald-800" : "border-muted text-muted-foreground"}`}>{label}</li>)}</ol>
       {draft.error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{draft.error}</p> : null}
       {!draft.localBackupAvailable ? <p role="alert" className="text-sm text-amber-800">Bu cihazda yerel yedek oluşturulamadı. Sunucu kaydı tamamlanmadan sayfayı kapatmayın.</p> : null}
       {draft.blocked ? <Button type="button" variant="outline" onClick={draft.reopen}>Güncel Taslağı Yeniden Aç</Button> : null}
@@ -231,7 +245,8 @@ export function OrderForm({
           {pdfError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{pdfError}</p> : null}
           {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
           <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending} onClick={() => void saveManually()}><Save className="size-4" />{draft.reviewingRecovery ? "Yerel Kopyayı Onayla ve Kaydet" : "Taslağı Kaydet"}</Button>
-          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId) || (preview && !canSubmit)}>
+          {stageAction && canSubmit ? <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || draft.busy || draft.reviewingRecovery || !items.length || (!selected && !values.branchId)} onClick={() => void advanceStage()}>{stageAction[1]}</Button> : null}
+          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId) || (preview && (!canSubmit || stage !== "READY"))}>
             {preview ? <Send className="size-4" /> : null}{pending ? "İşleniyor..." : preview ? "Depo Onayını Ver ve Merkeze Gönder" : "Kaydet ve Önizle"}
           </Button>
           {draft.record ? <Button type="button" variant="ghost" className="w-full text-rose-700" disabled={pending || pdfPending || draft.reviewingRecovery} onClick={() => setConfirmation("cancel")}><Trash2 className="size-4" />Taslağı İptal Et</Button> : null}

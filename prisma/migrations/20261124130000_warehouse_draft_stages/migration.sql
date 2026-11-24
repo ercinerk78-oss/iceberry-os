@@ -1,0 +1,1 @@
+ALTER TABLE "FranchiseOrder" ADD COLUMN IF NOT EXISTS "warehouseDraftStage" TEXT NOT NULL DEFAULT 'DRAFT';
