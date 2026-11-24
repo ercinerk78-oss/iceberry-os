@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
 import { changeOrderQuantity, salesUnitFactor, toBaseQuantity } from "@/lib/order-quantity";
+import { orderPdfDownloadFilename } from "@/lib/order-pdf-filename";
 
 type Product = {
   id: string;
@@ -84,7 +85,7 @@ export function OrderForm({
       }
       const url=URL.createObjectURL(await response.blob());
       const link=document.createElement("a");
-      link.href=url;link.download="Iceberry-Siparis-Onizleme.pdf";document.body.appendChild(link);link.click();link.remove();
+      link.href=url;link.download=orderPdfDownloadFilename(response.headers);document.body.appendChild(link);link.click();link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     } catch(error) {setPdfError(error instanceof Error?error.message:"PDF indirilemedi.");}
     finally {setPdfPending(false);}

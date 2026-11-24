@@ -4,6 +4,7 @@ import { hasPermissionWithOverrides } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { orderSchema } from "@/lib/validations/order";
 import { orderPreviewPdf } from "@/lib/order-preview-pdf";
+import { orderPdfFilename } from "@/lib/order-pdf-filename";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
       deliveryDate:delivery?new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeZone:"Europe/Istanbul"}).format(delivery):undefined,notes:input.notes,currency,
       items:input.items.map(item=>{const product=products.find(p=>p.id===item.productId)!;return{name:product.name,sku:product.sku,unit:product.unit,quantity:item.quantity,unitPrice:product.salePrice,vatRate:product.vatRate,manualShortShipment:item.manualShortShipment};}),
     });
-    return new Response(new Uint8Array(bytes),{headers:{"Content-Type":"application/pdf","Content-Disposition":'attachment; filename="Iceberry-Siparis-Onizleme.pdf"',"Cache-Control":"private, no-store"}});
+    const filename=orderPdfFilename(branch?.branchName??group!.companyName);
+    return new Response(new Uint8Array(bytes),{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="${filename}"`,"X-Iceberry-Pdf-Filename":filename,"Cache-Control":"private, no-store"}});
   } catch {
     console.error("Order preview PDF generation failed");
     return NextResponse.json({error:"PDF oluşturulamadı. Lütfen tekrar deneyin."},{status:500});
