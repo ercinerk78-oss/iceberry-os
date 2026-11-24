@@ -162,6 +162,7 @@ model Branch {
   turnoverRentRate              Float?
   depositAmount                 Float?
   royaltyRate                   Float?
+  royaltyCalculationSettings    Json?
   marketingContributionRate     Float?
   managerName                   String?
   managerPhone                  String?
@@ -970,6 +971,7 @@ model BranchRevenueRecord {
   year              Int
   month             Int
   grossRevenue      Float
+  royaltyCalculationInputs Json?
   netRevenue        Float?
   targetRevenue     Float?
   transactionCount  Int?

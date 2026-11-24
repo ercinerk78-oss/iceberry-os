@@ -245,6 +245,7 @@ export function routePermission(path: string): Permission | null {
   if (path.startsWith("/franchisees")) return "franchisees";
   if (path.startsWith("/branches")) return "branches";
   if (path.startsWith("/branch-map")) return "branches";
+  if (path.startsWith("/branch-revenues/royalty")) return "finance";
   if (path.startsWith("/branch-revenues")) return "branch_revenue";
   if (path.startsWith("/openings")) return "openings";
   if (path.startsWith("/procurement")) return "procurement";

@@ -81,6 +81,7 @@ export const navigationGroups: NavigationGroup[] = [
       item("branchVisits", "navigation.branchVisits", "/branch-visits", "CalendarCheck2"),
       item("branchPortal", "navigation.branchPortal", "/branch-portal", "CheckSquare"),
       item("branchRevenues", "navigation.branchRevenues", "/branch-revenues", "LineChart"),
+      item("royaltyCalculation", "navigation.royaltyCalculation", "/branch-revenues/royalty", "Landmark"),
       item("operations", "navigation.operations", "/operations", "ShieldCheck"),
       item("branchMap", "navigation.branchMap", "/branch-map", "MapPinned"),
     ],
