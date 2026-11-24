@@ -42,6 +42,7 @@ function refresh() {
 export async function submitOrder(_: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     await requirePermission("orders");
+    await requirePermission("warehouse");
     if (formData.get("previewConfirmed") !== "yes") return { ok: false, message: "Siparişi önizleyip onaylamalısınız." };
     const items = JSON.parse(String(formData.get("items") || "[]"));
     const order = await createOrder({
@@ -76,6 +77,8 @@ export async function submitOrder(_: ActionResult, formData: FormData): Promise<
 
 export async function orderCommand(id: string, command: string, formData?: FormData) {
   const user = await requirePermission(command === "invoice" ? "invoice" : command === "ship" ? "shipment_manage" : "order_admin");
+  const current = await prisma.franchiseOrder.findUnique({ where: { id }, select: { status: true } });
+  if (current && ["DRAFT", "DRAFT_CANCELLED"].includes(current.status)) throw new Error("Taslak önce depo tarafından onaylanıp merkeze gönderilmelidir.");
   if (command === "approve") await approveOrder(id);
   else if (command === "invoice") await createInvoice(id);
   else if (command === "queue") await changeOrderStatus(id, "WAREHOUSE_QUEUE");

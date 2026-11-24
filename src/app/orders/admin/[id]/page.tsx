@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function OrderAdminDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const order = await prisma.franchiseOrder.findUnique({
-    where: { id },
+    where: { id, status: { notIn: ["DRAFT", "DRAFT_CANCELLED"] } },
     select: {
       id: true,
       orderNumber: true,

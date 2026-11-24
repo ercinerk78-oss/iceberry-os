@@ -1,9 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { Plus, Minus, Trash2, FileDown } from "lucide-react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Plus, Minus, Trash2, FileDown, Save, Send } from "lucide-react";
+import { AlertDialog } from "@base-ui/react/alert-dialog";
 
-import { submitOrder, type ActionResult } from "@/app/orders/actions";
+import { useOrderDraft } from "@/components/orders/use-order-draft";
+import { BranchSearchSelect } from "@/components/orders/branch-search-select";
+import { type DraftRecord, type DraftValues } from "@/lib/order-draft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
@@ -20,6 +24,7 @@ type Product = {
   vatRate: number;
   available: number;
   salesUnitFactor: number;
+  unavailable?: boolean;
 };
 
 type Owner = {
@@ -33,24 +38,28 @@ export function OrderForm({
   owners,
   warehouseId,
   standaloneBranches,
+  draftId, userId, initialValues, initialRecord, canSubmit, canViewCenter,
 }: {
   products: Product[];
   owners: Owner[];
   warehouseId: string;
   standaloneBranches: Owner["branches"];
+  draftId: string; userId: string; initialValues: DraftValues; initialRecord: DraftRecord | null; canSubmit: boolean; canViewCenter: boolean;
 }) {
-  const [state, action, pending] = useActionState(submitOrder, {
-    ok: false,
-    message: "",
-  } as ActionResult);
+  const draft = useOrderDraft({ id: draftId, userId, warehouseId, initialValues, initialRecord });
+  const { values } = draft;
+  const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [confirmation, setConfirmation] = useState<"recovery" | "cancel" | null>(null);
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
   const [pdfError, setPdfError] = useState("");
-  const [shortages, setShortages] = useState<Record<string, boolean>>({});
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [baseMode, setBaseMode] = useState<Record<string, boolean>>({});
-  const [selected, setSelected] = useState(standaloneBranches.length ? "" : owners[0]?.id ?? "");
+  const { shortages, cart, baseMode, franchiseeId: selected } = values;
+  const edit = (update: (previous: DraftValues) => DraftValues) => { setPreview(false); setNotice(""); draft.change(update); };
+  const setShortages = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, shortages: update(previous.shortages) }));
+  const setBaseMode = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, baseMode: update(previous.baseMode) }));
+  const setSelected = (id: string) => edit(previous => ({ ...previous, franchiseeId: id, branchId: "" }));
   const branches = selected ? owners.find((owner) => owner.id === selected)?.branches ?? [] : standaloneBranches;
   const items = useMemo(
     () => products.filter((product) => cart[product.id] > 0).map((product) => ({ ...product, quantity: cart[product.id] })),
@@ -58,24 +67,24 @@ export function OrderForm({
   );
   const total = items.reduce((amount, item) => amount + item.salePrice * item.quantity * (1 + item.vatRate / 100), 0);
   const mixedCurrency = items.some((item) => item.currency !== items[0].currency);
+  const missingProducts = Object.keys(cart).filter(id => cart[id] > 0 && !products.some(product => product.id === id));
 
   const setQuantity = (id: string, quantity: number) => {
-    setCart((current) => ({ ...current, [id]: Math.max(0, Number.isFinite(quantity) ? quantity : 0) }));
+    edit(previous => ({ ...previous, cart: { ...previous.cart, [id]: Math.max(0, Number.isFinite(quantity) ? quantity : 0) } }));
   };
-  const found = query.trim() ? products.filter((product) =>
+  const found = query.trim() ? products.filter((product) => !product.unavailable &&
     (product.name + " " + product.sku).toLocaleLowerCase("tr-TR").includes(query.trim().toLocaleLowerCase("tr-TR")),
   ) : [];
 
-  async function downloadPdf(form: HTMLFormElement) {
+  async function downloadPdf() {
     if(pdfPending)return;
     setPdfPending(true);setPdfError("");
-    const data=new FormData(form);
     try {
       const response=await fetch("/orders/preview-pdf",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          warehouseId,franchiseeId:data.get("franchiseeId")||undefined,branchId:data.get("branchId")||undefined,
-          requestedDeliveryDate:data.get("requestedDeliveryDate")||undefined,notes:data.get("notes")||undefined,
+          warehouseId,franchiseeId:values.franchiseeId||undefined,branchId:values.branchId||undefined,
+          requestedDeliveryDate:values.requestedDeliveryDate||undefined,notes:values.notes||undefined,
           items:items.map(item=>({productId:item.id,quantity:item.quantity,manualShortShipment:shortages[item.id]??false})),
         }),
       });
@@ -91,19 +100,46 @@ export function OrderForm({
     finally {setPdfPending(false);}
   }
 
-  if (state.ok) return <div className="space-y-4 rounded-lg border bg-white p-5">
-    <p role="status" className="font-semibold text-emerald-700">{state.message}</p>
-    <Button asChild><a href="/orders">Yeni Sipariş</a></Button>
+  async function saveManually() {
+    if (draft.reviewingRecovery) { setConfirmation("recovery"); return; }
+    setPending(true);
+    try { const saved = await (draft.reviewingRecovery ? draft.confirmRecovery() : draft.save()); setNotice(`${saved.orderNumber} taslağı kaydedildi.`); } catch { /* The draft hook displays persistence errors. */ }
+    finally { setPending(false); }
+  }
+  async function confirmAction() {
+    const command = confirmation;
+    setConfirmation(null); setPending(true);
+    try {
+      const saved = command === "recovery" ? await draft.confirmRecovery() : await draft.save("cancel");
+      setNotice(`${saved.orderNumber} taslağı güncellendi.`);
+    } catch { /* The draft hook displays persistence errors. */ }
+    finally { setPending(false); }
+  }
+  if (draft.closed) return <div className="space-y-4 rounded-lg border bg-white p-5">
+    <p role="status" className="font-semibold text-emerald-700">{draft.record?.orderNumber}: {draft.record?.status === "SUBMITTED" ? "Depo onayı verildi. Sipariş merkez sipariş onayına gönderildi." : "Taslak iptal edildi."}</p>
+    <div className="flex flex-wrap gap-2"><Button asChild><Link href="/orders?new=1">Yeni Taslak</Link></Button>{canViewCenter && draft.record?.status === "SUBMITTED" ? <Button variant="outline" asChild><Link href={`/orders/admin/${draft.record.id}`}>Merkez Sipariş Onayı</Link></Button> : null}</div>
   </div>;
 
   return (
-    <form action={action} onSubmit={(event) => {
-      if (!preview) { event.preventDefault(); setPreview(true); void downloadPdf(event.currentTarget); }
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3"><p role="status" className="text-sm text-muted-foreground">{draft.busy ? "Taslak kaydediliyor..." : draft.unsaved ? "Kaydedilmeyi bekleyen değişiklikler var" : draft.record ? `${draft.record.orderNumber} · Kaydedildi` : "Yeni taslak"}</p><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
+      {draft.error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{draft.error}</p> : null}
+      {!draft.localBackupAvailable ? <p role="alert" className="text-sm text-amber-800">Bu cihazda yerel yedek oluşturulamadı. Sunucu kaydı tamamlanmadan sayfayı kapatmayın.</p> : null}
+      {draft.blocked ? <Button type="button" variant="outline" onClick={draft.reopen}>Güncel Taslağı Yeniden Aç</Button> : null}
+      {draft.recovery ? <Button type="button" variant="outline" onClick={draft.restore}>Bu Cihazdaki Değişiklikleri Geri Yükle</Button> : null}
+      {draft.reviewingRecovery ? <p role="status" className="text-sm text-amber-800">Yerel kopya incelemede; sunucuya kaydedilmedi.</p> : null}
+    <form onSubmit={async event => {
+      event.preventDefault();
+      if (draft.reviewingRecovery) { setPdfError("Önce yerel kopyanın kaydını onaylayın."); return; }
+      setPending(true); setPdfError("");
+      try {
+        await draft.save();
+        if (!preview) { setPreview(true); await downloadPdf(); }
+        else await draft.save("submit");
+      } catch { /* The draft hook displays persistence errors. */ }
+      finally { setPending(false); }
     }} className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <input type="hidden" name="warehouseId" value={warehouseId} />
-      <input type="hidden" name="items" value={JSON.stringify(items.map((item) => ({ productId: item.id, quantity: item.quantity, manualShortShipment: shortages[item.id] ?? false })))} />
-
-      <input type="hidden" name="previewConfirmed" value={preview ? "yes" : "no"} />
+      <fieldset disabled={!draft.ready || pending || draft.blocked} className="contents">
       <section className="min-w-0 space-y-4">
         <h2 className="text-lg font-semibold">{preview ? "Sipariş Önizlemesi" : "Ürün Seçimi"}</h2>
         <label className="block text-sm">Ürün adı veya SKU ile ara
@@ -121,9 +157,11 @@ export function OrderForm({
           {query.trim() && !found.length ? <p className="p-3 text-sm">Ürün bulunamadı.</p> : null}
         </div>
         <div className="space-y-3">
+          {missingProducts.map(id => <div key={id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"><span>Listede bulunamayan ürün · {cart[id]} birim</span><Button type="button" variant="outline" aria-label="Listede bulunamayan ürünü çıkar" title="Ürünü çıkar" onClick={() => setQuantity(id, 0)}><Trash2 className="size-4" /></Button></div>)}
           {items.map((product) => (
             <div key={product.id} className={`rounded-lg border p-4 ${shortages[product.id] ? "border-rose-500 bg-rose-50 text-rose-800" : "bg-white"}`}>
               <h3 className="font-semibold">{product.name}</h3>
+              {product.unavailable ? <p className="text-sm font-semibold text-rose-700">Ürün pasif; taslaktan çıkarılmalı.</p> : null}
               <p className="text-sm">{product.sku} · {money(product.salePrice, product.currency)} · Kullanılabilir: {product.available} {product.unit}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {salesUnitFactor(product.salesUnitFactor) !== 1 ? <select aria-label={`${product.name} miktar birimi`} value={baseMode[product.id] ? "base" : "sales"} onChange={(event) => setBaseMode((current) => ({ ...current, [product.id]: event.target.value === "base" }))} className="h-10 max-w-full rounded border bg-white px-2">
@@ -145,7 +183,7 @@ export function OrderForm({
         </div>
       </section>
 
-      <Card className="h-fit shadow-none xl:sticky xl:top-28">
+      <Card className="h-fit overflow-visible shadow-none xl:sticky xl:top-28">
         <CardHeader>
           <CardTitle>Sipariş Özeti</CardTitle>
         </CardHeader>
@@ -159,6 +197,7 @@ export function OrderForm({
               className="mt-1 h-10 w-full rounded-lg border px-3"
             >
               <option value="">Grupsuz şubeler</option>
+              {selected && !owners.some(owner => owner.id === selected) ? <option value={selected}>Şube grubu artık listede yok</option> : null}
               {owners.map((owner) => (
                 <option key={owner.id} value={owner.id}>
                   {owner.companyName}
@@ -166,30 +205,20 @@ export function OrderForm({
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            Şube
-            <select key={selected} name="branchId" required={!selected} className="mt-1 h-10 w-full rounded-lg border px-3">
-              <option value="">{selected ? "Genel merkez siparişi" : branches.length ? "Şube seçin" : "Grupsuz şube bulunamadı"}</option>
-              {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.branchName}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <BranchSearchSelect key={selected} branches={branches} value={values.branchId} onChange={id => edit(previous => ({ ...previous, branchId: id }))} required={!selected} />
           <label className="block text-sm">
             Talep edilen teslim tarihi
-            <input type="date" name="requestedDeliveryDate" className="mt-1 h-10 w-full rounded-lg border px-3" />
+            <input type="date" name="requestedDeliveryDate" value={values.requestedDeliveryDate} onChange={event => edit(previous => ({ ...previous, requestedDeliveryDate: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="block text-sm">
             Fatura işlemi
-            <select name="invoicePreference" defaultValue="CREATE_LATER" className="mt-1 h-10 w-full rounded-lg border px-3">
+            <select name="invoicePreference" value={values.invoicePreference} onChange={event => edit(previous => ({ ...previous, invoicePreference: event.target.value as DraftValues["invoicePreference"] }))} className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="CREATE_PARASUT_INVOICE">Depo onayından sonra Paraşüt faturası oluştur</option>
               <option value="CREATE_LATER">Faturayı daha sonra oluştur</option>
               <option value="NOT_REQUIRED">Fatura gerekmiyor</option>
             </select>
           </label>
-          <textarea name="notes" placeholder="Sipariş notu" className="min-h-20 w-full rounded-lg border p-3" />
+          <textarea name="notes" aria-label="Sipariş notu" placeholder="Sipariş notu" maxLength={1000} value={values.notes} onChange={event => edit(previous => ({ ...previous, notes: event.target.value }))} className="min-h-20 w-full rounded-lg border p-3" />
           <div className="border-t pt-3">
             <div className="flex justify-between font-semibold">
               <span>Genel toplam</span>
@@ -198,21 +227,28 @@ export function OrderForm({
             <p className="mt-1 text-xs text-[#65705f]">KDV dahildir · {items.length} kalem</p>
           </div>
           {preview ? <Button type="button" variant="outline" className="w-full" onClick={() => setPreview(false)}>Düzenlemeye Dön</Button> : null}
-          {preview ? <Button type="button" variant="outline" className="w-full" disabled={pdfPending||pending} onClick={(event) => {
-            const form=event.currentTarget.form;
-            if(form?.reportValidity())void downloadPdf(form);
-          }}><FileDown className="mr-2 size-4" />{pdfPending?"PDF hazırlanıyor...":"Güncel PDF’yi İndir"}</Button> : null}
+          {preview ? <Button type="button" variant="outline" className="w-full" disabled={pdfPending||pending} onClick={() => void downloadPdf()}><FileDown className="mr-2 size-4" />{pdfPending?"PDF hazırlanıyor...":"Güncel PDF’yi İndir"}</Button> : null}
           {pdfError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{pdfError}</p> : null}
-          {state.message ? (
-            <p className={`rounded-lg p-3 text-sm ${state.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
-              {state.message}
-            </p>
-          ) : null}
-          <Button className="w-full" disabled={pending || pdfPending || !items.length || mixedCurrency || (!selected && !branches.length)}>
-            {pending ? "Gönderiliyor..." : preview ? "Onayla ve Siparişi Gönder" : "Önizleme"}
+          {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
+          <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending} onClick={() => void saveManually()}><Save className="size-4" />{draft.reviewingRecovery ? "Yerel Kopyayı Onayla ve Kaydet" : "Taslağı Kaydet"}</Button>
+          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId) || (preview && !canSubmit)}>
+            {preview ? <Send className="size-4" /> : null}{pending ? "İşleniyor..." : preview ? "Depo Onayını Ver ve Merkeze Gönder" : "Kaydet ve Önizle"}
           </Button>
+          {draft.record ? <Button type="button" variant="ghost" className="w-full text-rose-700" disabled={pending || pdfPending || draft.reviewingRecovery} onClick={() => setConfirmation("cancel")}><Trash2 className="size-4" />Taslağı İptal Et</Button> : null}
         </CardContent>
       </Card>
+      </fieldset>
     </form>
+    <AlertDialog.Root open={confirmation !== null} onOpenChange={open => { if (!open) setConfirmation(null); }}>
+      <AlertDialog.Portal>
+        <AlertDialog.Backdrop style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 110 }} />
+        <AlertDialog.Popup className="space-y-4 rounded-lg border bg-white p-5 shadow-xl" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "calc(100% - 32px)", maxWidth: 480, zIndex: 120 }}>
+          <AlertDialog.Title className="text-lg font-semibold">{confirmation === "recovery" ? "Yerel Kopyayı Kaydet" : "Taslağı İptal Et"}</AlertDialog.Title>
+          <AlertDialog.Description className="text-sm text-muted-foreground">{confirmation === "recovery" ? "Yerel kopya, sunucudaki güncel taslağın yerine kaydedilecek. Değişiklikleri onaylıyor musunuz?" : "Bu sipariş taslağı iptal edilsin mi? Stok miktarları değişmeyecek."}</AlertDialog.Description>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={() => setConfirmation(null)}>Vazgeç</Button><Button type="button" variant={confirmation === "cancel" ? "destructive" : "default"} onClick={() => void confirmAction()}>Onayla</Button></div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
+    </div>
   );
 }

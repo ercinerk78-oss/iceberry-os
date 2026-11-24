@@ -1,4 +1,6 @@
 export const ORDER_STATUSES = [
+  ["DRAFT", "Depo Taslağı"],
+  ["DRAFT_CANCELLED", "İptal Edilen Taslak"],
   ["SUBMITTED", "İnceleme Bekliyor"],
   ["APPROVED", "Onaylandı"],
   ["STOCK_RESERVED", "Stok Rezerve"],

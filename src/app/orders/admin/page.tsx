@@ -3,6 +3,7 @@ import { OrderTable } from "@/components/orders/order-table";
 import { prisma } from "@/lib/prisma";
 import { containsInsensitive } from "@/lib/search";
 import { ORDER_STATUSES, warehouseLabel } from "@/lib/warehouse";
+import { requirePermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,10 @@ export default async function AdminOrders({
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   const params = await searchParams;
+  await requirePermission("order_admin");
   const orders = await prisma.franchiseOrder.findMany({
     where: {
-      status: params.status || undefined,
+      status: params.status && !["DRAFT", "DRAFT_CANCELLED"].includes(params.status) ? params.status : { notIn: ["DRAFT", "DRAFT_CANCELLED"] },
       OR: params.q
         ? [{ orderNumber: containsInsensitive(params.q) }, { franchisee: { companyName: containsInsensitive(params.q) } }, { branch: { branchName: containsInsensitive(params.q) } }]
         : undefined,
@@ -46,7 +48,7 @@ export default async function AdminOrders({
           />
           <select name="status" defaultValue={params.status} className="h-10 rounded-lg border px-3">
             <option value="">Tüm durumlar</option>
-            {ORDER_STATUSES.map(([value]) => (
+            {ORDER_STATUSES.filter(([value]) => !["DRAFT", "DRAFT_CANCELLED"].includes(value)).map(([value]) => (
               <option key={value} value={value}>
                 {warehouseLabel(ORDER_STATUSES, value)}
               </option>

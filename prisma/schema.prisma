@@ -2745,6 +2745,8 @@ model FranchiseOrder {
   externalOrderId       String?
   ticimaxOrderNumber    String?
   status                String                  @default("SUBMITTED")
+  draftVersion          Int                     @default(0)
+  invoicePreference     String                  @default("CREATE_LATER")
   invoiceStatus         String                  @default("NOT_CREATED")
   parasutInvoiceId      String?
   parasutInvoiceNumber  String?
