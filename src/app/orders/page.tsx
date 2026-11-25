@@ -8,7 +8,6 @@ import { z } from "zod";
 import Link from "next/link";
 import { hasPermissionWithOverrides } from "@/lib/permissions";
 import { emptyDraftValues, type DraftRecord } from "@/lib/order-draft";
-import { money } from "@/lib/warehouse";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -87,15 +86,14 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       <section className="mb-6 space-y-3 border-b pb-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Sipariş Taslakları</h2><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
         <div className="max-h-72 overflow-auto border">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="sticky top-0 bg-muted"><tr>{["Taslak No", "Şube", "Ürün Kalemi", "Tutar", "Son Güncelleme", ""].map((label, index) => <th key={index} className="p-3">{label}</th>)}</tr></thead>
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead className="sticky top-0 bg-muted"><tr>{["Düzenle", "Şube Adı", "Ürün Kalemi", "Depo Aşaması", "Son Güncelleme"].map((label, index) => <th key={index} className="p-3">{label}</th>)}</tr></thead>
             <tbody>{drafts.map(draft => <tr key={draft.id} className={`border-t ${draft.id === draftId ? "bg-muted/50" : ""}`}>
-              <td className="p-3 font-medium">{draft.orderNumber}</td>
+              <td className="p-3"><Link href={`/orders?draft=${draft.id}`} aria-label={`${draft.branch?.branchName || draft.franchisee?.companyName || draft.orderNumber} taslağını düzenle`} className="font-medium underline">Düzenle</Link></td>
               <td className="p-3">{draft.branch?.branchName || draft.franchisee?.companyName || "Şube seçilmedi"}</td>
-              <td className="p-3">{draft._count.items}</td><td className="p-3">{money(draft.grandTotal, draft.currency)}</td>
+              <td className="p-3">{draft._count.items}</td><td className="p-3">Taslak</td>
               <td className="p-3">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Istanbul" }).format(draft.updatedAt)}</td>
-              <td className="p-3"><Link href={`/orders?draft=${draft.id}`} className="font-medium underline">Düzenle</Link></td>
-            </tr>)}{!drafts.length ? <tr><td colSpan={6} className="p-4 text-muted-foreground">Kayıtlı sipariş taslağı yok.</td></tr> : null}</tbody>
+            </tr>)}{!drafts.length ? <tr><td colSpan={5} className="p-4 text-muted-foreground">Kayıtlı sipariş taslağı yok.</td></tr> : null}</tbody>
           </table>
         </div>
       </section>
