@@ -27,6 +27,8 @@ export default async function RoyaltyPage({ searchParams }: { searchParams: Prom
   const previousTotal = revenue?.royaltyCalculationInputs && typeof revenue.royaltyCalculationInputs === "object" && !Array.isArray(revenue.royaltyCalculationInputs) ? revenue.royaltyCalculationInputs.totalRevenue : undefined;
   const profileRate = branch?.financialProfile?.royaltyRate?.toNumber();
   const rate = saved.success ? saved.data.rate : settings.success ? settings.data.rate : profileRate === 2 ? 2 : 3;
+  const configuration = saved.success ? saved.data : settings.success ? settings.data : { hasDelivery: true, hasBreakEven: false, breakEven: "0" };
+  const manualTotal = saved.success && saved.data.totalRevenueSource === "MANUAL" ? saved.data.totalRevenue : undefined;
   return <AppShell activeHref="/branch-revenues/royalty" eyebrow="Şubeler" title="Royalty Hesaplama">
     <form className="mb-6 flex flex-wrap items-end gap-3 border-b pb-5">
       <label className="text-sm">Royalty Dönemi<input aria-label="Royalty Dönemi" type="month" name="period" defaultValue={period} min="2000-01" max="2100-12" className="mt-1 block h-10 rounded-md border px-3" /></label>
@@ -35,7 +37,18 @@ export default async function RoyaltyPage({ searchParams }: { searchParams: Prom
     </form>
     <p className="mb-5 text-sm text-muted-foreground">Hesaplama kaydı · Tahakkuk veya fatura oluşturulmaz.</p>
     {params.period && !parsedPeriod.success && <p role="alert" className="mb-4 text-sm text-rose-700">Geçersiz dönem yerine önceki ay gösteriliyor.</p>}
-    {branch && revenue && revenue.currency === "TRY" ? <RoyaltyCalculator key={`${revenue.id}-${revenue.updatedAt.toISOString()}-${branch.updatedAt.toISOString()}`} branchName={branch.branchName} revenueId={revenue.id} period={period} totalRevenue={new Prisma.Decimal(revenue.grossRevenue).toFixed(2)} revenueUpdatedAt={revenue.updatedAt.toISOString()} branchUpdatedAt={branch.updatedAt.toISOString()} rate={rate} deliveryRevenue={saved.success ? saved.data.deliveryRevenue : ""} startMonth={settings.success ? settings.data.startMonth : ""} exemptionNote={settings.success ? settings.data.exemptionNote : ""} revenueStatus={revenue.status} savedTotalRevenue={typeof previousTotal === "string" ? previousTotal : undefined} /> : branch ? <p role="status" className="border p-4">{!revenue ? "Bu şube ve dönem için ciro girilmemiş. Önce Şube Ciroları kaydını oluşturun." : "Bu hesaplama yalnız TL ciro kayıtları için kullanılabilir."}</p> : null}
+    {branch && revenue && revenue.currency === "TRY" ? <RoyaltyCalculator
+      key={`${revenue.id}-${revenue.updatedAt.toISOString()}-${branch.updatedAt.toISOString()}`}
+      branchName={branch.branchName} revenueId={revenue.id} period={period}
+      totalRevenue={manualTotal ?? new Prisma.Decimal(revenue.grossRevenue).toFixed(2)}
+      sourceTotalRevenue={new Prisma.Decimal(revenue.grossRevenue).toFixed(2)}
+      totalRevenueSource={manualTotal ? "MANUAL" : "BRANCH_REVENUE"}
+      hasDelivery={configuration.hasDelivery} hasBreakEven={configuration.hasBreakEven} breakEven={configuration.breakEven}
+      revenueUpdatedAt={revenue.updatedAt.toISOString()} branchUpdatedAt={branch.updatedAt.toISOString()}
+      rate={rate} deliveryRevenue={saved.success ? saved.data.deliveryRevenue : configuration.hasDelivery ? "" : "0"}
+      startMonth={settings.success ? settings.data.startMonth : ""} exemptionNote={settings.success ? settings.data.exemptionNote : ""}
+      revenueStatus={revenue.status} savedTotalRevenue={typeof previousTotal === "string" ? previousTotal : undefined}
+    /> : branch ? <p role="status" className="border p-4">{!revenue ? "Bu şube ve dönem için ciro girilmemiş. Önce Şube Ciroları kaydını oluşturun." : "Bu hesaplama yalnız TL ciro kayıtları için kullanılabilir."}</p> : null}
     <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-muted"><tr>{["Şube", "Dönem Toplam Cirosu", "Paket Servis Cirosu", "İşlem"].map(title => <th className="p-3" key={title}>{title}</th>)}</tr></thead><tbody>{visible.map(branch => {
       const record = revenues.find(record => record.branchId === branch.id);
       const inputs = royaltyInputsSchema.safeParse(record?.royaltyCalculationInputs);

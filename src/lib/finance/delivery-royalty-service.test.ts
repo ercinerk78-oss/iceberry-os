@@ -37,3 +37,22 @@ test("rejected revenue, company branches and invalid delivery are rejected", asy
   await assert.rejects(() => saveDeliveryRoyaltyTransaction(f.tx, { ...input, deliveryRevenue: "500000" }, "u", null), /aşamaz/);
   assert.equal(f.writes.length, 0);
 });
+
+test("manual total and break-even persist without changing the official revenue", async () => {
+  const f = fixture();
+  const result = await saveDeliveryRoyaltyTransaction(f.tx, { ...input, totalRevenue: "500000", totalRevenueSource: "MANUAL", deliveryRevenue: "100000", hasDelivery: true, hasBreakEven: true, breakEven: "50000" }, "u", null);
+  assert.equal(result.result.totalRoyalty, "14760.00");
+  assert.equal(f.revenue.grossRevenue, 425030);
+  const writes = JSON.stringify(f.writes);
+  assert.match(writes, /"totalRevenue":"500000"/);
+  assert.match(writes, /"sourceTotalRevenue":"425030.00"/);
+  assert.match(writes, /"breakEven":"50000"/);
+  assert.doesNotMatch(writes, /"grossRevenue"/);
+});
+
+test("a no-delivery no-break-even choice is stored with explicit zeros", async () => {
+  const f = fixture();
+  const result = await saveDeliveryRoyaltyTransaction(f.tx, { ...input, hasDelivery: false, deliveryRevenue: "0", hasBreakEven: false, breakEven: "0", rate: 2 }, "u", null);
+  assert.equal(result.result.totalRoyalty, "10200.72");
+  assert.match(JSON.stringify(f.writes), /"hasDelivery":false/);
+});

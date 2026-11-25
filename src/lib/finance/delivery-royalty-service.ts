@@ -20,8 +20,12 @@ export async function saveDeliveryRoyaltyTransaction(tx: Prisma.TransactionClien
   if (period !== input.period || revenue.periodType !== "MONTHLY" || !["DRAFT", "SUBMITTED", "APPROVED", "LOCKED"].includes(revenue.status)) throw new Error("Bu dönem için kullanılabilir aylık ciro kaydı yok.");
   if (revenue.currency !== "TRY") throw new Error("Bu hesaplama yalnız TL ciro kayıtları için kullanılabilir.");
   if (revenue.branch.ownershipType !== "FRANCHISE") throw new Error("Royalty yalnız franchise şubelerinde hesaplanabilir.");
-  const result = calculateDeliveryRoyalty({ ...input, totalRevenue: new Prisma.Decimal(revenue.grossRevenue).toFixed(2) });
-  const branch = await tx.branch.update({ where: { id: revenue.branchId }, data: { royaltyCalculationSettings: { rate: input.rate, startMonth: input.startMonth, exemptionNote: input.exemptionNote } } });
-  const updated = await tx.branchRevenueRecord.update({ where: { id: input.revenueId }, data: { royaltyCalculationInputs: { deliveryRevenue: input.deliveryRevenue, rate: input.rate, period, startMonth: input.startMonth, exemptionNote: input.exemptionNote, totalRevenue: new Prisma.Decimal(revenue.grossRevenue).toFixed(2), result, savedById: userId, savedAt: new Date().toISOString() } } });
+  const sourceTotalRevenue = new Prisma.Decimal(revenue.grossRevenue).toFixed(2);
+  const totalRevenue = input.totalRevenueSource === "MANUAL" ? input.totalRevenue : sourceTotalRevenue;
+  if (!totalRevenue) throw new Error("Toplam ciro girin.");
+  const result = calculateDeliveryRoyalty({ ...input, totalRevenue });
+  const settings = { rate: input.rate, startMonth: input.startMonth, exemptionNote: input.exemptionNote, hasDelivery: input.hasDelivery, hasBreakEven: input.hasBreakEven, breakEven: input.breakEven };
+  const branch = await tx.branch.update({ where: { id: revenue.branchId }, data: { royaltyCalculationSettings: settings } });
+  const updated = await tx.branchRevenueRecord.update({ where: { id: input.revenueId }, data: { royaltyCalculationInputs: { ...settings, deliveryRevenue: input.deliveryRevenue, period, totalRevenue, totalRevenueSource: input.totalRevenueSource, sourceTotalRevenue, result, savedById: userId, savedAt: new Date().toISOString() } } });
   return { revenueUpdatedAt: updated.updatedAt.toISOString(), branchUpdatedAt: branch.updatedAt.toISOString(), result };
 }

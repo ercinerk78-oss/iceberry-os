@@ -4,7 +4,33 @@ import { calculateDeliveryRoyalty, defaultRoyaltyPeriod, royaltySettingsSchema }
 
 const input = { totalRevenue: "425030.00", deliveryRevenue: "126000.00", rate: 3, period: "2026-10" };
 test("confirmed October example includes 60 percent delivery, 3 percent royalty and 20 percent VAT", () => {
-  assert.deepEqual(calculateDeliveryRoyalty(input), { cafeRevenue: "299030.00", eligibleDeliveryRevenue: "75600.00", royaltyBase: "374630.00", netRoyalty: "11238.90", vat: "2247.78", totalRoyalty: "13486.68", exempt: false });
+  assert.deepEqual(calculateDeliveryRoyalty(input), { adjustedTotalRevenue: "425030.00", cafeRevenue: "299030.00", eligibleDeliveryRevenue: "75600.00", royaltyBase: "374630.00", netRoyalty: "11238.90", vat: "2247.78", totalRoyalty: "13486.68", exempt: false });
+});
+
+test("updated Excel deducts break-even before subtracting delivery revenue", () => {
+  const result = calculateDeliveryRoyalty({ ...input, totalRevenue: "500000", deliveryRevenue: "100000", hasBreakEven: true, breakEven: "50000" });
+  assert.equal(result.adjustedTotalRevenue, "450000.00");
+  assert.equal(result.cafeRevenue, "350000.00");
+  assert.equal(result.royaltyBase, "410000.00");
+  assert.equal(result.totalRoyalty, "14760.00");
+});
+
+test("all delivery, break-even and royalty rate combinations follow the same formula", () => {
+  for (const hasDelivery of [true, false]) for (const hasBreakEven of [true, false]) for (const rate of [2, 3]) {
+    const result = calculateDeliveryRoyalty({ ...input, totalRevenue: "500000", hasDelivery, deliveryRevenue: hasDelivery ? "100000" : "0", hasBreakEven, breakEven: hasBreakEven ? "50000" : "0", rate });
+    const base = 500000 - (hasBreakEven ? 50000 : 0) - (hasDelivery ? 40000 : 0);
+    assert.equal(result.royaltyBase, base.toFixed(2));
+    assert.equal(result.totalRoyalty, (base * rate / 100 * 1.2).toFixed(2));
+  }
+});
+
+test("disabled options reject stale amounts; negative bases require review, not a silent clamp", () => {
+  assert.throws(() => calculateDeliveryRoyalty({ ...input, hasDelivery: false }), /sıfır/);
+  assert.throws(() => calculateDeliveryRoyalty({ ...input, breakEven: "10" }), /kapalıyken/);
+  assert.throws(() => calculateDeliveryRoyalty({ ...input, hasBreakEven: true, breakEven: "500000" }), /negatif/);
+  const result = calculateDeliveryRoyalty({ ...input, totalRevenue: "500000", deliveryRevenue: "100000", hasBreakEven: true, breakEven: "410000" });
+  assert.equal(result.cafeRevenue, "-10000.00");
+  assert.equal(result.royaltyBase, "50000.00");
 });
 test("two percent royalty changes only the royalty rate", () => {
   const result = calculateDeliveryRoyalty({ ...input, rate: 2 });
