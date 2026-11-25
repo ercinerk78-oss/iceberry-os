@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import { visibleMainBranchConceptWhere, withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import {
-  REVENUE_SOURCE_LABELS,
   REVENUE_STATUS_LABELS,
   VISIBLE_REVENUE_STATUSES,
   formatMoney,
@@ -225,9 +224,9 @@ function RevenueTable({ rows, branches }: { rows: RevenueRowData[]; branches: Re
   return (
     <Card className="overflow-hidden shadow-none">
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[1320px] text-left text-sm">
+        <table className="w-full min-w-[1180px] text-left text-sm">
           <thead className="bg-[#f8faf6] text-xs uppercase text-[#65705f]">
-            <tr>{["Şube", "Şehir", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Kaynak", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+            <tr>{["Şube", "Şehir", "Konsept", "Ciro", "Önceki", "Değişim", "Oran", "Hedef", "Hedef Oranı", "Günlük Ort.", "Son Giriş", "Durum", "İşlem"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
             {rows.map((row) => <RevenueRow key={row.branch.id} row={row} branches={branches} />)}
@@ -267,7 +266,6 @@ function RevenueTotalRow({ rows }: { rows: RevenueRowData[] }) {
       <td className="px-4 py-4">{moneyList(totals.target)}</td>
       <td className="px-4 py-4">{percentList(totals.targetRate)}</td>
       <td className="px-4 py-4">{moneyList(totals.dailyAverage)}</td>
-      <td className="px-4 py-4">Toplam</td>
       <td className="px-4 py-4">Seçili dönem</td>
       <td className="px-4 py-4"><Badge variant="outline">{rows.filter(hasVisibleCurrentRevenue).length} şube</Badge></td>
       <td className="px-4 py-4">—</td>
@@ -305,7 +303,6 @@ function RevenueRow({ row, branches }: { row: RevenueRowData; branches: RevenueB
       <td className="px-4 py-4">{current ? formatMoney(current.targetRevenue, current.currency) : "—"}</td>
       <td className="px-4 py-4">{formatPercent(row.targetRate)}</td>
       <td className="px-4 py-4">{current ? formatMoney(row.actual / days, current.currency) : "—"}</td>
-      <td className="px-4 py-4">{current ? REVENUE_SOURCE_LABELS[current.source as keyof typeof REVENUE_SOURCE_LABELS] ?? current.source : "—"}</td>
       <td className="px-4 py-4">{current ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(current.updatedAt) : "—"}</td>
       <td className="px-4 py-4"><Badge variant="outline">{current ? REVENUE_STATUS_LABELS[current.status as keyof typeof REVENUE_STATUS_LABELS] : "Veri girilmedi"}</Badge></td>
       <td className="px-4 py-4">
