@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Minus, Trash2, FileDown, Save } from "lucide-react";
+import { Check, Plus, Minus, Trash2, FileDown, Save } from "lucide-react";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 
 import { useOrderDraft } from "@/components/orders/use-order-draft";
@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
 import { changeOrderQuantity, salesUnitFactor, toBaseQuantity } from "@/lib/order-quantity";
 import { orderPdfDownloadFilename } from "@/lib/order-pdf-filename";
+import { ProductSearchResult } from "@/components/orders/product-search-result";
+import { orderSelectionQuantity } from "@/lib/order-selection-feedback";
 
 type Product = {
   id: string;
@@ -56,6 +58,12 @@ export function OrderForm({
   const [query, setQuery] = useState("");
   const [pdfPending, setPdfPending] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [lastAdded, setLastAdded] = useState<{ id: string; message: string } | null>(null);
+  useEffect(() => {
+    if (!lastAdded) return;
+    const timer = window.setTimeout(() => setLastAdded(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [lastAdded]);
   useDraftListEditing(draftId, !draft.ready || pending || pdfPending || draft.busy || draft.unsaved || draft.blocked || draft.reviewingRecovery);
   const { shortages, cart, baseMode } = values;
   const edit = (update: (previous: DraftValues) => DraftValues) => { setNotice(""); draft.change(update); };
@@ -73,6 +81,11 @@ export function OrderForm({
 
   const setQuantity = (id: string, quantity: number) => {
     edit(previous => ({ ...previous, cart: { ...previous.cart, [id]: Math.max(0, Number.isFinite(quantity) ? quantity : 0) } }));
+  };
+  const addProduct = (product: Product) => {
+    const increment = salesUnitFactor(product.salesUnitFactor);
+    edit(previous => ({ ...previous, cart: { ...previous.cart, [product.id]: changeOrderQuantity(previous.cart[product.id] ?? 0, increment) } }));
+    setLastAdded({ id: product.id, message: `${product.name} eklendi · ${orderSelectionQuantity(increment, increment, product.unit)}` });
   };
   const found = query.trim() ? products.filter((product) => !product.unavailable &&
     (product.name + " " + product.sku).toLocaleLowerCase("tr-TR").includes(query.trim().toLocaleLowerCase("tr-TR")),
@@ -142,14 +155,12 @@ export function OrderForm({
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className="mt-2 h-12 w-full rounded-lg border border-gray-400 bg-white px-3 text-base font-semibold text-gray-950 placeholder:text-gray-600" placeholder="Ürün ara" />
         </label>
         <div className="divide-y rounded-lg border bg-white">
-          {found.map((product) => <div key={product.id} className="flex items-center justify-between gap-3 p-3">
-            <div className="min-w-0 text-sm"><b>{product.name}</b><p>{product.sku} · {product.available} {product.unit}</p></div>
-            <label className="flex items-center gap-2 text-sm text-rose-700"><input type="checkbox" checked={shortages[product.id] ?? false} onChange={(event) => {
-              setShortages((current) => ({ ...current, [product.id]: event.target.checked }));
-              if (event.target.checked && !(cart[product.id] > 0)) setQuantity(product.id, salesUnitFactor(product.salesUnitFactor));
-            }} />Eksik Sevk</label>
-            <Button type="button" variant="outline" title={`${product.name}: ${salesUnitFactor(product.salesUnitFactor)} ${product.unit} ekle`} aria-label={`${product.name} ekle`} onClick={() => setQuantity(product.id, changeOrderQuantity(cart[product.id] ?? 0, salesUnitFactor(product.salesUnitFactor)))}><Plus className="size-4" /></Button>
-          </div>)}
+          {found.map(product => <ProductSearchResult key={product.id} product={product} quantity={cart[product.id] ?? 0}
+            shortage={shortages[product.id] ?? false} recentlyAdded={lastAdded?.id === product.id}
+            onAdd={() => addProduct(product)} onShortageChange={checked => {
+              setShortages(current => ({ ...current, [product.id]: checked }));
+              if (checked && !(cart[product.id] > 0)) addProduct(product);
+            }} />)}
           {query.trim() && !found.length ? <p className="p-3 text-sm">Ürün bulunamadı.</p> : null}
         </div>
         <div className="space-y-3">
@@ -226,6 +237,9 @@ export function OrderForm({
         </AlertDialog.Popup>
       </AlertDialog.Portal>
     </AlertDialog.Root>
+      <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed inset-x-4 bottom-5 z-40 mx-auto max-w-md">
+        {lastAdded ? <div className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-950 shadow-lg"><Check className="mt-0.5 size-4 shrink-0" /><span className="min-w-0 break-words">{lastAdded.message}</span></div> : null}
+      </div>
     </div>
   );
 }
