@@ -2,7 +2,8 @@
 
 import type React from "react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarClock, Filter, Plus, Search, Star, X } from "lucide-react";
 
 import { createCandidate } from "@/app/candidates/actions";
@@ -15,6 +16,7 @@ import { formatDate } from "@/lib/candidates";
 import { leadCategoryLabel, leadStatusLabel, type LeadView } from "@/lib/leads";
 import { relativeTime } from "@/lib/qualification";
 import type { Candidate } from "@/types/candidate";
+import { candidateScoreDistribution, type CandidateScoreDistribution } from "@/lib/candidate-score-distribution";
 
 const ALL = "Tümü";
 
@@ -32,14 +34,6 @@ type CandidateListProps = {
   view?: "active" | "passive";
   activeCount?: number;
   passiveCount?: number;
-  scoreDistribution?: CandidateScoreDistribution;
-};
-
-type CandidateScoreDistribution = {
-  score1To3: number;
-  score4To5: number;
-  score6To7: number;
-  score8To10: number;
 };
 
 type UnifiedRow =
@@ -60,8 +54,9 @@ export function CandidateList({
   view = "active",
   activeCount = candidates.length,
   passiveCount = 0,
-  scoreDistribution = { score1To3: 0, score4To5: 0, score6To7: 0, score8To10: 0 },
 }: CandidateListProps) {
+  const router = useRouter();
+  const [refreshPending, startRefresh] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [city, setCity] = useState(ALL);
   const [status, setStatus] = useState(initialStatus || ALL);
@@ -95,6 +90,22 @@ export function CandidateList({
 
     return lead ?? null;
   });
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible" && !open && !selectedLead && !refreshPending) {
+        startRefresh(() => router.refresh());
+      }
+    };
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [open, selectedLead, refreshPending, router]);
 
   const values = (items: string[]) => Array.from(new Set(items.filter(Boolean))).sort((a, b) => a.localeCompare(b, "tr"));
   const cityOptions = values([...candidates.map((candidate) => candidate.city), ...leads.map((lead) => lead.city)]);
@@ -160,6 +171,8 @@ export function CandidateList({
       return dateValue(b.date) - dateValue(a.date);
     });
   }, [city, effectiveReferenceNow, followUp, query, rows, selectedConcepts, selectedTags, sort, status, temperature]);
+
+  const scoreDistribution = candidateScoreDistribution(filtered.flatMap(row => row.type === "candidate" ? [row.candidate] : []));
 
   const reset = () => {
     setQuery("");
