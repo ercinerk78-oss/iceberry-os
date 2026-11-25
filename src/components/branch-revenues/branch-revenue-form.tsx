@@ -39,13 +39,13 @@ export function BranchRevenueForm({ branches, year, month }: BranchRevenueFormPr
       <RevenueBranchSearch key={`branch-${resetVersion}`} branches={branches} />
       <RevenuePeriodPicker key={`period-${resetVersion}`} year={year} month={month} />
       <RevenueAmountInput key={`amount-${resetVersion}`} />
-      <input name="targetRevenue" type="number" min={0} step="0.01" placeholder="Ciro hedefi" className="h-10 rounded-lg border px-3" />
+      <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">Ciro hedefi</span><input name="targetRevenue" type="number" min={0} step="0.01" className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>
       <Select name="currency" current="TRY" first="" options={REVENUE_CURRENCIES.map((item) => [item, item])} />
-      <input name="transactionCount" type="number" min={0} placeholder="İşlem sayısı" className="h-10 rounded-lg border px-3" />
-      <input name="averageTicket" type="number" min={0} step="0.01" placeholder="Ortalama sepet" className="h-10 rounded-lg border px-3" />
+      <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">İşlem sayısı</span><input name="transactionCount" type="number" min={0} className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>
+      <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">Ortalama sepet</span><input name="averageTicket" type="number" min={0} step="0.01" className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>
       <Select name="source" current="MANUAL" first="" options={REVENUE_SOURCES.map((item) => [item, REVENUE_SOURCE_LABELS[item]])} />
-      <input name="supportFile" type="file" className="h-10 rounded-lg border px-3 py-2 text-sm md:col-span-2" />
-      <input name="notes" placeholder="Açıklama" className="h-10 rounded-lg border px-3 xl:col-span-2" />
+      <label className="block min-w-0 text-sm font-medium md:col-span-2"><span className="mb-1 block">Destekleyici dosya</span><input name="supportFile" type="file" className="h-10 w-full min-w-0 rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+      <label className="block min-w-0 text-sm font-medium xl:col-span-2"><span className="mb-1 block">Açıklama</span><input name="notes" className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>
       {state.message ? (
         <p aria-live="polite" className={`rounded-lg p-3 text-sm md:col-span-2 xl:col-span-6 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
           {state.message}
@@ -61,9 +61,9 @@ export function BranchRevenueForm({ branches, year, month }: BranchRevenueFormPr
 
 function Select({ name, current, first, options }: { name: string; current: string | number; first: string; options: string[][] }) {
   return (
-    <select name={name} defaultValue={current} aria-label={name} className="h-10 rounded-lg border px-3">
+    <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">{name === "currency" ? "Para birimi" : "Kaynak"}</span><select name={name} defaultValue={current} className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal">
       {first ? <option value="">{first}</option> : null}
       {options.map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}
-    </select>
+    </select></label>
   );
 }

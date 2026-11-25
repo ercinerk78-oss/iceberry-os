@@ -207,7 +207,7 @@ export default async function BranchRevenuesPage({ searchParams }: { searchParam
           </Card>
         </section>
 
-        <Card className="shadow-none">
+        <Card className="relative z-10 overflow-visible shadow-none">
           <CardHeader><CardTitle>Manuel Ciro Girişi</CardTitle></CardHeader>
           <CardContent>
             <BranchRevenueForm branches={branches} year={year} month={month} />

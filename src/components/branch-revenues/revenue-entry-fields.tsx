@@ -62,8 +62,8 @@ export function RevenuePeriodPicker({ year, month }: { year: number; month: numb
 
 export function RevenueAmountInput() {
   const [value, setValue] = useState("");
-  return <label className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 self-end text-sm font-medium xl:col-span-2">
-    <span>Gerçekleşen ciro</span>
+  return <label className="block min-w-0 text-sm font-medium xl:col-span-2">
+    <span className="mb-1 block">Gerçekleşen ciro</span>
     <input aria-label="Gerçekleşen ciro" required type="text" inputMode="decimal" autoComplete="off" value={value} onChange={event => {
       const formatted = formatRevenueEntry(event.target.value);
       if (formatted !== null) {
@@ -76,7 +76,7 @@ export function RevenueAmountInput() {
           input.setSelectionRange(position, position);
         });
       }
-    }} onBlur={() => { if (value.endsWith(",")) setValue(value.slice(0, -1)); }} className="h-10 min-w-0 w-full flex-1 basis-36 rounded-lg border px-3 font-normal tabular-nums" />
+    }} onBlur={() => { if (value.endsWith(",")) setValue(value.slice(0, -1)); }} className="h-10 min-w-0 w-full rounded-lg border px-3 font-normal tabular-nums" />
     <input type="hidden" name="grossRevenue" value={revenueEntryValue(value)} />
   </label>;
 }
