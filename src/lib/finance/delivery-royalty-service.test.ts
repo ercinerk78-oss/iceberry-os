@@ -6,12 +6,18 @@ import { saveDeliveryRoyaltyTransaction } from "./delivery-royalty-service";
 const timestamp = "2026-11-24T10:00:00.000Z";
 const input = { revenueId: "r", revenueUpdatedAt: timestamp, branchUpdatedAt: timestamp, period: "2026-10", deliveryRevenue: "126000", rate: 3, startMonth: "", exemptionNote: "" };
 function fixture() {
-  const branch = { id: "b", archivedAt: null, ownershipType: "FRANCHISE", updatedAt: new Date(timestamp) };
+  const branch = { id: "b", branchName: "Ortaca Şubesi", archivedAt: null, ownershipType: "FRANCHISE", updatedAt: new Date(timestamp) };
   const revenue = { id: "r", branchId: "b", branch, year: 2026, month: 10, periodType: "MONTHLY", status: "APPROVED", currency: "TRY", grossRevenue: 425030, updatedAt: new Date(timestamp) };
   const writes: unknown[] = [];
   const tx = { $queryRaw: async () => [], branchRevenueRecord: { findUnique: async () => revenue, update: async (data: unknown) => { writes.push(data); return revenue; } }, branch: { update: async (data: unknown) => { writes.push(data); return branch; } } };
   return { tx: tx as unknown as Prisma.TransactionClient, writes, revenue, branch };
 }
+test("excluded hotel cannot save royalty even through a direct request", async () => {
+  const f = fixture();
+  f.branch.branchName = "TUI BLUE Sarıgerme Park Şubesi";
+  await assert.rejects(() => saveDeliveryRoyaltyTransaction(f.tx, input, "u", null), /Otel/);
+  assert.equal(f.writes.length, 0);
+});
 test("worksheet saves source data and settings only, without any ledger or invoice writes", async () => {
   const f = fixture();
   const result = await saveDeliveryRoyaltyTransaction(f.tx, input, "u", ["b"]);

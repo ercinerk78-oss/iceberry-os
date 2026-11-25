@@ -6,6 +6,8 @@ import { RoyaltyCalculator } from "@/components/branch-revenues/royalty-calculat
 import { requirePermission } from "@/lib/auth";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
+import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
+import { isRoyaltyExcludedHotel } from "@/lib/finance/royalty-eligibility";
 import { defaultRoyaltyPeriod, royaltyMonthSchema, royaltyInputsSchema, royaltySettingsSchema } from "@/lib/finance/delivery-royalty";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,7 @@ export default async function RoyaltyPage({ searchParams }: { searchParams: Prom
   const period = parsedPeriod.success ? parsedPeriod.data : defaultRoyaltyPeriod();
   const [year, month] = period.split("-").map(Number);
   const ids = await accessibleBranchIds(user.id, user.role);
-  const branches = await prisma.branch.findMany({ where: { archivedAt: null, ownershipType: "FRANCHISE", ...(ids ? { id: { in: ids } } : {}) }, select: { id: true, branchName: true, updatedAt: true, royaltyCalculationSettings: true, financialProfile: { select: { royaltyRate: true } } }, orderBy: { branchName: "asc" } });
+  const branches = (await prisma.branch.findMany({ where: withNonHotelMainBranchWhere({ archivedAt: null, ownershipType: "FRANCHISE", ...(ids ? { id: { in: ids } } : {}) }), select: { id: true, branchName: true, updatedAt: true, royaltyCalculationSettings: true, financialProfile: { select: { royaltyRate: true } } }, orderBy: { branchName: "asc" } })).filter(branch => !isRoyaltyExcludedHotel(branch));
   const visible = branches.filter(branch => !params.branchId || branch.id === params.branchId);
   const revenues = await prisma.branchRevenueRecord.findMany({ where: { branchId: { in: visible.map(branch => branch.id) }, periodType: "MONTHLY", year, month, status: { in: ["DRAFT", "SUBMITTED", "APPROVED", "LOCKED"] } }, select: { id: true, branchId: true, grossRevenue: true, currency: true, status: true, updatedAt: true, royaltyCalculationInputs: true } });
   const branch = params.branchId ? visible[0] : null;

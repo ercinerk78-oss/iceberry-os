@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calculateDeliveryRoyalty, royaltySaveSchema } from "./delivery-royalty";
+import { isRoyaltyExcludedHotel } from "./royalty-eligibility";
 
 export async function saveDeliveryRoyalty(raw: unknown, userId: string, branchIds: string[] | null) {
   const input = royaltySaveSchema.parse(raw);
@@ -15,6 +16,7 @@ export async function saveDeliveryRoyaltyTransaction(tx: Prisma.TransactionClien
   await tx.$queryRaw`SELECT id FROM "BranchRevenueRecord" WHERE id = ${input.revenueId} FOR UPDATE`;
   const revenue = await tx.branchRevenueRecord.findUnique({ where: { id: input.revenueId }, include: { branch: true } });
   if (!revenue || revenue.branch.archivedAt) throw new Error("Şube veya ciro kaydı bulunamadı.");
+  if (isRoyaltyExcludedHotel(revenue.branch)) throw new Error("Otel şubelerinde royalty hesaplanmaz.");
   if (revenue.updatedAt.toISOString() !== input.revenueUpdatedAt || revenue.branch.updatedAt.toISOString() !== input.branchUpdatedAt) throw new Error("Ciro veya şube ayarları değişmiş. Sayfayı yenileyip güncel verilerle tekrar hesaplayın.");
   const period = `${revenue.year}-${String(revenue.month).padStart(2, "0")}`;
   if (period !== input.period || revenue.periodType !== "MONTHLY" || !["DRAFT", "SUBMITTED", "APPROVED", "LOCKED"].includes(revenue.status)) throw new Error("Bu dönem için kullanılabilir aylık ciro kaydı yok.");
