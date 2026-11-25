@@ -84,10 +84,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   return (
     <AppShell activeHref="/orders" eyebrow="Şube sipariş portalı" title="Bayi Siparişleri">
       <section className="mb-6 space-y-3 border-b pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Sipariş Taslakları</h2><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold text-gray-950">Sipariş Taslakları</h2><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
         <div className="max-h-72 overflow-auto border">
           <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="sticky top-0 bg-muted"><tr>{["Düzenle", "Şube Adı", "Ürün Kalemi", "Depo Aşaması", "Son Güncelleme"].map((label, index) => <th key={index} className="p-3">{label}</th>)}</tr></thead>
+            <thead className="sticky top-0 bg-muted text-gray-950"><tr>{["Düzenle", "Şube Adı", "Ürün Kalemi", "Depo Aşaması", "Son Güncelleme"].map((label, index) => <th key={index} className="p-3 font-bold">{label}</th>)}</tr></thead>
             <tbody>{drafts.map(draft => <tr key={draft.id} className={`border-t ${draft.id === draftId ? "bg-muted/50" : ""}`}>
               <td className="p-3"><Link href={`/orders?draft=${draft.id}`} aria-label={`${draft.branch?.branchName || draft.franchisee?.companyName || draft.orderNumber} taslağını düzenle`} className="font-medium underline">Düzenle</Link></td>
               <td className="p-3">{draft.branch?.branchName || draft.franchisee?.companyName || "Şube seçilmedi"}</td>

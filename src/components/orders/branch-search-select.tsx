@@ -27,7 +27,7 @@ export function BranchSearchSelect({ branches, value, onChange, required, disabl
   }, [open, active]);
   function select(id: string) { onChange(id); setOpen(false); setQuery(""); setActive(0); trigger.current?.focus(); }
   return <div ref={root} className="relative min-w-0 space-y-1">
-    <span id={`${listId}-label`} className="text-sm">Şube</span>
+    <span id={`${listId}-label`} className="text-base font-bold text-gray-950">Şube</span>
     <input type="hidden" name="branchId" value={value} />
     <button ref={trigger} type="button" role="combobox" aria-labelledby={`${listId}-label`} aria-expanded={open} aria-controls={listId} aria-haspopup="listbox" aria-required={required} disabled={disabled} onClick={() => setOpen(current => !current)} onKeyDown={event => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); } }} className="flex min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm">
       <span className="min-w-0 break-words">{selected?.branchName || (value ? "Şube artık listede yok" : required ? "Şube seçin" : "Genel merkez siparişi")}</span><ChevronDown className="size-4 shrink-0" />

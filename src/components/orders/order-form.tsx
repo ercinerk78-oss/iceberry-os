@@ -143,9 +143,9 @@ export function OrderForm({
     }} className="grid gap-5 xl:grid-cols-[1fr_360px]">
       <fieldset disabled={!draft.ready || pending || pdfPending || draft.blocked} className="contents">
       <section className="min-w-0 space-y-4">
-        <h2 className="text-lg font-semibold">Ürün Seçimi</h2>
-        <label className="block text-sm">Ürün adı veya SKU ile ara
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" placeholder="Ürün ara" />
+        <h2 className="text-lg font-bold text-gray-950">Ürün Seçimi</h2>
+        <label className="block text-lg font-bold text-gray-950">Ürün adı veya SKU ile ara
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className="mt-2 h-12 w-full rounded-lg border border-gray-400 bg-white px-3 text-base font-semibold text-gray-950 placeholder:text-gray-600" placeholder="Ürün ara" />
         </label>
         <div className="divide-y rounded-lg border bg-white">
           {found.map((product) => <div key={product.id} className="flex items-center justify-between gap-3 p-3">
@@ -162,7 +162,7 @@ export function OrderForm({
           {missingProducts.map(id => <div key={id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"><span>Listede bulunamayan ürün · {cart[id]} birim</span><Button type="button" variant="outline" aria-label="Listede bulunamayan ürünü çıkar" title="Ürünü çıkar" onClick={() => setQuantity(id, 0)}><Trash2 className="size-4" /></Button></div>)}
           {items.map((product) => (
             <div key={product.id} className={`rounded-lg border p-4 ${shortages[product.id] ? "border-rose-500 bg-rose-50 text-rose-800" : "bg-white"}`}>
-              <h3 className="font-semibold">{product.name}</h3>
+              <h3 className="font-bold">{product.name}</h3>
               {product.unavailable ? <p className="text-sm font-semibold text-rose-700">Ürün pasif; taslaktan çıkarılmalı.</p> : null}
               <p className="text-sm">{product.sku} · {money(product.salePrice, product.currency)} · Kullanılabilir: {product.available} {product.unit}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -187,25 +187,27 @@ export function OrderForm({
 
       <Card className="h-fit overflow-visible shadow-none xl:sticky xl:top-28">
         <CardHeader>
-          <CardTitle>Sipariş Özeti</CardTitle>
+          <CardTitle className="font-bold text-gray-950">Sipariş Özeti</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <BranchSearchSelect branches={branches} value={values.branchId} onChange={id => edit(previous => ({ ...previous, branchId: id, franchiseeId: "" }))} required />
           <label className="block text-sm">
-            Talep edilen teslim tarihi
+            <span className="text-base font-bold text-gray-950">Talep edilen teslim tarihi</span>
             <input type="date" name="requestedDeliveryDate" value={values.requestedDeliveryDate} onChange={event => edit(previous => ({ ...previous, requestedDeliveryDate: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="block text-sm">
-            Fatura işlemi
+            <span className="text-base font-bold text-gray-950">Fatura işlemi</span>
             <select name="invoicePreference" value={values.invoicePreference} onChange={event => edit(previous => ({ ...previous, invoicePreference: event.target.value as DraftValues["invoicePreference"] }))} className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="CREATE_PARASUT_INVOICE">Depo onayından sonra Paraşüt faturası oluştur</option>
               <option value="CREATE_LATER">Faturayı daha sonra oluştur</option>
               <option value="NOT_REQUIRED">Fatura gerekmiyor</option>
             </select>
           </label>
-          <textarea name="notes" aria-label="Sipariş notu" placeholder="Sipariş notu" maxLength={1000} value={values.notes} onChange={event => edit(previous => ({ ...previous, notes: event.target.value }))} className="min-h-20 w-full rounded-lg border p-3" />
+          <label className="block text-base font-bold text-gray-950">Sipariş notu
+            <textarea name="notes" aria-label="Sipariş notu" placeholder="Sipariş notu" maxLength={1000} value={values.notes} onChange={event => edit(previous => ({ ...previous, notes: event.target.value }))} className="mt-1 min-h-20 w-full rounded-lg border p-3 text-sm font-normal" />
+          </label>
           <div className="border-t pt-3">
-            <div className="flex justify-between font-semibold">
+            <div className="flex justify-between font-bold text-gray-950">
               <span>Genel toplam</span>
               <span>{mixedCurrency ? "Farklı para birimleri" : money(total, items[0]?.currency)}</span>
             </div>
