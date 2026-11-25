@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { createBranchRevenue } from "@/app/branch-revenues/actions";
 import { Button } from "@/components/ui/button";
 import { REVENUE_CURRENCIES, REVENUE_SOURCE_LABELS, REVENUE_SOURCES } from "@/lib/branch-revenue";
 import type { BranchRevenueState } from "@/lib/validations/branch-revenue";
+import { RevenueAmountInput, RevenueBranchSearch, RevenuePeriodPicker } from "./revenue-entry-fields";
 
 type BranchOption = {
   id: string;
@@ -22,18 +23,22 @@ const initialState: BranchRevenueState = { success: false, message: "" };
 
 export function BranchRevenueForm({ branches, year, month }: BranchRevenueFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, formAction, pending] = useActionState(createBranchRevenue, initialState);
+  const [resetVersion, setResetVersion] = useState(0);
+  const [state, formAction, pending] = useActionState(async (previous: BranchRevenueState, data: FormData) => {
+    const result = await createBranchRevenue(previous, data);
+    if (result.success) setResetVersion(version => version + 1);
+    return result;
+  }, initialState);
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
-  }, [state.success]);
+  }, [state]);
 
   return (
     <form ref={formRef} action={formAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-      <Select name="branchId" current="" first="Şube seç" options={branches.map((branch) => [branch.id, branch.branchName])} />
-      <input name="year" type="number" defaultValue={year} className="h-10 rounded-lg border px-3" />
-      <input name="month" type="number" min={1} max={12} defaultValue={month} className="h-10 rounded-lg border px-3" />
-      <input name="grossRevenue" required type="number" min={0} step="0.01" placeholder="Gerçekleşen ciro" className="h-10 rounded-lg border px-3" />
+      <RevenueBranchSearch key={`branch-${resetVersion}`} branches={branches} />
+      <RevenuePeriodPicker key={`period-${resetVersion}`} year={year} month={month} />
+      <RevenueAmountInput key={`amount-${resetVersion}`} />
       <input name="targetRevenue" type="number" min={0} step="0.01" placeholder="Ciro hedefi" className="h-10 rounded-lg border px-3" />
       <Select name="currency" current="TRY" first="" options={REVENUE_CURRENCIES.map((item) => [item, item])} />
       <input name="transactionCount" type="number" min={0} placeholder="İşlem sayısı" className="h-10 rounded-lg border px-3" />
