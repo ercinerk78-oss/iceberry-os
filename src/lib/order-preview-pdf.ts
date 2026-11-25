@@ -9,6 +9,14 @@ export type OrderPreviewPdfInput = {
   items: { name: string; sku: string; quantity: number; unit: string; unitPrice: number; vatRate: number; manualShortShipment: boolean }[];
 };
 
+export const ORDER_PDF_COLUMNS = [
+  { label: "Ürün Adı", width: 225, numeric: false },
+  { label: "Adet / Miktar", width: 65, numeric: true },
+  { label: "Birim", width: 44, numeric: false },
+  { label: "Satış Birim Fiyatı (KDV hariç)", width: 95, numeric: true },
+  { label: "Toplam Satış Fiyatı (KDV dahil)", width: 102, numeric: true },
+] as const;
+
 export function previewAmounts(items: OrderPreviewPdfInput["items"]) {
   const lines = items.map((item) => {
     if (![item.quantity,item.unitPrice,item.vatRate].every(Number.isFinite) || item.quantity <= 0 || item.unitPrice < 0 || item.vatRate < 0 || item.vatRate > 100) throw new Error("Geçersiz ürün miktarı veya fiyatı.");
@@ -70,24 +78,24 @@ export async function orderPreviewPdf(input: OrderPreviewPdfInput) {
   page.drawText("TASLAK · Fatura değildir · Henüz gönderilmedi",{x:103,y:766,size:10,font:regular,color:ink});
   y=730;
   paragraph("Oluşturulma: "+new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeStyle:"short",timeZone:"Europe/Istanbul"}).format(new Date()));
-  paragraph("Şube / Grup: "+input.customer,bold);
+  paragraph("Şube: "+input.customer,bold);
   paragraph("Teslimat Adresi: "+(input.address || "Belirtilmedi"));
   paragraph("Depo: "+input.warehouse);
   if(input.deliveryDate) paragraph("Talep Edilen Teslim: "+input.deliveryDate);
-  const widths=[170,55,55,44,100,107];
+  const widths=ORDER_PDF_COLUMNS.map(column => column.width);
   function tableHeader() {
     if(y<100)newPage();
     page.drawRectangle({x:margin,y:y-34,width,height:34,color:rgb(.92,.95,.91)});
     let x=margin;
-    ["Ürün Adı","Stok Kodu","Adet / Miktar","Birim","Satış Birim Fiyatı (KDV hariç)","Toplam Satış Fiyatı (KDV dahil)"].forEach((text,i)=>{
-      wrap(text,bold,8,widths[i]-10).forEach((line,j)=>page.drawText(line,{x:x+5,y:y-12-j*10,size:8,font:bold,color:ink}));
+    ORDER_PDF_COLUMNS.forEach((column,i)=>{
+      wrap(column.label,bold,8,widths[i]-10).forEach((line,j)=>page.drawText(line,{x:x+5,y:y-12-j*10,size:8,font:bold,color:ink}));
       x+=widths[i];
     });
     y-=34;
   }
   tableHeader();
   for(const item of amounts.lines) {
-    const values=[item.name+(item.manualShortShipment ? " — EKSİK SEVK / TEDARİK BEKLİYOR" : ""),item.sku,number(item.quantity),item.unit,money(item.unitPrice),money(item.total)];
+    const values=[item.name+(item.manualShortShipment ? " — EKSİK SEVK / TEDARİK BEKLİYOR" : ""),number(item.quantity),item.unit,money(item.unitPrice),money(item.total)];
     const columns=values.map((value,i)=>wrap(value,regular,8.5,widths[i]-10));
     let offset=0;
     const count=Math.max(...columns.map(column=>column.length));
@@ -98,7 +106,7 @@ export async function orderPreviewPdf(input: OrderPreviewPdfInput) {
       if(item.manualShortShipment)page.drawRectangle({x:margin,y:y-height,width,height,color:rgb(1,.94,.94)});
       let x=margin;
       columns.forEach((column,i)=>{
-        column.slice(offset,offset+take).forEach((line,j)=>page.drawText(line,{x:i===2||i>=4?x+widths[i]-5-regular.widthOfTextAtSize(line,8.5):x+5,y:y-14-j*12,size:8.5,font:regular,color:item.manualShortShipment?red:ink}));
+        column.slice(offset,offset+take).forEach((line,j)=>page.drawText(line,{x:ORDER_PDF_COLUMNS[i].numeric?x+widths[i]-5-regular.widthOfTextAtSize(line,8.5):x+5,y:y-14-j*12,size:8.5,font:regular,color:item.manualShortShipment?red:ink}));
         x+=widths[i];
       });
       page.drawLine({start:{x:margin,y:y-height},end:{x:margin+width,y:y-height},color:border,thickness:.5});

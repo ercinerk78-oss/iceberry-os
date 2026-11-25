@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PDFDocument } from "pdf-lib";
-import { orderPreviewPdf, previewAmounts, type OrderPreviewPdfInput } from "./order-preview-pdf";
+import { ORDER_PDF_COLUMNS, orderPreviewPdf, previewAmounts, type OrderPreviewPdfInput } from "./order-preview-pdf";
 
 export const previewFixture: OrderPreviewPdfInput = {
   customer:"Deneme Şubesi",address:"Örnek Mahallesi, İstanbul",warehouse:"Merkez Depo",currency:"TRY",notes:"Taslak testidir.",
   items:[{name:"Kraft Poşet — Çığ Şöleni",sku:"044",quantity:250,unit:"Adet",unitPrice:9,vatRate:20,manualShortShipment:true}],
 };
+
+test("order PDF omits stock code and fits all remaining columns inside A4 margins", () => {
+  assert.deepEqual(ORDER_PDF_COLUMNS.map(column => column.label), ["Ürün Adı", "Adet / Miktar", "Birim", "Satış Birim Fiyatı (KDV hariç)", "Toplam Satış Fiyatı (KDV dahil)"]);
+  assert.equal(ORDER_PDF_COLUMNS.reduce((sum, column) => sum + column.width, 0), 595 - 64);
+});
 test("PDF totals preserve quantities, tax and missing shipment flags",()=>{
   const result=previewAmounts(previewFixture.items);
   assert.equal(result.quantity,250);assert.equal(result.subtotal,2250);

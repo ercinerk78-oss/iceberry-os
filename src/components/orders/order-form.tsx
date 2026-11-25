@@ -7,6 +7,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog";
 
 import { useOrderDraft } from "@/components/orders/use-order-draft";
 import { BranchSearchSelect } from "@/components/orders/branch-search-select";
+import { mergeOrderBranches } from "@/lib/branch-search";
 import { type DraftRecord, type DraftValues } from "@/lib/order-draft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,12 +55,12 @@ export function OrderForm({
   const [query, setQuery] = useState("");
   const [pdfPending, setPdfPending] = useState(false);
   const [pdfError, setPdfError] = useState("");
-  const { shortages, cart, baseMode, franchiseeId: selected } = values;
+  const { shortages, cart, baseMode } = values;
   const edit = (update: (previous: DraftValues) => DraftValues) => { setNotice(""); draft.change(update); };
   const setShortages = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, shortages: update(previous.shortages) }));
   const setBaseMode = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, baseMode: update(previous.baseMode) }));
-  const setSelected = (id: string) => edit(previous => ({ ...previous, franchiseeId: id, branchId: "" }));
-  const branches = selected ? owners.find((owner) => owner.id === selected)?.branches ?? [] : standaloneBranches;
+  const branches = useMemo(() => mergeOrderBranches(owners, standaloneBranches), [owners, standaloneBranches]);
+  const hasBranch = branches.some(branch => branch.id === values.branchId);
   const items = useMemo(
     () => products.filter((product) => cart[product.id] > 0).map((product) => ({ ...product, quantity: cart[product.id] })),
     [cart, products],
@@ -131,6 +132,7 @@ export function OrderForm({
     <form onSubmit={async event => {
       event.preventDefault();
       if (pending || pdfPending || !canSubmit) return;
+      if (!hasBranch) { setPdfError("Sipariş için bir şube seçin."); return; }
       if (draft.reviewingRecovery) { setPdfError("Önce yerel kopyanın kaydını onaylayın."); return; }
       setPending(true); setPdfError("");
       try {
@@ -188,24 +190,7 @@ export function OrderForm({
           <CardTitle>Sipariş Özeti</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <label className="block text-sm">
-            Şube grubu
-            <select
-              name="franchiseeId"
-              value={selected}
-              onChange={(event) => setSelected(event.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border px-3"
-            >
-              <option value="">Grupsuz şubeler</option>
-              {selected && !owners.some(owner => owner.id === selected) ? <option value={selected}>Şube grubu artık listede yok</option> : null}
-              {owners.map((owner) => (
-                <option key={owner.id} value={owner.id}>
-                  {owner.companyName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <BranchSearchSelect key={selected} branches={branches} value={values.branchId} onChange={id => edit(previous => ({ ...previous, branchId: id }))} required={!selected} />
+          <BranchSearchSelect branches={branches} value={values.branchId} onChange={id => edit(previous => ({ ...previous, branchId: id, franchiseeId: "" }))} required />
           <label className="block text-sm">
             Talep edilen teslim tarihi
             <input type="date" name="requestedDeliveryDate" value={values.requestedDeliveryDate} onChange={event => edit(previous => ({ ...previous, requestedDeliveryDate: event.target.value }))} className="mt-1 h-10 w-full rounded-lg border px-3" />
@@ -229,8 +214,8 @@ export function OrderForm({
           {pdfError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{pdfError}</p> : null}
           {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
           <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending} onClick={() => void saveManually()}><Save className="size-4" />{draft.reviewingRecovery ? "Yerel Kopyayı Onayla ve Kaydet" : "Taslağı Kaydet"}</Button>
-          <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pdfPending || pending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId)} onClick={() => void downloadPdf()}><FileDown className="size-4" />{pdfPending ? "PDF hazırlanıyor..." : "PDF İndir"}</Button>
-          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !canSubmit || !items.length || mixedCurrency || (!selected && !values.branchId)}>
+          <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pdfPending || pending || draft.reviewingRecovery || !items.length || mixedCurrency || !hasBranch} onClick={() => void downloadPdf()}><FileDown className="size-4" />{pdfPending ? "PDF hazırlanıyor..." : "PDF İndir"}</Button>
+          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !canSubmit || !items.length || mixedCurrency || !hasBranch}>
             <Send className="size-4" />{pending ? "İşleniyor..." : "Onayla ve Merkeze Gönder"}
           </Button>
           {draft.record ? <Button type="button" variant="ghost" className="w-full text-rose-700" disabled={pending || pdfPending || draft.reviewingRecovery} onClick={() => setConfirmation("cancel")}><Trash2 className="size-4" />Taslağı İptal Et</Button> : null}
