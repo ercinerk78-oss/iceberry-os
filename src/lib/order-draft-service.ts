@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { assertDraftEditable, draftDeliveryDate, draftRequestSchema, priceDraftLine, type DraftRecord, type DraftRequest } from "@/lib/order-draft";
 import { assertOrderLineStock } from "@/lib/order-stock-check";
 import { orderNumber } from "@/lib/warehouse";
+import { canSubmitDraftProgress } from "@/lib/order-draft-progress";
 
 export class DraftConflict extends Error {}
 export async function saveOrderDraft(raw: unknown, userId: string): Promise<DraftRecord> {
@@ -20,6 +21,7 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
       catch (error) { throw new DraftConflict(error instanceof Error ? error.message : "Taslak değişmiş."); }
       if (existing.warehouseId !== input.warehouseId) throw new Error("Taslağın deposu değiştirilemez.");
     } else if (input.version !== 0 || input.command !== "save") throw new DraftConflict("Taslak bulunamadı. Önce taslağı kaydedin.");
+    if (input.command === "submit" && !canSubmitDraftProgress(existing?.warehouseDraftStage)) throw new Error("Merkeze göndermek için önce Kargoya teslim edildi veya Biz sevk edeceğiz durumunu seçin.");
     if (input.command === "cancel") {
       const order = await tx.franchiseOrder.update({ where: { id: input.id }, data: { status: "DRAFT_CANCELLED", cancelledAt: new Date(), draftVersion: { increment: 1 }, activities: { create: { type: "DRAFT_CANCELLED", description: "Depo sipariş taslağı iptal edildi. Stok değişmedi.", createdBy: userId } } } });
       return { id: order.id, version: order.draftVersion, orderNumber: order.orderNumber, status: order.status, updatedAt: order.updatedAt.toISOString() };
@@ -51,7 +53,7 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
     const subtotal = lines.reduce((sum, line) => sum + line.lineSubtotal, 0);
     const vatTotal = lines.reduce((sum, line) => sum + line.lineVat, 0);
     const data = { franchiseeId: branch ? (branch.franchisee?.archivedAt === null ? branch.franchiseeId : null) : group?.id ?? null,
-      branchId: branch?.id ?? null, status: input.command === "submit" ? "SUBMITTED" : "DRAFT", currency, subtotal, vatTotal, grandTotal: subtotal + vatTotal,
+      branchId: branch?.id ?? null, status: input.command === "submit" ? "SUBMITTED" : "DRAFT", ...(input.command === "save" ? { warehouseDraftStage: "DRAFT_EDITED" } : {}), currency, subtotal, vatTotal, grandTotal: subtotal + vatTotal,
       requestedDeliveryDate: draftDeliveryDate(input.requestedDeliveryDate), notes: input.notes || null, invoicePreference: input.invoicePreference,
       invoiceStatus: input.command !== "submit" ? "DRAFT" : input.invoicePreference === "NOT_REQUIRED" ? "NOT_REQUIRED" : "PENDING_MATCH",
       financialStatus: input.command !== "submit" ? "DRAFT" : input.invoicePreference === "NOT_REQUIRED" ? "INVOICE_NOT_REQUIRED" : "INVOICE_PENDING" };
