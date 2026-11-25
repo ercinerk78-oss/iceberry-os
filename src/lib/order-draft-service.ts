@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertDraftEditable, draftDeliveryDate, draftRequestSchema, priceDraftLine, nextWarehouseDraftStage, warehouseDraftStages, type DraftRecord, type DraftRequest } from "@/lib/order-draft";
+import { assertDraftEditable, draftDeliveryDate, draftRequestSchema, priceDraftLine, type DraftRecord, type DraftRequest } from "@/lib/order-draft";
 import { assertOrderLineStock } from "@/lib/order-stock-check";
 import { orderNumber } from "@/lib/warehouse";
 
@@ -27,7 +27,7 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
     if (input.command !== "save") {
       const saved = await tx.franchiseOrder.findUnique({ where: { id: input.id }, include: { items: true } });
       const sameItems = saved && saved.items.length === input.items.length && input.items.every(item => saved.items.some(line => line.productId === item.productId && line.quantity === item.quantity && line.manualShortShipment === item.manualShortShipment));
-      if (!saved || !sameItems || (saved.branchId || "") !== (input.branchId || "") || (saved.notes || "") !== (input.notes || "") || saved.invoicePreference !== input.invoicePreference || (saved.requestedDeliveryDate?.toISOString().slice(0, 10) || "") !== (input.requestedDeliveryDate || "") || (!saved.branchId && (saved.franchiseeId || "") !== (input.franchiseeId || ""))) throw new Error("Aşama değiştirmeden önce sipariş değişikliklerini kaydedin.");
+      if (!saved || !sameItems || (saved.branchId || "") !== (input.branchId || "") || (saved.notes || "") !== (input.notes || "") || saved.invoicePreference !== input.invoicePreference || (saved.requestedDeliveryDate?.toISOString().slice(0, 10) || "") !== (input.requestedDeliveryDate || "") || (!saved.branchId && (saved.franchiseeId || "") !== (input.franchiseeId || ""))) throw new Error("Merkeze göndermeden önce sipariş değişikliklerini kaydedin.");
     }
     const [warehouse, branch, group, products] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: input.warehouseId, isActive: true }, select: { id: true } }),
@@ -40,7 +40,6 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
     if (products.length !== input.items.length) throw new Error("Taslakta pasife alınmış veya bulunamayan ürün var. Ürünü çıkarıp yeniden kaydedin.");
     const currency = products[0]?.currency ?? "TRY";
     if (products.some(product => product.currency !== currency)) throw new Error("Farklı para birimindeki ürünler ayrı sipariş verilmelidir.");
-    const stage = input.command === "save" ? "DRAFT" : nextWarehouseDraftStage(existing?.warehouseDraftStage ?? "DRAFT", input.command);
     if (input.command !== "save") {
       if (!input.items.length || (!branch && !group)) throw new Error("Merkeze göndermek için şube ve en az bir ürün seçin.");
     }
@@ -52,7 +51,7 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
     const subtotal = lines.reduce((sum, line) => sum + line.lineSubtotal, 0);
     const vatTotal = lines.reduce((sum, line) => sum + line.lineVat, 0);
     const data = { franchiseeId: branch ? (branch.franchisee?.archivedAt === null ? branch.franchiseeId : null) : group?.id ?? null,
-      branchId: branch?.id ?? null, status: input.command === "submit" ? "SUBMITTED" : "DRAFT", warehouseDraftStage: stage, currency, subtotal, vatTotal, grandTotal: subtotal + vatTotal,
+      branchId: branch?.id ?? null, status: input.command === "submit" ? "SUBMITTED" : "DRAFT", currency, subtotal, vatTotal, grandTotal: subtotal + vatTotal,
       requestedDeliveryDate: draftDeliveryDate(input.requestedDeliveryDate), notes: input.notes || null, invoicePreference: input.invoicePreference,
       invoiceStatus: input.command !== "submit" ? "DRAFT" : input.invoicePreference === "NOT_REQUIRED" ? "NOT_REQUIRED" : "PENDING_MATCH",
       financialStatus: input.command !== "submit" ? "DRAFT" : input.invoicePreference === "NOT_REQUIRED" ? "INVOICE_NOT_REQUIRED" : "INVOICE_PENDING" };
@@ -61,6 +60,5 @@ export async function saveOrderDraftTransaction(tx: Prisma.TransactionClient, in
       : await tx.franchiseOrder.create({ data: { id: input.id, orderNumber: orderNumber(), warehouseId: input.warehouseId, source: "MANUAL_OTHER", orderType: "FRANCHISE_SALE", createdBy: userId, draftVersion: 1, ...data, items: { create: lines } } });
     // Autosaves update the revision without filling the timeline with identical events.
     if (!existing || input.command === "submit") await tx.orderActivity.create({ data: { orderId: order.id, type: input.command === "submit" ? "WAREHOUSE_DRAFT_APPROVED" : "DRAFT_CREATED", description: input.command === "submit" ? "Depo sipariş taslağını onayladı ve merkez sipariş onayına gönderdi. Stok rezervasyonu yapılmadı." : "Depoda düzenlenebilir sipariş taslağı oluşturuldu.", createdBy: userId } });
-    if (existing && input.command !== "submit" && stage !== existing.warehouseDraftStage) await tx.orderActivity.create({ data: { orderId: order.id, type: "WAREHOUSE_DRAFT_STAGE", description: `${warehouseDraftStages[stage as keyof typeof warehouseDraftStages]}${input.command === "save" ? ": sipariş değiştiği için hazırlık onayı sıfırlandı." : ". Stok değişmedi."}`, createdBy: userId } });
     return { id: order.id, version: order.draftVersion, orderNumber: order.orderNumber, status: order.status, updatedAt: order.updatedAt.toISOString(), warehouseDraftStage: order.warehouseDraftStage };
 }

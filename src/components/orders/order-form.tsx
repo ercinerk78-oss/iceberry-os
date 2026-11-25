@@ -7,7 +7,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog";
 
 import { useOrderDraft } from "@/components/orders/use-order-draft";
 import { BranchSearchSelect } from "@/components/orders/branch-search-select";
-import { warehouseDraftStages, type DraftRecord, type DraftValues, type DraftRequest } from "@/lib/order-draft";
+import { type DraftRecord, type DraftValues } from "@/lib/order-draft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { money } from "@/lib/warehouse";
@@ -52,24 +52,10 @@ export function OrderForm({
   const [notice, setNotice] = useState("");
   const [confirmation, setConfirmation] = useState<"recovery" | "cancel" | null>(null);
   const [query, setQuery] = useState("");
-  const [preview, setPreview] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
   const [pdfError, setPdfError] = useState("");
-  const stage = draft.record?.warehouseDraftStage ?? "DRAFT";
-  const stageAction = { DRAFT: ["register", "Sipariş Sisteme İşlendi"], REGISTERED: ["prepare", "Sipariş Hazırlanıyor"], PREPARING: ["ready", "Sipariş Sevke Hazır"] }[stage];
-  async function advanceStage() {
-    if (!stageAction) return;
-    setPending(true);
-    try {
-      const saved = await draft.save();
-      const currentStage = saved.warehouseDraftStage ?? "DRAFT";
-      if (currentStage !== stage) { setNotice("Sipariş değişti; hazırlık aşamalarını yeniden tamamlayın."); return; }
-      await draft.save(stageAction[0] as DraftRequest["command"]);
-    } catch { /* Persistence errors are displayed by the draft hook. */ }
-    finally { setPending(false); }
-  }
   const { shortages, cart, baseMode, franchiseeId: selected } = values;
-  const edit = (update: (previous: DraftValues) => DraftValues) => { setPreview(false); setNotice(""); draft.change(update); };
+  const edit = (update: (previous: DraftValues) => DraftValues) => { setNotice(""); draft.change(update); };
   const setShortages = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, shortages: update(previous.shortages) }));
   const setBaseMode = (update: (previous: Record<string, boolean>) => Record<string, boolean>) => edit(previous => ({ ...previous, baseMode: update(previous.baseMode) }));
   const setSelected = (id: string) => edit(previous => ({ ...previous, franchiseeId: id, branchId: "" }));
@@ -93,6 +79,7 @@ export function OrderForm({
     if(pdfPending)return;
     setPdfPending(true);setPdfError("");
     try {
+      await draft.save();
       const response=await fetch("/orders/preview-pdf",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -136,7 +123,6 @@ export function OrderForm({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3"><p role="status" className="text-sm text-muted-foreground">{draft.busy ? "Taslak kaydediliyor..." : draft.unsaved ? "Kaydedilmeyi bekleyen değişiklikler var" : draft.record ? `${draft.record.orderNumber} · Kaydedildi` : "Yeni taslak"}</p><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
-      <ol aria-label="Depo sipariş aşamaları" className="grid gap-2 sm:grid-cols-4">{Object.entries(warehouseDraftStages).map(([key, label]) => <li key={key} aria-current={stage === key ? "step" : undefined} className={`border-b-2 p-2 text-sm ${stage === key ? "border-emerald-600 font-semibold text-emerald-800" : "border-muted text-muted-foreground"}`}>{label}</li>)}</ol>
       {draft.error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{draft.error}</p> : null}
       {!draft.localBackupAvailable ? <p role="alert" className="text-sm text-amber-800">Bu cihazda yerel yedek oluşturulamadı. Sunucu kaydı tamamlanmadan sayfayı kapatmayın.</p> : null}
       {draft.blocked ? <Button type="button" variant="outline" onClick={draft.reopen}>Güncel Taslağı Yeniden Aç</Button> : null}
@@ -144,18 +130,18 @@ export function OrderForm({
       {draft.reviewingRecovery ? <p role="status" className="text-sm text-amber-800">Yerel kopya incelemede; sunucuya kaydedilmedi.</p> : null}
     <form onSubmit={async event => {
       event.preventDefault();
+      if (pending || pdfPending || !canSubmit) return;
       if (draft.reviewingRecovery) { setPdfError("Önce yerel kopyanın kaydını onaylayın."); return; }
       setPending(true); setPdfError("");
       try {
         await draft.save();
-        if (!preview) { setPreview(true); await downloadPdf(); }
-        else await draft.save("submit");
+        await draft.save("submit");
       } catch { /* The draft hook displays persistence errors. */ }
       finally { setPending(false); }
     }} className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <fieldset disabled={!draft.ready || pending || draft.blocked} className="contents">
+      <fieldset disabled={!draft.ready || pending || pdfPending || draft.blocked} className="contents">
       <section className="min-w-0 space-y-4">
-        <h2 className="text-lg font-semibold">{preview ? "Sipariş Önizlemesi" : "Ürün Seçimi"}</h2>
+        <h2 className="text-lg font-semibold">Ürün Seçimi</h2>
         <label className="block text-sm">Ürün adı veya SKU ile ara
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" placeholder="Ürün ara" />
         </label>
@@ -240,14 +226,12 @@ export function OrderForm({
             </div>
             <p className="mt-1 text-xs text-[#65705f]">KDV dahildir · {items.length} kalem</p>
           </div>
-          {preview ? <Button type="button" variant="outline" className="w-full" onClick={() => setPreview(false)}>Düzenlemeye Dön</Button> : null}
-          {preview ? <Button type="button" variant="outline" className="w-full" disabled={pdfPending||pending} onClick={() => void downloadPdf()}><FileDown className="mr-2 size-4" />{pdfPending?"PDF hazırlanıyor...":"Güncel PDF’yi İndir"}</Button> : null}
           {pdfError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{pdfError}</p> : null}
           {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
           <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending} onClick={() => void saveManually()}><Save className="size-4" />{draft.reviewingRecovery ? "Yerel Kopyayı Onayla ve Kaydet" : "Taslağı Kaydet"}</Button>
-          {stageAction && canSubmit ? <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || draft.busy || draft.reviewingRecovery || !items.length || (!selected && !values.branchId)} onClick={() => void advanceStage()}>{stageAction[1]}</Button> : null}
-          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId) || (preview && (!canSubmit || stage !== "READY"))}>
-            {preview ? <Send className="size-4" /> : null}{pending ? "İşleniyor..." : preview ? "Depo Onayını Ver ve Merkeze Gönder" : "Kaydet ve Önizle"}
+          <Button type="button" variant="outline" className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pdfPending || pending || draft.reviewingRecovery || !items.length || mixedCurrency || (!selected && !values.branchId)} onClick={() => void downloadPdf()}><FileDown className="size-4" />{pdfPending ? "PDF hazırlanıyor..." : "PDF İndir"}</Button>
+          <Button className="h-auto min-h-9 w-full whitespace-normal py-2" disabled={pending || pdfPending || draft.reviewingRecovery || !canSubmit || !items.length || mixedCurrency || (!selected && !values.branchId)}>
+            <Send className="size-4" />{pending ? "İşleniyor..." : "Onayla ve Merkeze Gönder"}
           </Button>
           {draft.record ? <Button type="button" variant="ghost" className="w-full text-rose-700" disabled={pending || pdfPending || draft.reviewingRecovery} onClick={() => setConfirmation("cancel")}><Trash2 className="size-4" />Taslağı İptal Et</Button> : null}
         </CardContent>
