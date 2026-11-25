@@ -125,7 +125,7 @@ export function OrderForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3"><p role="status" className="text-sm text-muted-foreground">{draft.busy ? "Taslak kaydediliyor..." : draft.unsaved ? "Kaydedilmeyi bekleyen değişiklikler var" : draft.record ? `${draft.record.orderNumber} · Kaydedildi` : "Yeni taslak"}</p><Link href="/orders?new=1" className="text-sm font-medium underline">Yeni Taslak</Link></div>
+      <div className="border-b pb-3"><p role="status" className="text-sm text-muted-foreground">{draft.busy ? "Taslak kaydediliyor..." : draft.unsaved ? "Kaydedilmeyi bekleyen değişiklikler var" : draft.record ? `${draft.record.orderNumber} · Kaydedildi` : "Yeni taslak"}</p></div>
       {draft.error ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{draft.error}</p> : null}
       {!draft.localBackupAvailable ? <p role="alert" className="text-sm text-amber-800">Bu cihazda yerel yedek oluşturulamadı. Sunucu kaydı tamamlanmadan sayfayı kapatmayın.</p> : null}
       {draft.blocked ? <Button type="button" variant="outline" onClick={draft.reopen}>Güncel Taslağı Yeniden Aç</Button> : null}
