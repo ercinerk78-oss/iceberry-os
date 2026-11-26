@@ -107,7 +107,11 @@ export function GoodsReceiptForm({ orders }: { orders: OrderOption[] }) {
               {state.message}
             </p>
           ) : null}
-          <label className="flex items-center gap-2 text-sm"><input key={selectedOrderId} type="checkbox" name="closeRemaining" className="size-4" />Bu siparişte başka teslimat beklenmiyor.</label>
+          <fieldset key={selectedOrderId} disabled={pending} className="space-y-3 rounded-lg border p-3">
+            <legend className="px-1 text-sm font-semibold">Teslimat Sonrası Sipariş</legend>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="closeRemaining" value="wait" defaultChecked className="mt-0.5 size-4 shrink-0" />Kalan ürünleri bekle; sipariş açık kalsın</label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="closeRemaining" value="on" className="mt-0.5 size-4 shrink-0" />Bu teslimatla siparişi tamamla; başka ürün beklenmiyor</label>
+          </fieldset>
           <Button disabled={pending}>{pending ? "Stoğa işleniyor..." : "Mal Kabulü Kaydet ve Stoğa İşle"}</Button>
         </CardContent>
       </Card>

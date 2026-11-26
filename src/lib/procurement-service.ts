@@ -570,12 +570,18 @@ export async function changePurchaseOrderLine(
 
 export async function closePurchaseOrder(id: string, userId?: string) {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PurchaseOrder" WHERE id = ${id} FOR UPDATE`;
+    const order = await tx.purchaseOrder.findUnique({ where: { id } });
+    if (!order) throw new Error("Satın alma siparişi bulunamadı.");
+    if (["CANCELLED", "CLOSED"].includes(order.status)) throw new Error("Bu sipariş zaten kapalı.");
     await tx.purchaseApproval.create({
       data: {
         purchaseOrderId: id,
         action: "CLOSED",
         status: "CLOSED",
-        comment: "Satın alma siparişi kapatıldı.",
+        comment: order.status === "PARTIALLY_RECEIVED"
+          ? "Başka teslimat beklenmediği onaylanarak sipariş tamamlandı. Sipariş ve kabul miktarları korundu; stok yeniden işlenmedi."
+          : "Satın alma siparişi kapatıldı.",
         actedById: userId,
       },
     });

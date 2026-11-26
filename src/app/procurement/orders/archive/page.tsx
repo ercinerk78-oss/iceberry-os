@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { completedDeliveryLabel } from "@/lib/purchase-delivery-status";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,7 @@ export default async function PurchaseOrderArchivePage({ searchParams }: { searc
                       </td>
                       <td className="px-4 py-4">{order.supplier.name}</td>
                       <td className="px-4 py-4">{order.warehouse.name}</td>
-                      <td className="px-4 py-4"><Badge variant="outline">{procurementLabel(PURCHASE_ORDER_STATUSES, order.status)}</Badge></td>
+                      <td className="px-4 py-4"><Badge variant="outline">{completedDeliveryLabel(order.status, order.items) ?? procurementLabel(PURCHASE_ORDER_STATUSES, order.status)}</Badge></td>
                       <td className="px-4 py-4">{procurementDate(order.orderDate)}</td>
                       <td className="px-4 py-4">{procurementDate(order.closedAt ?? order.cancelledAt ?? order.updatedAt)}</td>
                       <td className="px-4 py-4">{received} / {ordered}</td>

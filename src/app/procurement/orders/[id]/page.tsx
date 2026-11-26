@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { completedDeliveryLabel } from "@/lib/purchase-delivery-status";
 
 import { purchaseOrderCommand, updatePurchaseOrderDetailsAction } from "@/app/procurement/actions";
 import { AppShell } from "@/components/app-shell";
@@ -45,7 +46,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
           <Card className="shadow-none">
             <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
               <div>
-                <Badge variant="outline">{procurementLabel(PURCHASE_ORDER_STATUSES, order.status)}</Badge>
+                <Badge variant="outline">{completedDeliveryLabel(order.status, order.items) ?? procurementLabel(PURCHASE_ORDER_STATUSES, order.status)}</Badge>
                 <p className="mt-2 text-lg font-semibold">{order.supplier.name}</p>
                 <p className="text-sm text-[#65705f]">
                   {order.warehouse.name} · Sipariş {procurementDate(order.orderDate)} · Beklenen teslim {procurementDate(order.expectedDeliveryDate)}
@@ -153,7 +154,10 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                 <form action={purchaseOrderCommand.bind(null, order.id, "send")}><Button className="w-full" variant="outline">Tedarikçiye Gönderildi İşaretle</Button></form>
               ) : null}
               {!["CLOSED", "CANCELLED"].includes(order.status) ? (
-                <form action={purchaseOrderCommand.bind(null, order.id, "close")}><Button className="w-full" variant="outline">Arşive Taşı</Button></form>
+                <form action={purchaseOrderCommand.bind(null, order.id, "close")} className="space-y-2">
+                  {order.status === "PARTIALLY_RECEIVED" ? <label className="flex items-start gap-2 text-sm"><input type="checkbox" required className="mt-0.5 size-4 shrink-0" />Başka teslimat beklenmiyor</label> : null}
+                  <Button className="h-auto min-h-10 w-full whitespace-normal" variant="outline">{order.status === "PARTIALLY_RECEIVED" ? "Siparişi Tamamla ve Arşivle" : "Arşive Taşı"}</Button>
+                </form>
               ) : null}
               {!["CLOSED", "CANCELLED", "RECEIVED"].includes(order.status) ? (
                 <form action={purchaseOrderCommand.bind(null, order.id, "cancel")}><Button className="w-full" variant="destructive">İptal Et</Button></form>
