@@ -12,6 +12,7 @@ import {
   cancelPurchaseOrder,
   closePurchaseOrder,
   createPurchaseRequest,
+  submitPurchaseRequest,
   createPurchaseOrder,
   markPurchaseOrderSent,
   updatePurchaseOrderDetails,
@@ -22,14 +23,14 @@ import {
 import { prisma } from "@/lib/prisma";
 import { recentPurchaseRequestWhere, type RecentPurchaseRequest } from "@/lib/recent-purchase-requests";
 
-export type ProcurementActionState = { ok: boolean; message: string };
+export type ProcurementActionState = { ok: boolean; message: string; requestId?: string; updatedAt?: string; submitted?: boolean };
 
-export async function getRecentPurchaseRequests(raw: unknown): Promise<RecentPurchaseRequest[]> {
+export async function getRecentPurchaseRequests(raw: unknown, excludeId?: string): Promise<RecentPurchaseRequest[]> {
   await requireAnyPermission(["warehouse", "procurement"]);
   const productIds = z.array(z.string().min(1).max(200)).max(200).parse(raw);
   if (!productIds.length) return [];
   const items = await prisma.purchaseRequestItem.findMany({
-    where: recentPurchaseRequestWhere(productIds),
+    where: { ...recentPurchaseRequestWhere(productIds), ...(excludeId ? { purchaseRequestId: { not: z.string().min(1).max(200).parse(excludeId) } } : {}) },
     select: { productId: true, requestedQuantity: true, unit: true, purchaseRequest: { select: { requestNumber: true, createdAt: true, warehouse: { select: { name: true } } } } },
     orderBy: { purchaseRequest: { createdAt: "desc" } },
   });
@@ -77,8 +78,10 @@ export async function createPurchaseOrderAction(_: ProcurementActionState, formD
 }
 
 export async function createPurchaseRequestAction(_: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {
+  let saved: { requestId: string; updatedAt: string } | undefined;
   try {
     const user = await requireAnyPermission(["warehouse", "procurement"]);
+    const id = optionalString(formData.get("requestId"));
     const request = await createPurchaseRequest({
       title: String(formData.get("title") || ""),
       warehouseId: String(formData.get("warehouseId") || ""),
@@ -89,12 +92,15 @@ export async function createPurchaseRequestAction(_: ProcurementActionState, for
       termDate: optionalString(formData.get("termDate")),
       notes: optionalString(formData.get("notes")),
       items: purchaseRequestItemsFromForm(formData),
-    }, user.id);
-    await audit("PURCHASE_REQUEST_CREATED", "PurchaseRequest", request.id, `${request.requestNumber} numaralı satın alma talebi oluşturuldu.`, user.id);
+    }, user.id, id ? { id, updatedAt: String(formData.get("updatedAt") || "") } : undefined);
+    saved = { requestId: request.id, updatedAt: request.updatedAt.toISOString() };
+    if (formData.get("intent") === "submit") await submitPurchaseRequest(request.id, user.id, saved.updatedAt);
+    await audit("PURCHASE_REQUEST_SAVED", "PurchaseRequest", request.id, `${request.requestNumber} numaralı satın alma talebi kaydedildi.`, user.id);
     refresh();
-    return { ok: true, message: "Satın alma talebi oluşturuldu ve satın alma ekibine iletildi." };
+    revalidatePath(`/warehouse/purchase-requests/${request.id}`);
+    return { ok: true, ...saved, submitted: formData.get("intent") === "submit", message: formData.get("intent") === "submit" ? "Talep onaya gönderildi." : "Taslak kaydedildi. Son Talepler listesinden yeniden düzenleyebilirsiniz." };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." };
+    return { ..._, ok: false, ...saved, message: error instanceof Error ? error.message : "Satın alma talebi oluşturulamadı." };
   }
 }
 

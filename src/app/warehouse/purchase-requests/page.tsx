@@ -1,4 +1,7 @@
 import { AppShell } from "@/components/app-shell";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { purchaseRequestDraftWarning } from "@/lib/purchase-request-drafts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
@@ -61,7 +64,7 @@ export default async function WarehousePurchaseRequestsPage() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Son Talepler</h2>
           {requests.map((request) => (
-            <Card key={request.id} className="shadow-none">
+            <Card key={request.id} className={purchaseRequestDraftWarning(request.status, request.createdAt) ? "border-red-300 bg-red-50 shadow-none" : "shadow-none"}>
               <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex flex-wrap gap-2">
@@ -69,6 +72,7 @@ export default async function WarehousePurchaseRequestsPage() {
                     <Badge variant="secondary">{procurementLabel(PURCHASE_PRIORITIES, request.priority)}</Badge>
                   </div>
                   <p className="mt-2 font-semibold">{request.requestNumber} · {request.title}</p>
+                  {purchaseRequestDraftWarning(request.status, request.createdAt) ? <p role="status" className="mt-2 text-sm font-semibold text-red-700">{purchaseRequestDraftWarning(request.status, request.createdAt)}</p> : null}
                   <p className="text-sm text-[#65705f]">
                     {request.warehouse.name} · {request.supplier?.name ?? "Tedarikçi satın alma tarafından seçilecek"} · Kalem: {request.items.length}
                     {request.purchaseOrder ? ` · Sipariş: ${request.purchaseOrder.orderNumber}` : ""}
@@ -78,6 +82,7 @@ export default async function WarehousePurchaseRequestsPage() {
                   </p>
                 </div>
                 <p className="text-sm text-[#65705f]">{procurementDate(request.createdAt)}</p>
+                {request.status === "DRAFT" && !request.purchaseOrder ? <Button asChild variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>Düzenle / Onaya Gönder</Link></Button> : null}
               </CardContent>
             </Card>
           ))}

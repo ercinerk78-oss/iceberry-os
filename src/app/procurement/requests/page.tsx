@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { purchaseRequestDraftWarning } from "@/lib/purchase-request-drafts";
 
 import { AppShell } from "@/components/app-shell";
 import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
@@ -99,10 +100,11 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
               </thead>
               <tbody className="divide-y">
                 {requests.map((request) => (
-                  <tr key={request.id}>
+                  <tr key={request.id} className={purchaseRequestDraftWarning(request.status, request.createdAt) ? "bg-red-50" : undefined}>
                     <td className="px-4 py-4">
                       <b>{request.requestNumber}</b>
                       <p className="text-xs text-[#65705f]">{request.title}</p>
+                      {purchaseRequestDraftWarning(request.status, request.createdAt) ? <p className="mt-1 text-xs font-semibold text-red-700">{purchaseRequestDraftWarning(request.status, request.createdAt)}</p> : null}
                     </td>
                     <td className="px-4 py-4">{request.warehouse.name}</td>
                     <td className="px-4 py-4">
@@ -121,6 +123,8 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
                     <td className="px-4 py-4">
                       {request.purchaseOrder ? (
                         <Button asChild size="sm" variant="outline"><Link href={`/procurement/orders/${request.purchaseOrder.id}`}>{request.purchaseOrder.orderNumber}</Link></Button>
+                      ) : request.status === "DRAFT" ? (
+                        <Button asChild size="sm" variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>Düzenle / Onaya Gönder</Link></Button>
                       ) : ["CANCELLED", "REJECTED", "CONVERTED"].includes(request.status) ? (
                         <span className="text-xs text-[#65705f]">Kapalı</span>
                       ) : (

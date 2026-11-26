@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { assertPurchaseRequestDraft } from "@/lib/purchase-request-drafts";
 import { assertPurchaseOrderEditable, assertPurchaseQuantity } from "@/lib/purchase-order-editing";
 
 import { calculatePurchaseLine, calculatePurchaseTotals, purchaseOrderNumber, purchaseRequestNumber } from "@/lib/procurement";
@@ -11,10 +12,17 @@ type PurchaseRequestInput = Parameters<typeof purchaseRequestSchema.parse>[0];
 type GoodsReceiptInput = Parameters<typeof goodsReceiptSchema.parse>[0];
 type SupplierProductInput = Parameters<typeof supplierProductSchema.parse>[0];
 
-export async function createPurchaseRequest(input: PurchaseRequestInput, userId?: string) {
+export async function createPurchaseRequest(input: PurchaseRequestInput, userId?: string, draft?: { id: string; updatedAt: string }) {
   const data = purchaseRequestSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
+    if (draft) {
+      await tx.$queryRaw`SELECT id FROM "PurchaseRequest" WHERE id = ${draft.id} FOR UPDATE`;
+      const existing = await tx.purchaseRequest.findUnique({ where: { id: draft.id }, include: { purchaseOrder: { select: { id: true } } } });
+      if (!existing) throw new Error("Talep bulunamadı.");
+      assertPurchaseRequestDraft(existing.status, Boolean(existing.purchaseOrder));
+      if (existing.updatedAt.toISOString() !== draft.updatedAt) throw new Error("Talep başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.");
+    }
     const [warehouse, supplier, products] = await Promise.all([
       tx.warehouse.findFirst({ where: { id: data.warehouseId, archivedAt: null, isActive: true } }),
       data.supplierId ? tx.supplier.findFirst({ where: { id: data.supplierId, archivedAt: null } }) : Promise.resolve(null),
@@ -27,20 +35,18 @@ export async function createPurchaseRequest(input: PurchaseRequestInput, userId?
     if (data.supplierId && !supplier) throw new Error("Tedarikçi bulunamadı.");
     if (products.length !== data.items.length) throw new Error("Talepte aktif olmayan ürün var.");
 
-    const request = await tx.purchaseRequest.create({
-      data: {
-        requestNumber: purchaseRequestNumber(),
+    const details = {
         title: data.title,
         warehouseId: warehouse.id,
-        supplierId: supplier?.id,
-        status: "SUBMITTED",
+        supplierId: supplier?.id ?? null,
+        status: "DRAFT",
         priority: data.priority,
-        requestedById: userId,
         orderDate: data.orderDate ? new Date(data.orderDate) : null,
         neededByDate: data.neededByDate ? new Date(data.neededByDate) : null,
         termDate: data.termDate ? new Date(data.termDate) : null,
         notes: data.notes || null,
         items: {
+          ...(draft ? { deleteMany: {} } : {}),
           create: data.items.map((item) => {
             const product = products.find((row) => row.id === item.productId);
             if (!product) throw new Error("Ürün bulunamadı.");
@@ -59,17 +65,33 @@ export async function createPurchaseRequest(input: PurchaseRequestInput, userId?
         },
         approvals: {
           create: {
-            action: "SUBMITTED",
-            status: "SUBMITTED",
-            comment: "Depo satın alma talebi oluşturdu.",
+            action: draft ? "DRAFT_UPDATED" : "DRAFT_CREATED",
+            status: "DRAFT",
+            comment: draft ? "Satın alma talebi taslağı güncellendi." : "Satın alma talebi taslağı oluşturuldu.",
             actedById: userId,
           },
         },
-      },
-      select: { id: true, requestNumber: true },
-    });
+      };
+    const request = draft
+      ? await tx.purchaseRequest.update({ where: { id: draft.id }, data: details, select: { id: true, requestNumber: true, updatedAt: true } })
+      : await tx.purchaseRequest.create({ data: { ...details, requestNumber: purchaseRequestNumber(), requestedById: userId }, select: { id: true, requestNumber: true, updatedAt: true } });
 
     return request;
+  });
+}
+
+export async function submitPurchaseRequest(id: string, userId: string, updatedAt: string) {
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "PurchaseRequest" WHERE id = ${id} FOR UPDATE`;
+    const request = await tx.purchaseRequest.findUnique({ where: { id }, include: { items: true, purchaseOrder: { select: { id: true } } } });
+    if (!request) throw new Error("Talep bulunamadı.");
+    assertPurchaseRequestDraft(request.status, Boolean(request.purchaseOrder));
+    if (request.updatedAt.toISOString() !== updatedAt) throw new Error("Talep değişti. Güncel taslağı kontrol ederek tekrar onaya gönderin.");
+    if (!request.items.length) throw new Error("En az bir ürün eklemelisiniz.");
+    return tx.purchaseRequest.update({ where: { id }, data: {
+      status: "SUBMITTED",
+      approvals: { create: { action: "SUBMITTED", status: "SUBMITTED", comment: "Talep satın alma onayına gönderildi.", actedById: userId } },
+    } });
   });
 }
 
@@ -100,8 +122,8 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
     if (products.length !== data.items.length) throw new Error("Siparişte aktif olmayan ürün var.");
     if (data.sourceRequestId && !sourceRequest) throw new Error("Satın alma talebi bulunamadı.");
     if (sourceRequest?.purchaseOrder) throw new Error("Bu talep daha önce siparişe dönüştürülmüş.");
-    if (sourceRequest && ["CANCELLED", "REJECTED", "CONVERTED"].includes(sourceRequest.status)) {
-      throw new Error("Kapalı talep siparişe dönüştürülemez.");
+    if (sourceRequest && !["SUBMITTED", "APPROVED"].includes(sourceRequest.status)) {
+      throw new Error("Yalnızca onaya gönderilmiş talepler siparişe dönüştürülebilir.");
     }
 
     const lines = data.items.map((item) => {

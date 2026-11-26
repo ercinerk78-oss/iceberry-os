@@ -39,7 +39,7 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
       })
       : Promise.resolve(null),
   ]);
-  const usableSourceRequest = sourceRequest && !sourceRequest.purchaseOrder && !["CANCELLED", "REJECTED", "CONVERTED"].includes(sourceRequest.status)
+  const usableSourceRequest = sourceRequest && !sourceRequest.purchaseOrder && ["SUBMITTED", "APPROVED"].includes(sourceRequest.status)
     ? sourceRequest
     : null;
 

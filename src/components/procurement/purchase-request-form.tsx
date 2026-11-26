@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { Plus, Trash2, TriangleAlert } from "lucide-react";
 
 import { createPurchaseRequestAction, getRecentPurchaseRequests, type ProcurementActionState } from "@/app/procurement/actions";
@@ -14,32 +15,44 @@ type ProductOption = { id: string; name: string; sku: string; unit: string; purc
 type Line = { key: string; productId: string; productSearch: string; quantity: string; estimatedUnitCost: string; vatRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
+export type PurchaseRequestDraft = {
+  id: string; updatedAt: string; title: string; warehouseId: string; supplierId: string;
+  priority: string; orderDate: string; neededByDate: string; termDate: string; notes: string;
+  items: { productId: string; quantity: number; estimatedUnitCost: number | null; notes: string }[];
+};
 
 export function PurchaseRequestForm({
   warehouses,
   suppliers,
   products,
   title = "Depodan Satın Alma Talebi Oluştur",
+  draft,
 }: {
   warehouses: Option[];
   suppliers: Option[];
   products: ProductOption[];
   title?: string;
+  draft?: PurchaseRequestDraft;
 }) {
   const [state, action, pending] = useActionState(createPurchaseRequestAction, initialState);
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
-  const [warehouseId, setWarehouseId] = useState("");
+  const [lines, setLines] = useState<Line[]>(() => draft ? draft.items.map(item => {
+    const product = products.find(product => product.id === item.productId);
+    return { key: crypto.randomUUID(), productId: item.productId, productSearch: product ? productLabel(product) : item.productId, quantity: String(item.quantity).replace(".", ","), estimatedUnitCost: item.estimatedUnitCost == null ? "" : String(item.estimatedUnitCost).replace(".", ","), vatRate: String(product?.vatRate ?? 20), notes: item.notes };
+  }) : [emptyLine()]);
+  const [warehouseId, setWarehouseId] = useState(draft?.warehouseId ?? "");
+  const [fields, setFields] = useState({ title: draft?.title ?? "", supplierId: draft?.supplierId ?? "", priority: draft?.priority ?? "NORMAL", orderDate: draft?.orderDate ?? "", neededByDate: draft?.neededByDate ?? "", termDate: draft?.termDate ?? "", notes: draft?.notes ?? "" });
   const [recent, setRecent] = useState<{ selection: string; items: RecentPurchaseRequest[]; failed: boolean }>({ selection: "", items: [], failed: false });
   const selection = JSON.stringify([...new Set(lines.map(line => line.productId).filter(Boolean))].sort());
+  const requestId = state.requestId ?? draft?.id;
   useEffect(() => {
     let cancelled = false;
-    getRecentPurchaseRequests(JSON.parse(selection)).then(items => {
+    getRecentPurchaseRequests(JSON.parse(selection), requestId).then(items => {
       if (!cancelled) setRecent({ selection, items, failed: false });
     }).catch(() => {
       if (!cancelled) setRecent({ selection, items: [], failed: true });
     });
     return () => { cancelled = true; };
-  }, [selection, state]);
+  }, [selection, state, requestId]);
 
   function updateLine(key: string, patch: Partial<Line>) {
     setLines((current) => current.map((line) => {
@@ -59,12 +72,15 @@ export function PurchaseRequestForm({
 
   return (
     <form action={action} className="space-y-4">
+      <input type="hidden" name="requestId" value={state.requestId ?? draft?.id ?? ""} />
+      <input type="hidden" name="updatedAt" value={state.updatedAt ?? draft?.updatedAt ?? ""} />
+      <fieldset disabled={pending || state.submitted} className="min-w-0 space-y-4">
       <Card className="shadow-none">
         <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <label className="text-sm">
             Talep Başlığı
-            <input name="title" required placeholder="Örn. Merkez depo içecek stoğu" className="mt-1 h-10 w-full rounded-lg border px-3" />
+            <input name="title" required value={fields.title} onChange={event => setFields({ ...fields, title: event.target.value })} placeholder="Örn. Merkez depo içecek stoğu" className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="text-sm">
             Talep Deposu
@@ -75,7 +91,7 @@ export function PurchaseRequestForm({
           </label>
           <label className="text-sm">
             Önerilen Tedarikçi
-            <select name="supplierId" className="mt-1 h-10 w-full rounded-lg border px-3">
+            <select name="supplierId" value={fields.supplierId} onChange={event => setFields({ ...fields, supplierId: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="">Satın alma ekibi seçsin</option>
               <option value="__UNSPECIFIED__">DİĞER / BELİRSİZ</option>
               {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
@@ -83,7 +99,7 @@ export function PurchaseRequestForm({
           </label>
           <label className="text-sm">
             Öncelik
-            <select name="priority" defaultValue="NORMAL" className="mt-1 h-10 w-full rounded-lg border px-3">
+            <select name="priority" value={fields.priority} onChange={event => setFields({ ...fields, priority: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="LOW">Düşük</option>
               <option value="NORMAL">Normal</option>
               <option value="HIGH">Yüksek</option>
@@ -92,19 +108,19 @@ export function PurchaseRequestForm({
           </label>
           <label className="text-sm">
             Sipariş Tarihi
-            <input name="orderDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
+            <input name="orderDate" type="date" value={fields.orderDate} onChange={event => setFields({ ...fields, orderDate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="text-sm">
             İhtiyaç Tarihi
-            <input name="neededByDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
+            <input name="neededByDate" type="date" value={fields.neededByDate} onChange={event => setFields({ ...fields, neededByDate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="text-sm">
             Termin Tarihi
-            <input name="termDate" type="date" className="mt-1 h-10 w-full rounded-lg border px-3" />
+            <input name="termDate" type="date" value={fields.termDate} onChange={event => setFields({ ...fields, termDate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" />
           </label>
           <label className="text-sm md:col-span-2">
             Talep Notu
-            <textarea name="notes" placeholder="Depo ihtiyacını açıklayın" className="mt-1 min-h-20 w-full rounded-lg border p-3" />
+            <textarea name="notes" value={fields.notes} onChange={event => setFields({ ...fields, notes: event.target.value })} placeholder="Depo ihtiyacını açıklayın" className="mt-1 min-h-20 w-full rounded-lg border p-3" />
           </label>
         </CardContent>
       </Card>
@@ -190,9 +206,14 @@ export function PurchaseRequestForm({
               {state.message}
             </p>
           ) : null}
-          <Button disabled={pending}>{pending ? "Talep iletiliyor..." : "Talebi Satın Almaya Gönder"}</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button name="intent" value="save" disabled={pending || state.submitted}>{pending ? "Kaydediliyor..." : "Taslağı Kaydet"}</Button>
+            {state.requestId || draft ? <Button name="intent" value="submit" variant="outline" disabled={pending || state.submitted}>Kaydet ve Onaya Gönder</Button> : null}
+          </div>
         </CardContent>
       </Card>
+      </fieldset>
+      {state.submitted ? <Button asChild variant="outline"><Link href="/warehouse/purchase-requests">Son Taleplere Dön</Link></Button> : null}
     </form>
   );
 }
