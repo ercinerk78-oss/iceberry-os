@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Option = { id: string; name: string };
-type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
+type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; vatRate: number; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
 type Line = { key: string; productId: string; productSearch: string; quantity: string; estimatedUnitCost: string; vatRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
@@ -36,6 +36,7 @@ export function PurchaseRequestForm({
         if (product) {
           next.productSearch = productLabel(product);
           next.estimatedUnitCost = formatInputNumber(lastKnownPrice(product));
+          next.vatRate = String(product.vatRate);
         }
       }
       return next;
@@ -144,11 +145,7 @@ export function PurchaseRequestForm({
                 </label>
                 <label className="text-xs">
                   KDV
-                  <select name="vatRate" value={line.vatRate} onChange={(event) => updateLine(line.key, { vatRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2">
-                    <option value="1">%1</option>
-                    <option value="10">%10</option>
-                    <option value="20">%20</option>
-                  </select>
+                  <input name="vatRate" readOnly value={line.productId ? line.vatRate : ""} className="mt-1 h-10 w-full rounded-lg border bg-muted px-2" />
                 </label>
                 <label className="text-xs">
                   Not

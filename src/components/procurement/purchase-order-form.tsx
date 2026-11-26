@@ -199,7 +199,7 @@ export function PurchaseOrderForm({
                   </label>
                   <label className="text-xs">
                     KDV %
-                    <input name="vatRate" type="text" inputMode="decimal" value={line.vatRate} onChange={(event) => updateLine(line.key, { vatRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
+                    <input name="vatRate" type="text" readOnly value={line.productId ? line.vatRate : ""} className="mt-1 h-10 w-full rounded-lg border bg-muted px-2" />
                   </label>
                   <label className="text-xs">
                     İskonto %

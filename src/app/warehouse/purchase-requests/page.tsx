@@ -19,6 +19,7 @@ export default async function WarehousePurchaseRequestsPage() {
         sku: true,
         unit: true,
         purchasePrice: true,
+        vatRate: true,
         supplierProducts: {
           where: { isActive: true },
           select: { unitPrice: true, lastQuotedAt: true, isPreferred: true },

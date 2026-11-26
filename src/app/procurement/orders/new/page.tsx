@@ -51,7 +51,7 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
         products={products.map((product) => ({
           ...product,
           purchasePrice: product.purchasePrice || 0,
-          vatRate: product.vatRate || 20,
+          vatRate: product.vatRate,
           supplierProducts: product.supplierProducts.map((mapping) => ({
             ...mapping,
             unitPrice: mapping.unitPrice == null ? null : Number(mapping.unitPrice),
@@ -67,7 +67,7 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
           productSearch: `${item.productName} - ${item.sku}`,
           quantity: String(item.approvedQuantity ?? item.requestedQuantity).replace(".", ","),
           unitPrice: String(Number(item.estimatedUnitCost ?? item.product.purchasePrice ?? 0)).replace(".", ","),
-          vatRate: String(Number(item.vatRate ?? item.product.vatRate ?? 20)).replace(".", ","),
+          vatRate: String(item.product.vatRate).replace(".", ","),
           discountRate: "0",
           notes: item.notes ?? "",
         }))}

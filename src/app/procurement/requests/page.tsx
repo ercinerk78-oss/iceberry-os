@@ -26,6 +26,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
         sku: true,
         unit: true,
         purchasePrice: true,
+        vatRate: true,
         supplierProducts: {
           where: { isActive: true },
           select: { unitPrice: true, lastQuotedAt: true, isPreferred: true },

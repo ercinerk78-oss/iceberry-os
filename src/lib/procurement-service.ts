@@ -52,7 +52,7 @@ export async function createPurchaseRequest(input: PurchaseRequestInput, userId?
               requestedQuantity: item.quantity,
               approvedQuantity: item.quantity,
               estimatedUnitCost: item.estimatedUnitCost == null ? null : new Prisma.Decimal(item.estimatedUnitCost),
-              vatRate: new Prisma.Decimal(item.vatRate),
+              vatRate: new Prisma.Decimal(product.vatRate),
               notes: item.notes || null,
             };
           }),
@@ -110,6 +110,8 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
       if (!supplierProductLinks.some((link) => link.productId === item.productId)) {
         throw new Error(`${product.name} seçilen tedarikçiye bağlı değil. Önce tedarikçi ürün eşleştirmesi yapmalısınız.`);
       }
+      // New orders snapshot the product tax; existing orders and receipts keep their stored rate.
+      item.vatRate = product.vatRate;
       const amounts = calculatePurchaseLine({
         quantity: item.quantity,
         unitPrice: item.unitPrice,
