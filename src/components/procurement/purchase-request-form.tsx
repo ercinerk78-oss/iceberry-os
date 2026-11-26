@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useActionState, useEffect, useState } from "react";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 
-import { createPurchaseRequestAction, type ProcurementActionState } from "@/app/procurement/actions";
+import { createPurchaseRequestAction, getRecentPurchaseRequests, type ProcurementActionState } from "@/app/procurement/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { purchaseRequestStock } from "@/lib/purchase-request-stock";
+import type { RecentPurchaseRequest } from "@/lib/recent-purchase-requests";
 
 type Option = { id: string; name: string };
 type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; vatRate: number; stocks: { warehouseId: string; quantity: number }[]; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
@@ -28,6 +29,17 @@ export function PurchaseRequestForm({
   const [state, action, pending] = useActionState(createPurchaseRequestAction, initialState);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [warehouseId, setWarehouseId] = useState("");
+  const [recent, setRecent] = useState<{ selection: string; items: RecentPurchaseRequest[]; failed: boolean }>({ selection: "", items: [], failed: false });
+  const selection = JSON.stringify([...new Set(lines.map(line => line.productId).filter(Boolean))].sort());
+  useEffect(() => {
+    let cancelled = false;
+    getRecentPurchaseRequests(JSON.parse(selection)).then(items => {
+      if (!cancelled) setRecent({ selection, items, failed: false });
+    }).catch(() => {
+      if (!cancelled) setRecent({ selection, items: [], failed: true });
+    });
+    return () => { cancelled = true; };
+  }, [selection, state]);
 
   function updateLine(key: string, patch: Partial<Line>) {
     setLines((current) => current.map((line) => {
@@ -108,6 +120,7 @@ export function PurchaseRequestForm({
           {lines.map((line) => {
             const product = products.find((item) => item.id === line.productId);
             const matches = productMatches(products, line.productSearch);
+            const previousRequests = recent.selection === selection ? recent.items.filter(item => item.productId === line.productId) : [];
 
             return (
               <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.5fr_0.45fr_0.55fr_0.45fr_0.8fr_0.9fr_auto]">
@@ -163,9 +176,15 @@ export function PurchaseRequestForm({
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
+                {previousRequests.length > 0 ? <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 lg:col-span-full">
+                  <p className="flex items-start gap-2 font-semibold"><TriangleAlert className="mt-0.5 size-4 shrink-0" />Bu ürün için son 3 gün içinde {previousRequests.length} talep kalemi oluşturulmuş.</p>
+                  <ul className="mt-2 space-y-1">{previousRequests.slice(0, 3).map((item, index) => <li key={`${item.requestNumber}-${index}`}>{item.requestNumber} · {new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", dateStyle: "short", timeStyle: "short" }).format(new Date(item.createdAt))} · {item.warehouseName} · {item.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 9 })} {item.unit}</li>)}</ul>
+                  <p className="mt-2">Bilgilendirme amaçlıdır. Yeni talep oluşturmaya devam edebilirsiniz.</p>
+                </div> : null}
               </div>
             );
           })}
+          {recent.selection === selection && recent.failed ? <p role="status" className="text-sm text-amber-800">Son 3 günlük talep geçmişi kontrol edilemedi. Bu durum yeni talep oluşturmanıza engel değildir.</p> : null}
           {state.message ? (
             <p className={`rounded-lg p-3 text-sm ${state.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
               {state.message}

@@ -20,8 +20,21 @@ import {
   changePurchaseOrderLine,
 } from "@/lib/procurement-service";
 import { prisma } from "@/lib/prisma";
+import { recentPurchaseRequestWhere, type RecentPurchaseRequest } from "@/lib/recent-purchase-requests";
 
 export type ProcurementActionState = { ok: boolean; message: string };
+
+export async function getRecentPurchaseRequests(raw: unknown): Promise<RecentPurchaseRequest[]> {
+  await requireAnyPermission(["warehouse", "procurement"]);
+  const productIds = z.array(z.string().min(1).max(200)).max(200).parse(raw);
+  if (!productIds.length) return [];
+  const items = await prisma.purchaseRequestItem.findMany({
+    where: recentPurchaseRequestWhere(productIds),
+    select: { productId: true, requestedQuantity: true, unit: true, purchaseRequest: { select: { requestNumber: true, createdAt: true, warehouse: { select: { name: true } } } } },
+    orderBy: { purchaseRequest: { createdAt: "desc" } },
+  });
+  return items.map(item => ({ productId: item.productId, quantity: item.requestedQuantity, unit: item.unit, requestNumber: item.purchaseRequest.requestNumber, createdAt: item.purchaseRequest.createdAt.toISOString(), warehouseName: item.purchaseRequest.warehouse.name }));
+}
 
 const refreshPaths = [
   "/procurement",
