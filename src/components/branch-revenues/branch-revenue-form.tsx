@@ -39,6 +39,7 @@ export function BranchRevenueForm({ branches, year, month }: BranchRevenueFormPr
       <RevenueBranchSearch key={`branch-${resetVersion}`} branches={branches} />
       <RevenuePeriodPicker key={`period-${resetVersion}`} year={year} month={month} />
       <RevenueAmountInput key={`amount-${resetVersion}`} />
+      <RevenueAmountInput key={`delivery-${resetVersion}`} name="deliveryRevenue" label="Paket Servis Cirosu" required={false} />
       <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">Ciro hedefi</span><input name="targetRevenue" type="number" min={0} step="0.01" className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>
       <Select name="currency" current="TRY" first="" options={REVENUE_CURRENCIES.map((item) => [item, item])} />
       <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">İşlem sayısı</span><input name="transactionCount" type="number" min={0} className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal" /></label>

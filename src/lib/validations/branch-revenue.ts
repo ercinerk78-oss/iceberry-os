@@ -9,6 +9,7 @@ export const branchRevenueSchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   month: z.coerce.number().int().min(1).max(12),
   grossRevenue: z.coerce.number().nonnegative("Ciro negatif olamaz."),
+  deliveryRevenue: z.string().regex(/^\d+(\.\d{1,3})?$/, "Paket servis cirosunu pozitif bir tutar veya sıfır olarak girin.").optional().or(z.literal("")),
   netRevenue: optionalNumber,
   targetRevenue: optionalNumber,
   transactionCount: optionalNumber,
@@ -17,7 +18,7 @@ export const branchRevenueSchema = z.object({
   source: z.enum(REVENUE_SOURCES),
   notes: z.string().trim().max(1000, "Açıklama en fazla 1000 karakter olabilir.").optional().or(z.literal("")),
   submit: z.string().optional(),
-});
+}).refine(value => !value.deliveryRevenue || Number(value.deliveryRevenue) <= value.grossRevenue, { message: "Paket servis cirosu toplam ciroyu aşamaz.", path: ["deliveryRevenue"] });
 
 export const revenueRejectSchema = z.object({
   rejectionReason: z.string().trim().min(2, "Ret açıklaması zorunludur."),

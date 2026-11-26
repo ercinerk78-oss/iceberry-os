@@ -60,11 +60,11 @@ export function RevenuePeriodPicker({ year, month }: { year: number; month: numb
   </div>;
 }
 
-export function RevenueAmountInput() {
+export function RevenueAmountInput({ name = "grossRevenue", label = "Toplam ciro", required = true }: { name?: "grossRevenue" | "deliveryRevenue"; label?: string; required?: boolean }) {
   const [value, setValue] = useState("");
-  return <label className="block min-w-0 text-sm font-medium xl:col-span-2">
-    <span className="mb-1 block">Gerçekleşen ciro</span>
-    <input aria-label="Gerçekleşen ciro" required type="text" inputMode="decimal" autoComplete="off" value={value} onChange={event => {
+  return <label className="block min-w-0 text-sm font-medium">
+    <span className="mb-1 block">{label}</span>
+    <input aria-label={label} required={required} type="text" inputMode="decimal" autoComplete="off" value={value} onChange={event => {
       const formatted = formatRevenueEntry(event.target.value);
       if (formatted !== null) {
         const input = event.target;
@@ -77,6 +77,6 @@ export function RevenueAmountInput() {
         });
       }
     }} onBlur={() => { if (value.endsWith(",")) setValue(value.slice(0, -1)); }} className="h-10 min-w-0 w-full rounded-lg border px-3 font-normal tabular-nums" />
-    <input type="hidden" name="grossRevenue" value={revenueEntryValue(value)} />
+    <input type="hidden" name={name} value={revenueEntryValue(value)} />
   </label>;
 }

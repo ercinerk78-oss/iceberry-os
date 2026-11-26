@@ -6,6 +6,7 @@ import { RoyaltyCalculator } from "@/components/branch-revenues/royalty-calculat
 import { requirePermission } from "@/lib/auth";
 import { accessibleBranchIds } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
+import { savedRevenueDelivery } from "@/lib/revenue-entry";
 import { withNonHotelMainBranchWhere } from "@/lib/branch-visibility";
 import { isRoyaltyExcludedHotel } from "@/lib/finance/royalty-eligibility";
 import { defaultRoyaltyPeriod, royaltyMonthSchema, royaltyInputsSchema, royaltySettingsSchema } from "@/lib/finance/delivery-royalty";
@@ -26,6 +27,7 @@ export default async function RoyaltyPage({ searchParams }: { searchParams: Prom
   const revenue = branch ? revenues.find(record => record.branchId === branch.id) : null;
   const settings = royaltySettingsSchema.safeParse(branch?.royaltyCalculationSettings);
   const saved = royaltyInputsSchema.safeParse(revenue?.royaltyCalculationInputs);
+  const enteredDelivery = savedRevenueDelivery(revenue?.royaltyCalculationInputs);
   const previousTotal = revenue?.royaltyCalculationInputs && typeof revenue.royaltyCalculationInputs === "object" && !Array.isArray(revenue.royaltyCalculationInputs) ? revenue.royaltyCalculationInputs.totalRevenue : undefined;
   const profileRate = branch?.financialProfile?.royaltyRate?.toNumber();
   const rate = saved.success ? saved.data.rate : settings.success ? settings.data.rate : profileRate === 2 ? 2 : 3;
@@ -45,17 +47,17 @@ export default async function RoyaltyPage({ searchParams }: { searchParams: Prom
       totalRevenue={manualTotal ?? new Prisma.Decimal(revenue.grossRevenue).toFixed(2)}
       sourceTotalRevenue={new Prisma.Decimal(revenue.grossRevenue).toFixed(2)}
       totalRevenueSource={manualTotal ? "MANUAL" : "BRANCH_REVENUE"}
-      hasDelivery={configuration.hasDelivery} hasBreakEven={configuration.hasBreakEven} breakEven={configuration.breakEven}
+      hasDelivery={enteredDelivery !== undefined && Number(enteredDelivery) > 0 ? true : configuration.hasDelivery} hasBreakEven={configuration.hasBreakEven} breakEven={configuration.breakEven}
       revenueUpdatedAt={revenue.updatedAt.toISOString()} branchUpdatedAt={branch.updatedAt.toISOString()}
-      rate={rate} deliveryRevenue={saved.success ? saved.data.deliveryRevenue : configuration.hasDelivery ? "" : "0"}
+      rate={rate} deliveryRevenue={saved.success ? saved.data.deliveryRevenue : enteredDelivery !== undefined ? new Prisma.Decimal(enteredDelivery).toFixed(2) : configuration.hasDelivery ? "" : "0"}
       startMonth={settings.success ? settings.data.startMonth : ""} exemptionNote={settings.success ? settings.data.exemptionNote : ""}
       revenueStatus={revenue.status} savedTotalRevenue={typeof previousTotal === "string" ? previousTotal : undefined}
     /> : branch ? <p role="status" className="border p-4">{!revenue ? "Bu şube ve dönem için ciro girilmemiş. Önce Şube Ciroları kaydını oluşturun." : "Bu hesaplama yalnız TL ciro kayıtları için kullanılabilir."}</p> : null}
     <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-muted"><tr>{["Şube", "Dönem Toplam Cirosu", "Paket Servis Cirosu", "İşlem"].map(title => <th className="p-3" key={title}>{title}</th>)}</tr></thead><tbody>{visible.map(branch => {
       const record = revenues.find(record => record.branchId === branch.id);
-      const inputs = royaltyInputsSchema.safeParse(record?.royaltyCalculationInputs);
+      const delivery = savedRevenueDelivery(record?.royaltyCalculationInputs);
       const money = (value: number, currency: string) => `${value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
-      return <tr key={branch.id} className="border-b"><td className="p-3 font-medium">{branch.branchName}</td><td className="p-3">{record ? money(record.grossRevenue, record.currency) : "Ciro girilmedi"}</td><td className="p-3">{inputs.success ? money(Number(inputs.data.deliveryRevenue), record!.currency) : "Giriş bekleniyor"}</td><td className="p-3"><Link className="font-medium underline" href={`/branch-revenues/royalty?period=${period}&branchId=${encodeURIComponent(branch.id)}`}>Hesaplamayı Aç</Link></td></tr>;
+      return <tr key={branch.id} className="border-b"><td className="p-3 font-medium">{branch.branchName}</td><td className="p-3">{record ? money(record.grossRevenue, record.currency) : "Ciro girilmedi"}</td><td className="p-3">{delivery !== undefined ? money(Number(delivery), record!.currency) : "Giriş bekleniyor"}</td><td className="p-3"><Link className="font-medium underline" href={`/branch-revenues/royalty?period=${period}&branchId=${encodeURIComponent(branch.id)}`}>Hesaplamayı Aç</Link></td></tr>;
     })}{!visible.length && <tr><td colSpan={4} className="p-8 text-center">Şube bulunamadı.</td></tr>}</tbody></table></div>
   </AppShell>;
 }

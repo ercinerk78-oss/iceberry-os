@@ -11,3 +11,9 @@ export function formatRevenueEntry(value: string): string | null {
 export function revenueEntryValue(value: string) {
   return value.replace(/\./g, "").replace(",", ".");
 }
+
+export function savedRevenueDelivery(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const amount = (value as Record<string, unknown>).deliveryRevenue;
+  return typeof amount === "string" && /^\d+(\.\d{1,3})?$/.test(amount) ? amount : undefined;
+}

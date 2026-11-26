@@ -128,6 +128,7 @@ export async function upsertBranchRevenue(_: BranchRevenueState, formData: FormD
           year: parsed.data.year,
           month: parsed.data.month,
           grossRevenue: parsed.data.grossRevenue,
+          ...(parsed.data.deliveryRevenue ? { royaltyCalculationInputs: { deliveryRevenue: parsed.data.deliveryRevenue } } : {}),
           netRevenue: nullableNumber(parsed.data.netRevenue),
           targetRevenue: nullableNumber(parsed.data.targetRevenue),
           transactionCount: parsed.data.transactionCount ? Number(parsed.data.transactionCount) : null,
