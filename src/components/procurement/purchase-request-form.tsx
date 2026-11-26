@@ -97,7 +97,7 @@ export function PurchaseRequestForm({
       <Card className="shadow-none">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Talep Kalemleri</CardTitle>
-          <Button type="button" variant="outline" onClick={() => setLines((current) => [...current, emptyLine()])}>
+          <Button type="button" variant="outline" onClick={() => setLines((current) => [emptyLine(), ...current])}>
             <Plus className="size-4" /> Kalem Ekle
           </Button>
         </CardHeader>
