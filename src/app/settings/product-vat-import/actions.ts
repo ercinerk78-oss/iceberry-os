@@ -34,7 +34,7 @@ export async function applyVatImport(_: VatImportState, form: FormData): Promise
     const manifest = verifyImportPreview<Manifest>(String(form.get("token") ?? ""), user.id);
     if (manifest.kind !== "PRODUCT_VAT" || !manifest.items.length) throw new Error("Geçersiz KDV önizlemesi.");
     const result = await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('product-catalog-import'))`;
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext('product-catalog-import'))`;
       const applied = await tx.auditLog.findFirst({ where: { entityType: "ProductVatImport", entityId: manifest.id, action: "PRODUCT_VAT_IMPORTED" } });
       if (applied) return "Bu aktarım daha önce uygulandı.";
       for (const item of manifest.items) {
