@@ -20,6 +20,7 @@ export default async function WarehousePurchaseRequestsPage() {
         unit: true,
         purchasePrice: true,
         vatRate: true,
+        stocks: { select: { warehouseId: true, quantity: true } },
         supplierProducts: {
           where: { isActive: true },
           select: { unitPrice: true, lastQuotedAt: true, isPreferred: true },

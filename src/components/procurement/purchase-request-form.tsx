@@ -6,9 +6,10 @@ import { Plus, Trash2 } from "lucide-react";
 import { createPurchaseRequestAction, type ProcurementActionState } from "@/app/procurement/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { purchaseRequestStock } from "@/lib/purchase-request-stock";
 
 type Option = { id: string; name: string };
-type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; vatRate: number; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
+type ProductOption = { id: string; name: string; sku: string; unit: string; purchasePrice: number; vatRate: number; stocks: { warehouseId: string; quantity: number }[]; supplierProducts: { unitPrice: number | null; lastQuotedAt: string | null; isPreferred: boolean }[] };
 type Line = { key: string; productId: string; productSearch: string; quantity: string; estimatedUnitCost: string; vatRate: string; notes: string };
 
 const initialState: ProcurementActionState = { ok: false, message: "" };
@@ -26,6 +27,7 @@ export function PurchaseRequestForm({
 }) {
   const [state, action, pending] = useActionState(createPurchaseRequestAction, initialState);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [warehouseId, setWarehouseId] = useState("");
 
   function updateLine(key: string, patch: Partial<Line>) {
     setLines((current) => current.map((line) => {
@@ -54,7 +56,7 @@ export function PurchaseRequestForm({
           </label>
           <label className="text-sm">
             Talep Deposu
-            <select name="warehouseId" required className="mt-1 h-10 w-full rounded-lg border px-3">
+            <select name="warehouseId" required value={warehouseId} onChange={event => setWarehouseId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3">
               <option value="">Depo seçin</option>
               {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
             </select>
@@ -108,7 +110,7 @@ export function PurchaseRequestForm({
             const matches = productMatches(products, line.productSearch);
 
             return (
-              <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.5fr_0.45fr_0.55fr_0.45fr_0.9fr_auto]">
+              <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.5fr_0.45fr_0.55fr_0.45fr_0.8fr_0.9fr_auto]">
                 <div className="relative text-xs">
                   Ürün
                   <input
@@ -146,6 +148,10 @@ export function PurchaseRequestForm({
                 <label className="text-xs">
                   KDV
                   <input name="vatRate" readOnly value={line.productId ? line.vatRate : ""} className="mt-1 h-10 w-full rounded-lg border bg-muted px-2" />
+                </label>
+                <label className="min-w-0 text-xs">
+                  Depodaki Mevcut Stok
+                  <input readOnly value={purchaseRequestStock(product, warehouseId)} placeholder={!warehouseId ? "Önce depo seçin" : !product ? "Önce ürün seçin" : ""} className="mt-1 h-10 w-full min-w-0 rounded-lg border bg-muted px-2" />
                 </label>
                 <label className="text-xs">
                   Not
