@@ -8,3 +8,7 @@ export function purchaseRequestDraftWarning(status: string, createdAt: Date, now
 export function assertPurchaseRequestDraft(status: string, hasOrder: boolean) {
   if (status !== "DRAFT" || hasOrder) throw new Error("Yalnızca onaya gönderilmemiş taslaklar düzenlenebilir.");
 }
+
+export function assertPurchaseRequestReopenable(status: string, hasOrder: boolean) {
+  if (status !== "SUBMITTED" || hasOrder) throw new Error("Yalnızca siparişe dönüşmemiş, onay bekleyen talepler taslağa alınabilir.");
+}

@@ -121,10 +121,11 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
                     </td>
                     <td className="px-4 py-4">{request.items.length}</td>
                     <td className="px-4 py-4">
+                      {request.status === "SUBMITTED" && !request.purchaseOrder ? <Button asChild size="sm" variant="outline" className="mb-2"><Link href={`/procurement/requests/${request.id}`}>Düzenle</Link></Button> : null}
                       {request.purchaseOrder ? (
                         <Button asChild size="sm" variant="outline"><Link href={`/procurement/orders/${request.purchaseOrder.id}`}>{request.purchaseOrder.orderNumber}</Link></Button>
                       ) : request.status === "DRAFT" ? (
-                        <Button asChild size="sm" variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>Düzenle / Onaya Gönder</Link></Button>
+                        <Button asChild size="sm" variant="outline"><Link href={`/procurement/requests/${request.id}`}>Düzenle / Onaya Gönder</Link></Button>
                       ) : ["CANCELLED", "REJECTED", "CONVERTED"].includes(request.status) ? (
                         <span className="text-xs text-[#65705f]">Kapalı</span>
                       ) : (

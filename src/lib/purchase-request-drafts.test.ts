@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPurchaseRequestDraft, purchaseRequestDraftWarning } from "./purchase-request-drafts";
+import { assertPurchaseRequestDraft, assertPurchaseRequestReopenable, purchaseRequestDraftWarning } from "./purchase-request-drafts";
 
 test("draft warning starts exactly after 24 hours, not at midnight", () => {
   const created = new Date("2026-11-26T20:00:00Z");
@@ -21,4 +21,12 @@ test("submitted and closed requests never have draft warnings", () => {
 test("future drafts do not warn and year boundaries use elapsed days", () => {
   assert.equal(purchaseRequestDraftWarning("DRAFT", new Date("2027-01-02"), new Date("2027-01-01")), null);
   assert.match(purchaseRequestDraftWarning("DRAFT", new Date("2026-12-31"), new Date("2027-01-02"))!, /2 gün/);
+});
+
+test("pending legacy requests can return to draft but ordered or final requests cannot", () => {
+  assert.doesNotThrow(() => assertPurchaseRequestReopenable("SUBMITTED", false));
+  assert.throws(() => assertPurchaseRequestReopenable("SUBMITTED", true));
+  for (const status of ["DRAFT", "APPROVED", "CONVERTED", "REJECTED", "CANCELLED"]) {
+    assert.throws(() => assertPurchaseRequestReopenable(status, false));
+  }
 });

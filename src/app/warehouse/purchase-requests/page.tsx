@@ -82,7 +82,7 @@ export default async function WarehousePurchaseRequestsPage() {
                   </p>
                 </div>
                 <p className="text-sm text-[#65705f]">{procurementDate(request.createdAt)}</p>
-                {request.status === "DRAFT" && !request.purchaseOrder ? <Button asChild variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>Düzenle / Onaya Gönder</Link></Button> : null}
+                {["DRAFT", "SUBMITTED"].includes(request.status) && !request.purchaseOrder ? <Button asChild variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>{request.status === "DRAFT" ? "Düzenle / Onaya Gönder" : "Düzenle"}</Link></Button> : null}
               </CardContent>
             </Card>
           ))}

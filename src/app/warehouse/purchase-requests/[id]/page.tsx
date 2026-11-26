@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
+import { PurchaseRequestReopenForm } from "@/components/procurement/purchase-request-reopen-form";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { hasPermissionWithOverrides } from "@/lib/permissions";
@@ -30,7 +31,8 @@ export default async function PurchaseRequestDraftPage({ params }: { params: Pro
       {editable ? <PurchaseRequestForm key={request.id} title="Taslağı Düzenle" warehouses={warehouses} suppliers={suppliers}
         products={products.map(product => ({ ...product, purchasePrice: Number(product.purchasePrice ?? 0), supplierProducts: product.supplierProducts.map(mapping => ({ ...mapping, unitPrice: mapping.unitPrice == null ? null : Number(mapping.unitPrice), lastQuotedAt: mapping.lastQuotedAt?.toISOString() ?? null })) }))}
         draft={{ id: request.id, updatedAt: request.updatedAt.toISOString(), title: request.title, warehouseId: request.warehouseId, supplierId: request.supplierId ?? "", priority: request.priority, orderDate: dateInput(request.orderDate), neededByDate: dateInput(request.neededByDate), termDate: dateInput(request.termDate), notes: request.notes ?? "", items: request.items.map(item => ({ productId: item.productId, quantity: item.requestedQuantity, estimatedUnitCost: item.estimatedUnitCost == null ? null : Number(item.estimatedUnitCost), notes: item.notes ?? "" })) }} />
-        : <p role="status">Bu talep artık taslak değil; düzenlemeye kapalı.</p>}
+        : request.status === "SUBMITTED" && !request.purchaseOrder ? <PurchaseRequestReopenForm requestId={request.id} />
+        : <p role="status">Bu talep onaylanmış, kapanmış veya siparişe dönüşmüş; düzenlemeye kapalı.</p>}
     </div>
   </AppShell>;
 }

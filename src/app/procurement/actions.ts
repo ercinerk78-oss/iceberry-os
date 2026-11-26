@@ -22,6 +22,7 @@ import {
 } from "@/lib/procurement-service";
 import { prisma } from "@/lib/prisma";
 import { recentPurchaseRequestWhere, type RecentPurchaseRequest } from "@/lib/recent-purchase-requests";
+import { assertPurchaseRequestReopenable } from "@/lib/purchase-request-drafts";
 
 export type ProcurementActionState = { ok: boolean; message: string; requestId?: string; updatedAt?: string; submitted?: boolean };
 
@@ -109,6 +110,28 @@ async function requireAnyPermission(permissions: Permission[]) {
   const allowed = permissions.some((permission) => hasPermissionWithOverrides(user.role, permission, user.permissions));
   if (!allowed) throw new Error("Bu işlemi yapma yetkiniz bulunmuyor.");
   return user;
+}
+
+export async function reopenPurchaseRequestAction(id: string, _: ProcurementActionState): Promise<ProcurementActionState> {
+  try {
+    const user = await requireAnyPermission(["warehouse", "procurement"]);
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "PurchaseRequest" WHERE id = ${id} FOR UPDATE`;
+      const request = await tx.purchaseRequest.findUnique({ where: { id }, include: { purchaseOrder: { select: { id: true } } } });
+      if (!request) throw new Error("Talep bulunamadı.");
+      assertPurchaseRequestReopenable(request.status, Boolean(request.purchaseOrder));
+      await tx.purchaseRequest.update({ where: { id }, data: {
+        status: "DRAFT", approvedAt: null, approvedById: null,
+        approvals: { create: { action: "RETURNED_TO_DRAFT", status: "DRAFT", comment: "Düzenleme için onaydan geri çekilerek taslağa alındı.", actedById: user.id } },
+      } });
+    });
+    refresh();
+    revalidatePath(`/warehouse/purchase-requests/${id}`);
+    revalidatePath(`/procurement/requests/${id}`);
+    return { ok: true, message: "Talep taslağa alındı. Düzenleyip tekrar onaya gönderebilirsiniz." };
+  } catch (error) {
+    return { ..._, ok: false, message: error instanceof Error ? error.message : "Talep taslağa alınamadı." };
+  }
 }
 
 export async function updatePurchaseRequestSupplierAction(id: string, _: ProcurementActionState, formData: FormData): Promise<ProcurementActionState> {

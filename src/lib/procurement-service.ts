@@ -99,6 +99,9 @@ export async function createPurchaseOrder(input: PurchaseOrderInput, userId?: st
   const data = purchaseOrderSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
+    if (data.sourceRequestId) {
+      await tx.$queryRaw`SELECT id FROM "PurchaseRequest" WHERE id = ${data.sourceRequestId} FOR UPDATE`;
+    }
     const [supplier, warehouse, sourceRequest, products, supplierProductLinks] = await Promise.all([
       tx.supplier.findFirst({ where: { id: data.supplierId, archivedAt: null } }),
       tx.warehouse.findFirst({ where: { id: data.warehouseId, archivedAt: null, isActive: true } }),
