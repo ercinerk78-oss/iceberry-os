@@ -64,7 +64,6 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                 <p className="text-2xl font-semibold">{procurementMoney(order.grandTotal, order.currency)}</p>
                 <p className="text-sm text-[#65705f]">Teslimat {totalReceived} / {totalOrdered}</p>
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <Button asChild size="sm" variant="outline"><a href={`/procurement/orders/${order.id}/export?format=word`}>Word</a></Button>
                   <Button asChild size="sm" variant="outline"><a href={`/procurement/orders/${order.id}/export?format=excel`}>Excel</a></Button>
                 </div>
               </div>
@@ -162,8 +161,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
               {!["CLOSED", "CANCELLED", "RECEIVED"].includes(order.status) ? (
                 <form action={purchaseOrderCommand.bind(null, order.id, "cancel")}><Button className="w-full" variant="destructive">İptal Et</Button></form>
               ) : null}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <Button asChild variant="outline"><a href={`/procurement/orders/${order.id}/export?format=word`}>Word Dışa Aktar</a></Button>
+              <div className="pt-2">
                 <Button asChild variant="outline"><a href={`/procurement/orders/${order.id}/export?format=excel`}>Excel Dışa Aktar</a></Button>
               </div>
             </CardContent>
