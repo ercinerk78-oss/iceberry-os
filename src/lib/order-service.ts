@@ -3,7 +3,8 @@ import { ORDER_FINANCIAL_STATUSES } from "@/lib/integrations/constants";
 import { ParasutInvoiceService } from "@/lib/integrations/parasut/invoice-service";
 import { nextPickedQuantity } from "@/lib/product-barcodes";
 import { prisma } from "@/lib/prisma";
-import { reserveStock, releaseReservation, shipReservedStock } from "@/lib/stock-service";
+import { releaseReservation, shipReservedStock } from "@/lib/stock-service";
+import { executeOrderApproval, ORDER_APPROVAL_TRANSACTION_OPTIONS } from "@/lib/order-approval";
 import { orderSchema } from "@/lib/validations/order";
 import { orderNumber } from "@/lib/warehouse";
 import { assertOrderLineStock } from "@/lib/order-stock-check";
@@ -118,41 +119,7 @@ export async function createOrder(input: Input) {
 }
 
 export async function approveOrder(id: string) {
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "FranchiseOrder" WHERE id = ${id} FOR UPDATE`;
-    const order = await tx.franchiseOrder.findUnique({ where: { id }, include: { items: true } });
-
-    if (!order) {
-      throw new Error("Sipariş bulunamadı.");
-    }
-    if (order.status !== "SUBMITTED") return order;
-
-    for (const item of order.items) {
-      await reserveStock(tx, {
-        warehouseId: order.warehouseId,
-        productId: item.productId,
-        quantity: item.quantity,
-        referenceType: "ORDER",
-        referenceId: id,
-        description: `${order.orderNumber} için rezerve edildi.`,
-      });
-      await tx.franchiseOrderItem.update({
-        where: { id: item.id },
-        data: { reservedQuantity: item.quantity, approvedQuantity: item.quantity },
-      });
-    }
-
-    return tx.franchiseOrder.update({
-      where: { id },
-      data: {
-        status: "STOCK_RESERVED",
-        approvedAt: new Date(),
-        reservedAt: new Date(),
-        approvedBy: "Iceberry OS",
-        activities: { create: { type: "ORDER_RESERVED", description: "Sipariş onaylandı ve stok rezerve edildi." } },
-      },
-    });
-  });
+  return prisma.$transaction(tx => executeOrderApproval(tx, id), ORDER_APPROVAL_TRANSACTION_OPTIONS);
 }
 
 export async function createInvoice(id: string) {

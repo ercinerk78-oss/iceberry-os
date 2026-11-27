@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { orderCommand } from "@/app/orders/actions";
+import { OrderApprovalButton } from "@/components/orders/order-approval-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { dateTime, money, ORDER_STATUSES, warehouseLabel } from "@/lib/warehouse";
@@ -59,9 +59,7 @@ export function OrderTable({ orders, admin = false }: { orders: Row[]; admin?: b
                     <Link href={admin ? `/orders/admin/${order.id}` : `/warehouse/orders/${order.id}`}>İncele</Link>
                   </Button>
                   {admin && order.status === "SUBMITTED" ? (
-                    <form action={orderCommand.bind(null, order.id, "approve")}>
-                      <Button size="sm">Onayla</Button>
-                    </form>
+                    <OrderApprovalButton orderId={order.id} />
                   ) : null}
                 </div>
               </td>

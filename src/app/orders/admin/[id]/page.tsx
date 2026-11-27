@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { OrderApprovalButton } from "@/components/orders/order-approval-button";
 
 import { orderCommand } from "@/app/orders/actions";
 import { AppShell } from "@/components/app-shell";
@@ -118,9 +119,7 @@ export default async function OrderAdminDetail({ params }: { params: Promise<{ i
             <CardContent className="flex flex-wrap gap-2">
               {order.status === "SUBMITTED" ? (
                 <>
-                  <form action={orderCommand.bind(null, id, "approve")}>
-                    <Button>Onayla ve Rezerve Et</Button>
-                  </form>
+                  <OrderApprovalButton orderId={id} detailed />
                   <form action={orderCommand.bind(null, id, "reject")}>
                     <Button variant="destructive">Reddet</Button>
                   </form>
