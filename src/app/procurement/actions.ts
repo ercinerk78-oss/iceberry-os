@@ -23,6 +23,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { recentPurchaseRequestWhere, type RecentPurchaseRequest } from "@/lib/recent-purchase-requests";
 import { assertPurchaseRequestReopenable } from "@/lib/purchase-request-drafts";
+import { cancelPurchaseRequestInTx } from "@/lib/purchase-request-cancellation";
 
 export type ProcurementActionState = { ok: boolean; message: string; requestId?: string; updatedAt?: string; submitted?: boolean };
 
@@ -110,6 +111,19 @@ async function requireAnyPermission(permissions: Permission[]) {
   const allowed = permissions.some((permission) => hasPermissionWithOverrides(user.role, permission, user.permissions));
   if (!allowed) throw new Error("Bu işlemi yapma yetkiniz bulunmuyor.");
   return user;
+}
+
+export async function cancelPurchaseRequestAction(id: string, _: ProcurementActionState): Promise<ProcurementActionState> {
+  try {
+    const user = await requireAnyPermission(["warehouse", "procurement"]);
+    await prisma.$transaction(tx => cancelPurchaseRequestInTx(tx, id, user.id));
+    refresh();
+    revalidatePath(`/warehouse/purchase-requests/${id}`);
+    revalidatePath(`/procurement/requests/${id}`);
+    return { ok: true, message: "Talep kaldırıldı. Kaldırılan Talepler bölümünde geçmişi korunuyor." };
+  } catch (error) {
+    return { ..._, ok: false, message: error instanceof Error ? error.message : "Talep kaldırılamadı." };
+  }
 }
 
 export async function reopenPurchaseRequestAction(id: string, _: ProcurementActionState): Promise<ProcurementActionState> {

@@ -5,12 +5,15 @@ import { purchaseRequestDraftWarning } from "@/lib/purchase-request-drafts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PurchaseRequestForm } from "@/components/procurement/purchase-request-form";
+import { PurchaseRequestCancelForm } from "@/components/procurement/purchase-request-cancel-form";
+import { canCancelPurchaseRequest } from "@/lib/purchase-request-cancellation";
 import { procurementDate, procurementLabel, PURCHASE_PRIORITIES, PURCHASE_REQUEST_STATUSES } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function WarehousePurchaseRequestsPage() {
+export default async function WarehousePurchaseRequestsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const cancelled = (await searchParams).view === "cancelled";
   const [warehouses, suppliers, products, requests] = await Promise.all([
     prisma.warehouse.findMany({ where: { archivedAt: null, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.supplier.findMany({ where: { archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -33,6 +36,7 @@ export default async function WarehousePurchaseRequestsPage() {
       orderBy: { name: "asc" },
     }),
     prisma.purchaseRequest.findMany({
+      where: { status: cancelled ? "CANCELLED" : { not: "CANCELLED" } },
       include: {
         warehouse: { select: { name: true } },
         supplier: { select: { name: true } },
@@ -62,7 +66,10 @@ export default async function WarehousePurchaseRequestsPage() {
         />
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Son Talepler</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{cancelled ? "Kaldırılan Talepler" : "Son Talepler"}</h2>
+            <Button asChild variant="outline" size="sm"><Link href={cancelled ? "/warehouse/purchase-requests" : "/warehouse/purchase-requests?view=cancelled"}>{cancelled ? "Son Taleplere Dön" : "Kaldırılan Talepler"}</Link></Button>
+          </div>
           {requests.map((request) => (
             <Card key={request.id} className={purchaseRequestDraftWarning(request.status, request.createdAt) ? "border-red-300 bg-red-50 shadow-none" : "shadow-none"}>
               <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
@@ -83,10 +90,11 @@ export default async function WarehousePurchaseRequestsPage() {
                 </div>
                 <p className="text-sm text-[#65705f]">{procurementDate(request.createdAt)}</p>
                 {["DRAFT", "SUBMITTED"].includes(request.status) && !request.purchaseOrder ? <Button asChild variant="outline"><Link href={`/warehouse/purchase-requests/${request.id}`}>{request.status === "DRAFT" ? "Düzenle / Onaya Gönder" : "Düzenle"}</Link></Button> : null}
+                {canCancelPurchaseRequest(request.status, Boolean(request.purchaseOrder)) ? <PurchaseRequestCancelForm requestId={request.id} requestNumber={request.requestNumber} /> : null}
               </CardContent>
             </Card>
           ))}
-          {!requests.length ? <p className="rounded-lg border border-dashed p-10 text-center text-sm text-[#65705f]">Henüz satın alma talebi yok.</p> : null}
+          {!requests.length ? <p className="rounded-lg border border-dashed p-10 text-center text-sm text-[#65705f]">{cancelled ? "Kaldırılan talep yok." : "Henüz satın alma talebi yok."}</p> : null}
         </section>
       </div>
     </AppShell>

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PurchaseRequestCancelForm } from "@/components/procurement/purchase-request-cancel-form";
+import { canCancelPurchaseRequest } from "@/lib/purchase-request-cancellation";
 import { purchaseRequestDraftWarning } from "@/lib/purchase-request-drafts";
 
 import { AppShell } from "@/components/app-shell";
@@ -39,7 +41,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
     }),
     prisma.purchaseRequest.findMany({
       where: {
-        status: params.status || undefined,
+        status: params.status || { not: "CANCELLED" },
         OR: params.q
           ? [
             { requestNumber: { contains: params.q } },
@@ -82,7 +84,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
           <form className="flex flex-wrap gap-2 rounded-xl border bg-white p-4">
             <input name="q" defaultValue={params.q} placeholder="Talep no, depo veya tedarikçi ara" className="h-10 min-w-64 rounded-lg border px-3" />
             <select name="status" defaultValue={params.status} className="h-10 rounded-lg border px-3">
-              <option value="">Tüm durumlar</option>
+              <option value="">Kaldırılanlar Hariç Tüm Durumlar</option>
               {PURCHASE_REQUEST_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
             <Button>Filtrele</Button>
@@ -121,6 +123,7 @@ export default async function ProcurementRequestsPage({ searchParams }: { search
                     </td>
                     <td className="px-4 py-4">{request.items.length}</td>
                     <td className="px-4 py-4">
+                      {canCancelPurchaseRequest(request.status, Boolean(request.purchaseOrder)) ? <div className="mb-2"><PurchaseRequestCancelForm requestId={request.id} requestNumber={request.requestNumber} /></div> : null}
                       {request.status === "SUBMITTED" && !request.purchaseOrder ? <Button asChild size="sm" variant="outline" className="mb-2"><Link href={`/procurement/requests/${request.id}`}>Düzenle</Link></Button> : null}
                       {request.purchaseOrder ? (
                         <Button asChild size="sm" variant="outline"><Link href={`/procurement/orders/${request.purchaseOrder.id}`}>{request.purchaseOrder.orderNumber}</Link></Button>
