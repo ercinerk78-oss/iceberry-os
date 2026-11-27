@@ -28,7 +28,7 @@ export async function purchaseOrderExcel(order: PurchaseOrderExcelInput) {
   const sheet = book.addWorksheet("Sip.Formu", {
     pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0,
       margins: { left: .25, right: .25, top: .35, bottom: .35, header: .15, footer: .15 } },
-    views: [{ state: "frozen", ySplit: 10, showGridLines: false }],
+    views: [{ state: "normal", showGridLines: false }],
   });
   sheet.columns = [40, 24, 12, 12, 16, 10, 12, 19, 38, 15, 15, 15, 15].map((width) => ({ width }));
   for (const col of ["J","K","L","M"]) sheet.getColumn(col).hidden = true;
@@ -42,24 +42,24 @@ export async function purchaseOrderExcel(order: PurchaseOrderExcelInput) {
     sheet.getCell(range.split(":")[0]).value = value;
   }
   merged("A2:E2", "SİPARİŞ TARİHİ"); merged("F2:I2", excelDate(order.orderDate));
-  merged("A3:E3", "BEKLENEN TESLİM TARİHİ");
-  merged("F3:I3", order.expectedDeliveryDate ? excelDate(order.expectedDeliveryDate) : "Belirtilmedi");
-  sheet.getCell("F2").numFmt = sheet.getCell("F3").numFmt = "dd.mm.yyyy";
-  [["Şube",order.warehouse.name],["Tedarikçi",order.supplier.name],["İrtibat No",order.supplier.phone ?? "Belirtilmedi"],["Sip NO",order.orderNumber]].forEach(([label,value],i) => {
-    sheet.getCell(i+4,1).value = label;
-    merged(`B${i+4}:I${i+4}`, value);
-    sheet.getRow(i+4).height = 23;
+  sheet.getCell("F2").numFmt = "dd.mm.yyyy";
+  [["Şube",order.warehouse.name],["Tedarikçi",order.supplier.name],["Sip NO",order.orderNumber]].forEach(([label,value],i) => {
+    sheet.getCell(i+3,1).value = label;
+    merged(`B${i+3}:I${i+3}`, value);
+    sheet.getRow(i+3).height = 23;
   });
-  merged("A8:A9", "SEVK ADRESİ");
-  merged("B8:I9", order.warehouse.address ?? "Depo adresi sistemde tanımlı değil.");
-  sheet.getRow(8).height = sheet.getRow(9).height = 25;
+  merged("A6:A7", "SEVK ADRESİ");
+  merged("B6:I7", "Ayanoğlu Mahallesi, 1928 Sokak No: 8A Iceberry Global Merkez 07020 Kepez / ANTALYA");
+  sheet.getRow(6).height = sheet.getRow(7).height = 25;
+  const headerRow = 8;
+  const firstItemRow = headerRow + 1;
   const headers = ["ÜRÜN ADI","ÜRÜN STOK KODU / SKU","MİKTAR","BİRİM","Birim Fiyat","KDV (%)","İskonto (%)","Toplam","Not"];
-  sheet.getRow(10).values = headers;
-  sheet.getRow(10).height = 34;
+  sheet.getRow(headerRow).values = headers;
+  sheet.getRow(headerRow).height = 34;
   const currency = order.currency.toUpperCase().replace(/[^A-Z]/g, "") || "TRY";
   const currencyFormat = `#,##0.00 "${currency}"`;
   const calculated = order.items.map((item,i) => {
-    const row = i+11;
+    const row = i + firstItemRow;
     const price = Number(item.unitPrice.toString()), vat = Number(item.vatRate.toString()), discount = Number(item.discountRate.toString());
     if (![item.orderedQuantity,price,vat,discount].every(Number.isFinite)) throw new Error("Sipariş sayısal alanları geçersiz.");
     const amounts = calculatePurchaseLine({ quantity: item.orderedQuantity, unitPrice: price, vatRate: vat, discountRate: discount });
@@ -80,14 +80,14 @@ export async function purchaseOrderExcel(order: PurchaseOrderExcelInput) {
     return amounts;
   });
   const totals = calculatePurchaseTotals(calculated);
-  const end = 10 + order.items.length;
+  const end = headerRow + order.items.length;
   let line = end + 2;
   for (const [label,col,result] of [
     ["Ara Toplam","J",totals.subtotal],["İskonto Toplamı","K",totals.discountTotal],
     ["KDV Toplamı","M",totals.vatTotal],["Genel Toplam","H",totals.grandTotal],
   ] as const) {
     merged(`A${line}:G${line}`, label);
-    sheet.getCell(`H${line}`).value = { formula: end >= 11 ? `SUM(${col}11:${col}${end})` : "0", result };
+    sheet.getCell(`H${line}`).value = { formula: order.items.length ? `SUM(${col}${firstItemRow}:${col}${end})` : "0", result };
     sheet.getCell(`H${line}`).numFmt = currencyFormat;
     sheet.getRow(line).height = 23;
     line++;
@@ -103,26 +103,17 @@ export async function purchaseOrderExcel(order: PurchaseOrderExcelInput) {
     line++;
   }
   if (order.notes) { line++; note("Sipariş Notu", order.notes); }
-  line++;
-  merged(`A${line}:I${line}`, "Son Notlar");
-  sheet.getRow(line++).height = 25;
-  for (const approval of order.approvals) {
-    note(excelDate(approval.actedAt), approval.comment ?? "");
-    sheet.getCell(line-1,1).numFmt = "dd.mm.yyyy";
-  }
-  if (!order.approvals.length) note("", "Not bulunmuyor.");
   for (let row=1;row<line;row++) {
     for (let col=1;col<=9;col++) {
       const cell = sheet.getCell(row,col);
-      cell.font = { name: "Calibri", size: row===10 ? 10 : 11, bold: row===2 || row===3 || row===10 || (row>end && col===1) };
-      cell.alignment = { vertical: "middle", horizontal: row===10 || row===2 || row===3 ? "center" : undefined, wrapText: true };
+      cell.font = { name: "Calibri", size: row===headerRow ? 10 : 11, bold: row===2 || row===headerRow || (row>end && col===1) };
+      cell.alignment = { vertical: "middle", horizontal: row===headerRow || row===2 ? "center" : undefined, wrapText: true };
       if (row>=2) cell.border = { top: {style:"thin",color:{argb:"FFD1D8CE"}}, bottom:{style:"thin",color:{argb:"FFD1D8CE"}}, left:{style:"thin",color:{argb:"FFD1D8CE"}}, right:{style:"thin",color:{argb:"FFD1D8CE"}} };
-      if (row===10 || row===2 || row===3) cell.fill = { type:"pattern",pattern:"solid",fgColor:{argb:fill} };
+      if (row===headerRow || row===2) cell.fill = { type:"pattern",pattern:"solid",fgColor:{argb:fill} };
     }
   }
   for (let row=end+2;row<=end+5;row++) sheet.getRow(row).font = { name:"Calibri", size:11, bold:true };
   sheet.pageSetup.printArea = `A1:I${line-1}`;
-  sheet.pageSetup.printTitlesRow = "10:10";
   sheet.headerFooter.oddFooter = `&L${order.orderNumber.replaceAll("&","&&")}&R&P / &N`;
   return book.xlsx.writeBuffer();
 }
