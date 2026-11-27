@@ -20,6 +20,7 @@ export default async function NewPurchaseOrderPage({ searchParams }: { searchPar
         unit: true,
         purchasePrice: true,
         vatRate: true,
+        stocks: { select: { warehouseId: true, quantity: true } },
         supplierProducts: {
           where: { isActive: true, supplier: { archivedAt: null, status: "ACTIVE" } },
           select: { supplierId: true, unitPrice: true, isPreferred: true, supplierSku: true, supplierProductName: true },

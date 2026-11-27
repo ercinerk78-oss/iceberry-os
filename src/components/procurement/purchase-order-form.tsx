@@ -7,6 +7,7 @@ import { createPurchaseOrderAction, type ProcurementActionState } from "@/app/pr
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { calculatePurchaseLine, calculatePurchaseTotals, procurementMoney } from "@/lib/procurement";
+import { purchaseRequestStock } from "@/lib/purchase-request-stock";
 
 type Option = { id: string; name: string };
 type ProductOption = {
@@ -16,6 +17,7 @@ type ProductOption = {
   unit: string;
   purchasePrice: number;
   vatRate: number;
+  stocks: { warehouseId: string; quantity: number }[];
   supplierProducts: { supplierId: string; unitPrice: number | null; isPreferred: boolean; supplierSku?: string | null; supplierProductName?: string | null }[];
 };
 type Line = { key: string; productId: string; productSearch: string; quantity: string; unitPrice: string; vatRate: string; discountRate: string; notes: string };
@@ -44,6 +46,7 @@ export function PurchaseOrderForm({
   const [state, action, pending] = useActionState(createPurchaseOrderAction, initialState);
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [emptyLine()]);
   const [supplierId, setSupplierId] = useState(initialSupplierId);
+  const [warehouseId, setWarehouseId] = useState(initialWarehouseId);
   const selectableProducts = useMemo(() => {
     if (!supplierId) return [];
     return products.filter((product) => product.supplierProducts.some((mapping) => mapping.supplierId === supplierId));
@@ -110,7 +113,7 @@ export function PurchaseOrderForm({
             </label>
             <label className="text-sm">
               Teslim Deposu
-              <select name="warehouseId" required defaultValue={initialWarehouseId} className="mt-1 h-10 w-full rounded-lg border px-3">
+              <select name="warehouseId" required value={warehouseId} onChange={event => setWarehouseId(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3">
                 <option value="">Depo seçin</option>
                 {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
               </select>
@@ -161,7 +164,7 @@ export function PurchaseOrderForm({
               });
 
               return (
-                <div key={line.key} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.4fr_0.5fr_0.7fr_0.5fr_0.5fr_0.8fr_auto]">
+                <div key={line.key} className={`grid gap-3 rounded-lg border p-3 ${sourceRequestId ? "lg:grid-cols-[1.4fr_0.5fr_0.7fr_0.5fr_0.9fr_0.8fr_auto]" : "lg:grid-cols-[1.4fr_0.5fr_0.7fr_0.5fr_0.5fr_0.8fr_auto]"}`}>
                   <div className="relative text-xs">
                     Ürün
                     <input
@@ -201,10 +204,14 @@ export function PurchaseOrderForm({
                     KDV %
                     <input name="vatRate" type="text" readOnly value={line.productId ? line.vatRate : ""} className="mt-1 h-10 w-full rounded-lg border bg-muted px-2" />
                   </label>
-                  <label className="text-xs">
+                  {sourceRequestId ? <label className="min-w-0 text-xs">
+                    Depodaki Mevcut Stok
+                    <input readOnly value={purchaseRequestStock(product, warehouseId)} placeholder={!warehouseId ? "Önce depo seçin" : !product ? "Önce ürün seçin" : ""} className="mt-1 h-10 w-full min-w-0 rounded-lg border bg-muted px-2" />
+                    <input type="hidden" name="discountRate" value={line.discountRate} />
+                  </label> : <label className="text-xs">
                     İskonto %
                     <input name="discountRate" type="text" inputMode="decimal" value={line.discountRate} onChange={(event) => updateLine(line.key, { discountRate: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
-                  </label>
+                  </label>}
                   <label className="text-xs">
                     Not
                     <input name="itemNotes" value={line.notes} onChange={(event) => updateLine(line.key, { notes: event.target.value })} className="mt-1 h-10 w-full rounded-lg border px-2" />
